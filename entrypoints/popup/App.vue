@@ -63,7 +63,7 @@ const menuRef = ref<HTMLElement | null>(null);
 const expandedIds = ref<Set<string>>(new Set());
 const openCardMenuId = ref<string | null>(null);
 const showConfirmResetModal = ref(false);
-const appVersion = ref('0.6.0');
+const appVersion = ref('0.7.0');
 
 const GITHUB_REPO_URL = 'https://github.com/luizGDpulz/octa-blaster';
 const GITHUB_DISCUSSIONS_URL = 'https://github.com/luizGDpulz/octa-blaster/discussions';
