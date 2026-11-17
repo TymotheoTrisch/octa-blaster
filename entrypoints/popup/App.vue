@@ -2,7 +2,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template';
 import type { LicenseTicketInfo } from '@/utils/licenseDetector';
-import { resolveVariables } from '@/utils/templateResolver';
+import { prepareTemplate } from '@/utils/templateVariables';
+import Settings from './Settings.vue';
 import {
   loadStoredTemplates,
   saveStoredTemplates,
@@ -40,6 +41,8 @@ const detectedLicense = ref<LicenseTicketInfo | null>(null);
 const isAutomatingLicense = ref(false);
 
 const templates = ref<QuickReplyTemplate[]>([]);
+let templatesBase: QuickReplyTemplate[] = [];
+function rememberTemplatesBase() { templatesBase = JSON.parse(JSON.stringify(templates.value)); }
 const searchQuery = ref('');
 const showForm = ref(false);
 const editingId = ref<string | null>(null);
@@ -108,6 +111,7 @@ function setStatus(msg: string, type: 'success' | 'error' | 'info' = 'info') {
 async function loadTemplates() {
   try {
     templates.value = await loadStoredTemplates();
+    rememberTemplatesBase();
   } catch (err) {
     console.error('Erro ao carregar modelos:', err);
     setStatus('Falha ao carregar modelos salvos', 'error');
@@ -116,9 +120,11 @@ async function loadTemplates() {
 
 async function saveTemplates() {
   try {
-    templates.value = await saveStoredTemplates(templates.value);
+    templates.value = await saveStoredTemplates(templates.value, templatesBase);
+    rememberTemplatesBase();
   } catch (err: any) {
     console.error('Erro ao persistir modelos:', err);
+    await loadTemplates();
     setStatus(err?.message || 'Erro ao salvar no armazenamento', 'error');
     throw err;
   }
@@ -135,7 +141,8 @@ function cancelResetDefaults() {
 async function confirmResetDefaults() {
   showConfirmResetModal.value = false;
   try {
-    templates.value = await resetToDefaultTemplates(templates.value);
+    templates.value = await resetToDefaultTemplates(templates.value, templatesBase);
+    rememberTemplatesBase();
     setStatus('Modelos padrão restaurados! Seus modelos manuais foram mantidos.', 'success');
   } catch (err) {
     console.error('Erro ao restaurar padrões:', err);
@@ -167,8 +174,9 @@ async function handleFileImport(e: Event) {
   try {
     const text = await file.text();
     const importedItems = parseTemplatesFromJson(text);
-    const { count, merged } = await mergeImportedTemplates(templates.value, importedItems);
+    const { count, merged } = await mergeImportedTemplates(templates.value, importedItems, templatesBase);
     templates.value = merged;
+    rememberTemplatesBase();
     setStatus(`${count} modelo(s) importado(s) com sucesso!`, 'success');
   } catch (err: any) {
     console.error('Erro ao importar modelos:', err);
@@ -263,7 +271,6 @@ async function insertIntoTicket(template: QuickReplyTemplate) {
   if (isSending.value) return;
   isSending.value = true;
 
-  const processedContent = resolveVariables(template.content);
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   try {
@@ -273,11 +280,15 @@ async function insertIntoTicket(template: QuickReplyTemplate) {
       return;
     }
 
-    const res = (await browser.tabs.sendMessage(tab.id, {
+    const target = await browser.runtime.sendMessage({ action: 'CAPTURE_EDITOR', tabId: tab.id });
+    if (!target?.success) { setStatus('Clique primeiro no campo de resposta do ticket.', 'error'); return; }
+    const processedContent = await prepareTemplate(template.content);
+    if (processedContent === null) return;
+    const res = (await browser.runtime.sendMessage({ action: 'ROUTE_TICKET_ACTION', tabId: tab.id, expectedToken: target.editorToken, request: {
       action: 'INSERT_REPLY',
       requestId,
       content: processedContent,
-    })) as InsertMessageResponse | undefined;
+    } })) as InsertMessageResponse | undefined;
 
     if (res?.success) {
       setStatus('Texto inserido com sucesso!', 'success');
@@ -295,8 +306,9 @@ async function insertIntoTicket(template: QuickReplyTemplate) {
 }
 
 async function copyToClipboard(template: QuickReplyTemplate) {
-  const processedContent = resolveVariables(template.content);
   try {
+    const processedContent = await prepareTemplate(template.content);
+    if (processedContent === null) return;
     await navigator.clipboard.writeText(processedContent);
     setStatus('Copiado para a área de transferência!', 'success');
   } catch {
@@ -323,9 +335,9 @@ async function checkLicenseStatus() {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (tab?.id) {
-      const res = (await browser.tabs.sendMessage(tab.id, {
+      const res = (await browser.runtime.sendMessage({ action: 'ROUTE_TICKET_ACTION', tabId: tab.id, request: {
         action: 'CHECK_LICENSE_TICKET',
-      })) as InsertMessageResponse | undefined;
+      } })) as InsertMessageResponse | undefined;
       if (res?.success && res.data && res.data.isLicenseTicket) {
         detectedLicense.value = res.data;
       }
@@ -343,10 +355,10 @@ async function triggerLicenseMentions() {
       return;
     }
 
-    const res = (await browser.tabs.sendMessage(tab.id, {
+    const res = (await browser.runtime.sendMessage({ action: 'ROUTE_TICKET_ACTION', tabId: tab.id, request: {
       action: 'AUTOMATE_LICENSE_MENTIONS',
-      force: !!detectedLicense.value,
-    })) as InsertMessageResponse | undefined;
+      force: false,
+    } })) as InsertMessageResponse | undefined;
 
     if (res?.success) {
       setStatus('Responsáveis de licenças marcados em Anotação Interna!', 'success');
@@ -564,6 +576,7 @@ onUnmounted(() => {
         </div>
       </div>
     </header>
+    <Settings />
 
     <!-- Status Message Alert -->
     <transition name="fade">

@@ -15,7 +15,8 @@
     "sign:firefox": "web-ext sign --source-dir .output/firefox-mv2 --artifacts-dir .output --channel unlisted",
     "compile": "vue-tsc --noEmit",
     "generate:icons": "node scripts/generate-icons.js",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "test": "node --import ./tests/register.mjs --test tests/*.test.mjs"
   },
   "dependencies": {
     "lucide-vue-next": "^1.0.0",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@wxt-dev/module-vue": "^1.0.3",
+    "jsdom": "^31.0.1",
     "sharp": "^0.35.5",
     "typescript": "^5.9.3",
     "vite": "^8.1.5",

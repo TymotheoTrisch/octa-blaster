@@ -29,17 +29,11 @@ function extractCleanText(root: HTMLElement | null | undefined): string {
     return root.innerText || root.textContent || '';
   }
 
-  const originalDisplays: string[] = [];
-  widgets.forEach((w, i) => {
-    originalDisplays[i] = w.style.display;
-    w.style.display = 'none';
-  });
-
-  const text = root.innerText || root.textContent || '';
-
-  widgets.forEach((w, i) => {
-    w.style.display = originalDisplays[i] ?? '';
-  });
+  const clone = root.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('.octablaster-floating-widget').forEach(widget => widget.remove());
+  clone.querySelectorAll('br').forEach(el => el.replaceWith('\n'));
+  clone.querySelectorAll('div, p, li, section, header, h1, h2, h3, tr').forEach(el => el.append('\n'));
+  const text = clone.textContent || '';
 
   return text;
 }
@@ -48,18 +42,45 @@ function extractCleanText(root: HTMLElement | null | undefined): string {
  * Obtém o contêiner isolado do ticket específico a partir de qualquer elemento interno.
  * Garante que a busca fique restrita a este ticket, sem vazar dados de outros tickets.
  */
-export function getScopedTicketContainer(el: HTMLElement): HTMLElement {
-  if (!el) return document.body;
-  if (typeof el.closest === 'function') {
-    const explicitContainer = el.closest<HTMLElement>(
-      '.tab-pane, [role="tabpanel"], .ticket-container, .ticket-view, .ticket-page, form, .main--container_X1D7w, [ticket-id]'
-    );
-    if (explicitContainer && el.ownerDocument && explicitContainer !== el.ownerDocument.body) {
-      return explicitContainer;
-    }
-  }
+export const TICKET_SELECTOR = '[ticket-id], [ticket], [data-cy="ticket_content"], .ticket-container, .ticket-view, .ticket-page, [role="tabpanel"], .tab-pane';
 
-  return el.ownerDocument?.body || el;
+export function getScopedTicketContainer(el: HTMLElement): HTMLElement | null {
+  const local = el.closest<HTMLElement>(TICKET_SELECTOR);
+  if (local) return local;
+  try {
+    const frame = el.ownerDocument.defaultView?.frameElement;
+    if (frame && frame.nodeType === 1) return getScopedTicketContainer(frame as HTMLElement);
+  } catch { /* Frames de outra origem exigem um contêiner próprio. */ }
+  return null;
+}
+
+export function isInTicketScope(el: HTMLElement, scope: HTMLElement): boolean {
+  if (scope.contains(el)) return true;
+  try {
+    const frame = el.ownerDocument.defaultView?.frameElement;
+    return !!frame && isInTicketScope(frame as HTMLElement, scope);
+  } catch { return false; }
+}
+
+export function isTicketElementVisible(el: HTMLElement): boolean {
+  let current: HTMLElement | null = el;
+  while (current) {
+    if (!current.isConnected || current.getBoundingClientRect().width <= 0 || current.getBoundingClientRect().height <= 0) return false;
+    const win = current.ownerDocument.defaultView;
+    for (let ancestor: HTMLElement | null = current; ancestor; ancestor = ancestor.parentElement) {
+      const style = win?.getComputedStyle(ancestor);
+      if (ancestor.hidden || ancestor.getAttribute('aria-hidden') === 'true' ||
+        style?.display === 'none' || style?.visibility === 'hidden' || style?.opacity === '0') return false;
+    }
+    try {
+      current = win?.frameElement as HTMLElement | null;
+    } catch { return false; }
+  }
+  return true;
+}
+
+export function getTicketIdentity(scope: HTMLElement): string {
+  return `${scope.ownerDocument.URL}|${scope.getAttribute('ticket-id')}|${scope.getAttribute('ticket')}|${scope.getAttribute('data-ticket-id')}|${scope.id}`;
 }
 
 /**
@@ -71,25 +92,15 @@ export function detectLicenseTicket(scope: Document | HTMLElement | unknown = do
   try {
     if (!scope) return null;
 
-    let targetDoc: Document | null = null;
     let targetRoot: HTMLElement | null = null;
-
     if (isDOMElement(scope)) {
-      targetDoc = scope.ownerDocument;
       targetRoot = getScopedTicketContainer(scope);
     } else if (scope && typeof scope === 'object' && 'nodeType' in scope && (scope as Node).nodeType === 9) {
-      targetDoc = scope as Document;
-      targetRoot = (targetDoc.body || targetDoc.documentElement) as HTMLElement | null;
-    } else {
-      targetDoc = document;
-      targetRoot = (document.body || document.documentElement) as HTMLElement | null;
+      const roots = (scope as Document).querySelectorAll<HTMLElement>(TICKET_SELECTOR);
+      if (roots.length === 1) targetRoot = roots[0] || null;
     }
-
     if (!targetRoot) return null;
-
-    const docTitle = targetDoc?.title || '';
-    const cleanText = extractCleanText(targetRoot);
-    const fullText = `${docTitle}\n${cleanText}`;
+    const fullText = extractCleanText(targetRoot);
 
     // 1. Validação essencial:
     // Precisa conter termo de licença E operação de licença
@@ -153,7 +164,7 @@ export function detectLicenseTicket(scope: Document | HTMLElement | unknown = do
       databaseNumber,
       clientName: clientMatch && clientMatch[1] ? clientMatch[1].trim() : undefined,
       resellerName: resellerMatch && resellerMatch[1] ? resellerMatch[1].trim() : undefined,
-      rawTitle: titleLine || (docTitle && /licen[cç]a/i.test(docTitle) ? docTitle : undefined),
+      rawTitle: titleLine,
     };
   } catch (error) {
     console.warn('[OctaBlaster] Erro na detecção de ticket de licença:', error);

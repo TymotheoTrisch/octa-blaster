@@ -1,7 +1,8 @@
 import { insertTextIntoElement } from '@/utils/insertText';
-import { detectLicenseTicket, type LicenseTicketInfo } from '@/utils/licenseDetector';
-import { automateLicenseMentions, switchToInternalNote } from '@/utils/mentionHelper';
-import { resolveVariables } from '@/utils/templateResolver';
+import { detectLicenseTicket, getScopedTicketContainer, getTicketIdentity, isTicketElementVisible, type LicenseTicketInfo } from '@/utils/licenseDetector';
+import { automateLicenseMentions } from '@/utils/mentionHelper';
+import { prepareTemplate } from '@/utils/templateVariables';
+import { installReplyShortcut } from '@/utils/replyShortcut';
 import { loadStoredTemplates } from '@/utils/templateStorage';
 import type { InsertMessageRequest, InsertMessageResponse, QuickReplyTemplate } from '@/types/template';
 
@@ -14,13 +15,20 @@ export default defineContentScript({
     console.log('[OctaBlaster] Content script inicializado no frame:', window.location.href);
     let lastActiveInput: HTMLElement | null = null;
     const processedRequests = new Set<string>();
+    const editorTokens = new WeakMap<HTMLElement, string>();
+    let focusedTicket: HTMLElement | null = null;
+    let focusedIdentity = '';
+    function isUsableEditor(el: HTMLElement): boolean {
+      const scope = getScopedTicketContainer(el);
+      return !!scope && !el.matches(':disabled, [readonly]') && isTicketElementVisible(el) && isTicketElementVisible(scope);
+    }
 
     function isEditableElement(el: Element | null): el is HTMLElement {
       if (!el) return false;
       if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
         const type = el.type ? el.type.toLowerCase() : 'text';
-        const allowedTypes = ['text', 'search', 'email', 'url', 'tel', 'password'];
-        return allowedTypes.includes(type) || el instanceof HTMLTextAreaElement;
+        const allowedTypes = ['text'];
+        return el instanceof HTMLTextAreaElement || (allowedTypes.includes(type) && el.matches('[role="textbox"], .note-editable, [data-octablaster-editor]'));
       }
       if (el instanceof HTMLElement) {
         if (el.isContentEditable || el.getAttribute('contenteditable') === 'true') {
@@ -34,116 +42,46 @@ export default defineContentScript({
     }
 
     function recordFocus(el: HTMLElement) {
-      if (isEditableElement(el)) {
+      if (isEditableElement(el) && isUsableEditor(el)) {
         lastActiveInput = el;
+        const ticket = getScopedTicketContainer(el)!;
+        const identity = getTicketIdentity(ticket);
+        if (ticket !== focusedTicket || identity !== focusedIdentity) editorTokens.delete(el);
+        focusedTicket = ticket;
+        focusedIdentity = identity;
+        let token = editorTokens.get(el);
+        if (!token) { token = crypto.randomUUID(); editorTokens.set(el, token); }
+        void browser.runtime.sendMessage({ action: 'REGISTER_EDITOR', editorToken: token }).catch(() => {});
       }
     }
 
     document.addEventListener('focusin', (e) => recordFocus(e.target as HTMLElement), true);
     document.addEventListener('click', (e) => recordFocus(e.target as HTMLElement), true);
     document.addEventListener('keyup', (e) => recordFocus(e.target as HTMLElement), true);
-
-    function getDeepActiveElement(doc: Document = document): HTMLElement | null {
-      let active = doc.activeElement as HTMLElement | null;
-      while (active && active instanceof HTMLIFrameElement) {
-        try {
-          const childDoc = active.contentDocument || active.contentWindow?.document;
-          if (childDoc && childDoc.activeElement && childDoc.activeElement !== childDoc.body) {
-            active = childDoc.activeElement as HTMLElement;
-          } else {
-            break;
-          }
-        } catch {
-          break;
-        }
-      }
-      return active;
-    }
-
-    function collectEditableCandidates(doc: Document = document): HTMLElement[] {
-      const results: HTMLElement[] = [];
-      try {
-        const candidates = doc.querySelectorAll<HTMLElement>(
-          '.ProseMirror[contenteditable="true"], [contenteditable="true"]:not([aria-hidden="true"]), textarea:not([disabled]):not([readonly]), input[type="text"]:not([disabled]):not([readonly])',
-        );
-
-        for (const el of Array.from(candidates)) {
-          const rect = el.getBoundingClientRect();
-          const win = el.ownerDocument.defaultView || window;
-          if (rect.width > 20 && rect.height > 20 && win.getComputedStyle(el).display !== 'none') {
-            results.push(el);
-          }
-        }
-
-        const iframes = doc.querySelectorAll<HTMLIFrameElement>('iframe');
-        for (const ifr of Array.from(iframes)) {
-          try {
-            const childDoc = ifr.contentDocument || ifr.contentWindow?.document;
-            if (childDoc) {
-              results.push(...collectEditableCandidates(childDoc));
-            }
-          } catch {}
-        }
-      } catch (err) {
-        console.warn('[OctaBlaster] Erro ao buscar campos editáveis:', err);
-      }
-      return results;
-    }
+    installReplyShortcut(document, el => isEditableElement(el) && isUsableEditor(el),
+      el => el === lastActiveInput && isUsableEditor(el) && getScopedTicketContainer(el) === focusedTicket && !!focusedTicket && getTicketIdentity(focusedTicket) === focusedIdentity);
 
     function findBestEditableElement(): HTMLElement | null {
-      const deepActive = getDeepActiveElement(document);
-      if (deepActive && isEditableElement(deepActive)) {
-        return deepActive;
-      }
-
-      if (lastActiveInput && lastActiveInput.ownerDocument.contains(lastActiveInput)) {
+      if (lastActiveInput && isUsableEditor(lastActiveInput) && getScopedTicketContainer(lastActiveInput) === focusedTicket && !!focusedTicket && getTicketIdentity(focusedTicket) === focusedIdentity) {
         return lastActiveInput;
       }
-
-      const candidates = collectEditableCandidates(document);
-      if (candidates.length === 0) return null;
-
-      const proseMirror = candidates.find((el) => el.classList.contains('ProseMirror') || el.isContentEditable);
-      if (proseMirror) return proseMirror;
-
-      const largeTextarea = candidates.find(
-        (el) => el instanceof HTMLTextAreaElement && el.getBoundingClientRect().height >= 50,
-      );
-      if (largeTextarea) return largeTextarea;
-
-      const anyTextarea = candidates.find((el) => el instanceof HTMLTextAreaElement);
-      if (anyTextarea) return anyTextarea;
-
-      return candidates[0] || null;
+      return null;
     }
-
-    // Comunicação fallback entre iframes
-    window.addEventListener('message', (event) => {
-      if (
-        event.data &&
-        event.data.type === 'OCTABLASTER_INSERT_BROADCAST' &&
-        typeof event.data.content === 'string'
-      ) {
-        const reqId = event.data.requestId as string | undefined;
-        if (reqId && processedRequests.has(reqId)) return;
-        if (reqId) processedRequests.add(reqId);
-
-        const localTarget = findBestEditableElement();
-        if (localTarget) {
-          insertTextIntoElement(localTarget, event.data.content, reqId);
-        }
-      }
-    });
 
     // Ouvinte de mensagens da extensão (popup, sidebar ou background)
     browser.runtime.onMessage.addListener(
-      (message: unknown, _sender, sendResponse: (res: InsertMessageResponse) => void) => {
+      (message: unknown, sender, sendResponse: (res: InsertMessageResponse) => void) => {
         const req = message as InsertMessageRequest;
-        if (!req) return;
+        if (!req || sender.id !== browser.runtime.id) return;
+        const selected = findBestEditableElement();
+        if (!selected || req.editorToken !== editorTokens.get(selected)) {
+          sendResponse({ success: false, error: 'Clique novamente no campo de resposta do ticket.' });
+          return true;
+        }
 
         // Ação 1: Checar se o ticket é de licença
         if (req.action === 'CHECK_LICENSE_TICKET') {
-          const info = detectLicenseTicket(document);
+          const info = detectLicenseTicket(selected);
           sendResponse({ success: true, data: info });
           return true;
         }
@@ -169,7 +107,7 @@ export default defineContentScript({
             }
           }
 
-          automateLicenseMentions(target, document, null, req.targets).then((result) => {
+          automateLicenseMentions(target, target.ownerDocument, getScopedTicketContainer(target), req.targets).then((result) => {
             sendResponse(result);
           });
           return true;
@@ -196,22 +134,6 @@ export default defineContentScript({
               sendResponse({ success: false, error: 'Falha ao injetar texto no editor do ticket.' });
             }
             return true;
-          }
-
-          if (window === window.top && req.content) {
-            try {
-              const childIframes = document.querySelectorAll<HTMLIFrameElement>('iframe');
-              childIframes.forEach((ifr) => {
-                ifr.contentWindow?.postMessage(
-                  {
-                    type: 'OCTABLASTER_INSERT_BROADCAST',
-                    content: req.content,
-                    requestId: reqId,
-                  },
-                  '*',
-                );
-              });
-            } catch {}
           }
 
           sendResponse({
@@ -281,34 +203,6 @@ export default defineContentScript({
       return style.display !== 'none' && style.visibility !== 'hidden';
     }
 
-    function findVisibleNoteEditable(rootDoc: Document = document): HTMLElement | null {
-      const allDocs = getAllAccessibleDocuments(rootDoc);
-
-      const selectors = [
-        '.note-editable',
-        '.note-editor [contenteditable="true"]',
-        '.note-editing-area [contenteditable="true"]',
-        '[contenteditable="true"][role="textbox"]',
-        '.note-editable[contenteditable="true"]',
-      ];
-
-      for (const d of allDocs) {
-        try {
-          for (const selector of selectors) {
-            const candidates = d.querySelectorAll<HTMLElement>(selector);
-            for (const el of Array.from(candidates)) {
-              const rect = el.getBoundingClientRect();
-              if (rect.width >= 50 && rect.height >= 30 && isElementVisible(el)) {
-                return el;
-              }
-            }
-          }
-        } catch {}
-      }
-
-      return null;
-    }
-
     /**
      * Localiza todas as barras de abas de tickets presentes no documento atual
      */
@@ -350,26 +244,20 @@ export default defineContentScript({
      * Encontra o editor de texto correspondente a um widget específico dentro do ticket
      */
     function findEditorForWidget(widget: HTMLElement, container: HTMLElement): HTMLElement | null {
-      // 1. Tenta encontrar no mesmo contêiner ou bloco do ticket
-      const ticketRoot =
-        container.closest<HTMLElement>(
-          '[ticket], [ticket-id], [data-cy="ticket_content"], .ticket-container, .ticket-view, .ticket-page, .box-white, .box',
-        ) || container.parentElement;
-
-      if (ticketRoot) {
-        const editables = ticketRoot.querySelectorAll<HTMLElement>(
-          '.note-editable[contenteditable="true"], .note-editable, [contenteditable="true"]:not([aria-hidden="true"]), textarea:not([disabled])',
-        );
-        for (const el of Array.from(editables)) {
-          const rect = el.getBoundingClientRect();
-          if (rect.width > 20 && rect.height > 20 && isElementVisible(el)) {
-            return el;
-          }
+      const ticketRoot = getScopedTicketContainer(container);
+      if (!ticketRoot) return null;
+      const candidates: HTMLElement[] = [];
+      function collect(root: ParentNode) {
+        candidates.push(...Array.from(root.querySelectorAll<HTMLElement>(
+          '.note-editable[contenteditable="true"], [contenteditable="true"], textarea:not([disabled]):not([readonly])',
+        )).filter(el => isUsableEditor(el) && getScopedTicketContainer(el) === ticketRoot));
+        for (const frame of root.querySelectorAll<HTMLIFrameElement>('iframe')) {
+          try { if (frame.contentDocument) collect(frame.contentDocument); } catch { /* Outra origem. */ }
         }
       }
-
-      // 2. Fallback: busca no mesmo documento do widget
-      return findVisibleNoteEditable(widget.ownerDocument) || findBestEditableElement();
+      collect(ticketRoot);
+      if (lastActiveInput && candidates.includes(lastActiveInput)) return lastActiveInput;
+      return candidates.length === 1 ? candidates[0]! : null;
     }
 
     function ensureWidgetStyles(doc: Document = document) {
@@ -770,7 +658,7 @@ export default defineContentScript({
         try {
           const localEditor = findEditorForWidget(widget, container);
           const targetDoc = localEditor?.ownerDocument || doc;
-          const res = await automateLicenseMentions(localEditor, targetDoc, container);
+          const res = await automateLicenseMentions(localEditor, targetDoc, getScopedTicketContainer(container));
           if (res.success) {
             setLicenseBtnState(ICONS.check, 'Marcados!');
           } else {
@@ -842,12 +730,17 @@ export default defineContentScript({
               e.stopPropagation();
             });
 
-            itemBtn.addEventListener('click', (e) => {
+            itemBtn.addEventListener('click', async (e) => {
               e.preventDefault();
               e.stopPropagation();
               const target = findEditorForWidget(widget, container);
               if (target) {
-                const processed = resolveVariables(tpl.content);
+                const ticket = getScopedTicketContainer(target);
+                const identity = ticket ? getTicketIdentity(ticket) : '';
+                const snapshot = 'value' in target ? (target as HTMLTextAreaElement).value : target.innerHTML;
+                const processed = await prepareTemplate(tpl.content, doc);
+                if (processed === null || !isUsableEditor(target) || getScopedTicketContainer(target) !== ticket ||
+                  (focusedTicket && focusedTicket !== ticket) || !ticket || getTicketIdentity(ticket) !== identity || ('value' in target ? (target as HTMLTextAreaElement).value : target.innerHTML) !== snapshot) return;
                 const reqId = `widget_${Date.now()}`;
                 insertTextIntoElement(target, processed, reqId);
                 dropdownMenu.style.display = 'none';

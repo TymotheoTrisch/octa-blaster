@@ -2,6 +2,9 @@ import type { QuickReplyTemplate } from '@/types/template';
 
 export const STORAGE_KEY = 'octablaster_quick_replies_v2';
 export const HAS_INITIALIZED_KEY = 'octablaster_initialized_v2';
+export const DEFAULTS_STATE_KEY = 'octablaster_defaults_state';
+const DEFAULTS_VERSION = 1;
+const LEGACY_DEFAULT_IDS = ['inatividade-2-4', 'inatividade-6', 'saudacao-geral', 'solicitacao-prints'];
 
 const LEGACY_INACTIVITY_CONTENTS: Record<string, string> = {
   'inatividade-2-4':
@@ -208,9 +211,9 @@ export async function rawStorageSet(items: Record<string, any>): Promise<void> {
 /**
  * Carrega todos os modelos armazenados. Inicializa com os padrões na primeira execução.
  */
-export async function loadStoredTemplates(): Promise<QuickReplyTemplate[]> {
+export async function loadStoredTemplatesLocal(throwOnError = false): Promise<QuickReplyTemplate[]> {
   try {
-    const data = await rawStorageGet([STORAGE_KEY, HAS_INITIALIZED_KEY]);
+    const data = await rawStorageGet([STORAGE_KEY, HAS_INITIALIZED_KEY, DEFAULTS_STATE_KEY]);
     const stored = data[STORAGE_KEY] as any[] | undefined;
     const initialized = Boolean(data[HAS_INITIALIZED_KEY]);
 
@@ -218,6 +221,7 @@ export async function loadStoredTemplates(): Promise<QuickReplyTemplate[]> {
       const initial = sanitizeTemplatesList(DEFAULT_TEMPLATES);
       await rawStorageSet({
         [STORAGE_KEY]: initial,
+        [DEFAULTS_STATE_KEY]: { version: DEFAULTS_VERSION, seenIds: DEFAULT_TEMPLATES.map(t => t.id) },
         [HAS_INITIALIZED_KEY]: true,
       });
       return initial;
@@ -242,8 +246,20 @@ export async function loadStoredTemplates(): Promise<QuickReplyTemplate[]> {
         return item;
       });
 
-      if (migrated) {
-        await rawStorageSet({ [STORAGE_KEY]: updated });
+      const state = data[DEFAULTS_STATE_KEY];
+      const seenIds = new Set<string>(Array.isArray(state?.seenIds) ? state.seenIds : LEGACY_DEFAULT_IDS);
+      for (const template of DEFAULT_TEMPLATES) {
+        if (!seenIds.has(template.id) && !updated.some(item => item.id === template.id)) {
+          updated.push({ ...template });
+          migrated = true;
+        }
+        seenIds.add(template.id);
+      }
+      if (migrated || !state || state.version !== DEFAULTS_VERSION || seenIds.size !== state.seenIds?.length) {
+        await rawStorageSet({
+          [STORAGE_KEY]: updated,
+          [DEFAULTS_STATE_KEY]: { version: DEFAULTS_VERSION, seenIds: [...seenIds] },
+        });
       }
       return updated;
     }
@@ -251,6 +267,7 @@ export async function loadStoredTemplates(): Promise<QuickReplyTemplate[]> {
     return [];
   } catch (err) {
     console.error('[OctaBlaster] Falha crítica ao carregar modelos:', err);
+    if (throwOnError) throw err;
     return sanitizeTemplatesList(DEFAULT_TEMPLATES);
   }
 }
@@ -258,23 +275,90 @@ export async function loadStoredTemplates(): Promise<QuickReplyTemplate[]> {
 /**
  * Persiste a lista completa de modelos com sanitização rigorosa.
  */
-export async function saveStoredTemplates(templates: QuickReplyTemplate[]): Promise<QuickReplyTemplate[]> {
-  const cleanList = sanitizeTemplatesList(templates);
+export async function saveStoredTemplatesLocal(
+  templates: QuickReplyTemplate[],
+  base?: QuickReplyTemplate[],
+): Promise<QuickReplyTemplate[]> {
+  let cleanList = sanitizeTemplatesList(templates);
+  if (base) {
+    const current = await loadStoredTemplatesLocal(true);
+    const baseMap = new Map(sanitizeTemplatesList(base).map(template => [template.id, template]));
+    const proposedMap = new Map(cleanList.map(template => [template.id, template]));
+    const currentMap = new Map(current.map(template => [template.id, template]));
+    const changedIds = new Set([...baseMap.keys(), ...proposedMap.keys()]);
+
+    for (const id of changedIds) {
+      const original = baseMap.get(id);
+      const proposed = proposedMap.get(id);
+      if (JSON.stringify(original) === JSON.stringify(proposed)) continue;
+
+      const latest = currentMap.get(id);
+      if (JSON.stringify(latest) !== JSON.stringify(original) && JSON.stringify(latest) !== JSON.stringify(proposed)) {
+        throw new Error('Este modelo foi alterado em outro painel. Reabra o popup para carregar a versão atual antes de salvar.');
+      }
+      if (proposed) currentMap.set(id, proposed);
+      else currentMap.delete(id);
+    }
+    const orderedIds = new Set([...proposedMap.keys(), ...currentMap.keys()]);
+    cleanList = [];
+    for (const id of orderedIds) {
+      const template = currentMap.get(id);
+      if (template) cleanList.push(template);
+    }
+  }
+  const data = await rawStorageGet([DEFAULTS_STATE_KEY]);
+  const state = data[DEFAULTS_STATE_KEY];
+  const seenIds = new Set<string>(Array.isArray(state?.seenIds) ? state.seenIds : LEGACY_DEFAULT_IDS);
+  for (const template of DEFAULT_TEMPLATES) {
+    if (!seenIds.has(template.id) && !cleanList.some(item => item.id === template.id)) cleanList.push({ ...template });
+    seenIds.add(template.id);
+  }
   await rawStorageSet({
+    [DEFAULTS_STATE_KEY]: { version: DEFAULTS_VERSION, seenIds: [...seenIds] },
     [STORAGE_KEY]: cleanList,
     [HAS_INITIALIZED_KEY]: true,
   });
   return cleanList;
 }
 
+// O background serializa migrações e gravações entre popup, sidebar e frames.
+export async function loadStoredTemplates(): Promise<QuickReplyTemplate[]> {
+  if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
+    const response = await browser.runtime.sendMessage({ action: 'TEMPLATE_STORAGE', operation: 'load' });
+    if (!response?.success) throw new Error(response?.error || 'Falha ao carregar modelos.');
+    return response.templates;
+  }
+  return loadStoredTemplatesLocal();
+}
+
+export async function saveStoredTemplates(
+  templates: QuickReplyTemplate[],
+  base?: QuickReplyTemplate[],
+): Promise<QuickReplyTemplate[]> {
+  if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
+    const response = await browser.runtime.sendMessage({
+      action: 'TEMPLATE_STORAGE',
+      operation: 'save',
+      templates: sanitizeTemplatesList(templates),
+      base: base ? sanitizeTemplatesList(base) : undefined,
+    });
+    if (!response?.success) throw new Error(response?.error || 'Falha ao salvar modelos.');
+    return response.templates;
+  }
+  return saveStoredTemplatesLocal(templates, base);
+}
+
 /**
  * Restaura os modelos de fábrica mantendo modelos personalizados criados pelo usuário.
  */
-export async function resetToDefaultTemplates(currentTemplates: QuickReplyTemplate[]): Promise<QuickReplyTemplate[]> {
+export async function resetToDefaultTemplates(
+  currentTemplates: QuickReplyTemplate[],
+  base: QuickReplyTemplate[] = currentTemplates,
+): Promise<QuickReplyTemplate[]> {
   const defaultIds = new Set(DEFAULT_TEMPLATES.map((t) => t.id));
   const userTemplates = currentTemplates.filter((t) => !defaultIds.has(t.id));
   const combined = [...DEFAULT_TEMPLATES, ...userTemplates];
-  return await saveStoredTemplates(combined);
+  return await saveStoredTemplates(combined, base);
 }
 
 /**
@@ -333,7 +417,8 @@ export function parseTemplatesFromJson(jsonText: string): QuickReplyTemplate[] {
  */
 export async function mergeImportedTemplates(
   current: QuickReplyTemplate[],
-  incoming: QuickReplyTemplate[]
+  incoming: QuickReplyTemplate[],
+  base: QuickReplyTemplate[] = current,
 ): Promise<{ count: number; merged: QuickReplyTemplate[] }> {
   const map = new Map<string, QuickReplyTemplate>();
 
@@ -350,6 +435,6 @@ export async function mergeImportedTemplates(
   }
 
   const merged = Array.from(map.values());
-  const saved = await saveStoredTemplates(merged);
+  const saved = await saveStoredTemplates(merged, base);
   return { count, merged: saved };
 }

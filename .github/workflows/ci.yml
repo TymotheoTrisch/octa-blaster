@@ -30,6 +30,9 @@ jobs:
       - name: Check TypeScript types
         run: pnpm compile
 
+      - name: Run regression tests
+        run: pnpm test
+
       - name: Build Chrome MV3
         run: pnpm build
 

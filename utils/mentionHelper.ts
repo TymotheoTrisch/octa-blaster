@@ -1,3 +1,4 @@
+import { getScopedTicketContainer, getTicketIdentity, isInTicketScope, isTicketElementVisible } from './licenseDetector';
 import { insertTextIntoElement } from './insertText';
 import type { MentionTarget } from '@/types/template';
 
@@ -157,11 +158,6 @@ export function isInternalNoteTabActive(scope: Document | HTMLElement = document
       return true;
     }
 
-    // Se passou um elemento interno da aba, tenta no contêiner pai
-    const parentContainer = scope.closest<HTMLElement>('.space-x-md, .ticket-view, .box, [ticket]');
-    if (parentContainer && parentContainer !== scope) {
-      return isInternalNoteTabActive(parentContainer);
-    }
 
     return false;
   }
@@ -203,7 +199,7 @@ export function isInternalNoteTabActive(scope: Document | HTMLElement = document
  * </li>
  */
 function isElementVisible(el: HTMLElement | null | undefined, minWidth = 1, minHeight = 1): boolean {
-  if (!el || !el.isConnected) return false;
+  if (!el || !isTicketElementVisible(el)) return false;
   const win = el.ownerDocument.defaultView || window;
   const style = win.getComputedStyle(el);
   if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
@@ -215,23 +211,32 @@ function isElementVisible(el: HTMLElement | null | undefined, minWidth = 1, minH
 
 function findVisibleEditorInContainer(container: ParentNode | null | undefined): HTMLElement | null {
   if (!container) return null;
+  const node = container as Node;
+  const rootElement = node.nodeType === 1 ? container as HTMLElement : (node as Document).body;
+  const expectedScope = rootElement ? getScopedTicketContainer(rootElement) : null;
 
   const internalSelectors =
     'div[ng-if*="typeInteractionSelected == 3"] .note-editable, div[ng-include*="comments/internal.html"] .note-editable';
   const internalEditables = container.querySelectorAll<HTMLElement>(internalSelectors);
   for (const el of Array.from(internalEditables)) {
-    if (isElementVisible(el, 30, 20)) {
+    if (isElementVisible(el, 30, 20) && (!expectedScope || getScopedTicketContainer(el) === expectedScope)) {
       return el;
     }
   }
 
   const editables = container.querySelectorAll<HTMLElement>('.note-editable');
   for (const el of Array.from(editables)) {
-    if (isElementVisible(el, 30, 20)) {
+    if (isElementVisible(el, 30, 20) && (!expectedScope || getScopedTicketContainer(el) === expectedScope)) {
       return el;
     }
   }
 
+  for (const frame of container.querySelectorAll<HTMLIFrameElement>('iframe')) {
+    try {
+      const found = frame.contentDocument ? findVisibleEditorInContainer(frame.contentDocument) : null;
+      if (found && (!expectedScope || getScopedTicketContainer(found) === expectedScope)) return found;
+    } catch { /* Não acessível nesta origem. */ }
+  }
   return null;
 }
 
@@ -242,7 +247,7 @@ export async function switchToInternalNote(scope: Document | HTMLElement = docum
 
   if (isDOMElement(scope)) {
     const searchTarget: HTMLElement =
-      scope.closest<HTMLElement>('.space-x-md, .ticket-view, .box, [ticket]') || scope;
+      scope;
 
     const specificLink = searchTarget.querySelector<HTMLElement>(
       'a[ng-click*="commentTypeSelected = 3"], li[ng-class*="commentTypeSelected === 3"] > a',
@@ -273,10 +278,6 @@ export async function switchToInternalNote(scope: Document | HTMLElement = docum
       }
     }
 
-    // Se não encontrou no elemento, tenta no ownerDocument
-    if (scope.ownerDocument) {
-      return switchToInternalNote(scope.ownerDocument);
-    }
     return false;
   }
 
@@ -333,18 +334,9 @@ export async function waitForInternalNoteEditor(
 
   while (Date.now() - startTime < maxWaitMs) {
     if (isDOMElement(scope)) {
-      // Sobe pelos ancestrais do ticket até encontrar um contêiner que contenha o editor visível
-      let cursor: HTMLElement | null = scope;
-      for (let depth = 0; depth < 7 && cursor && cursor.tagName !== 'BODY'; depth++) {
-        const found = findVisibleEditorInContainer(cursor);
-        if (found) return found;
-        cursor = cursor.parentElement;
-      }
-
-      if (scope.ownerDocument) {
-        const docEditor = findVisibleEditorInContainer(scope.ownerDocument);
-        if (docEditor) return docEditor;
-      }
+      if (!scope.isConnected) return null;
+      const found = findVisibleEditorInContainer(scope);
+      if (found) return found;
     } else {
       const allDocs = getAllDocuments(scope);
       for (const d of allDocs) {
@@ -358,13 +350,7 @@ export async function waitForInternalNoteEditor(
     await sleep(80);
   }
 
-  if (isDOMElement(scope)) {
-    return (
-      findVisibleEditorInContainer(scope.ownerDocument) ||
-      scope.ownerDocument.querySelector<HTMLElement>('.note-editable')
-    );
-  }
-  return findVisibleEditorInContainer(scope) || scope.querySelector<HTMLElement>('.note-editable');
+  return null;
 }
 
 /**
@@ -375,19 +361,32 @@ async function selectPersonFromPopover(
   namePattern: RegExp,
   doc: Document = document,
   maxWaitMs: number = 2800,
+  editor?: HTMLElement,
+  isCurrent: () => boolean = () => true,
 ): Promise<boolean> {
   const startTime = Date.now();
 
   while (Date.now() - startTime < maxWaitMs) {
-    const allDocs = getAllDocuments(doc);
-
-    for (const d of allDocs) {
+    if (!isCurrent() || (editor && (!isElementVisible(editor) || doc.activeElement !== editor))) return false;
+    const roots: ParentNode[] = [];
+    const ticketRoot = editor ? getScopedTicketContainer(editor) : null;
+    if (ticketRoot) roots.push(ticketRoot);
+    if (ticketRoot && doc.body && getScopedTicketContainer(doc.body) === ticketRoot && !roots.includes(doc.body)) roots.push(doc.body);
+    if (editor) {
+      const ids = [editor.getAttribute('aria-controls'), editor.getAttribute('aria-owns'), editor.getAttribute('aria-describedby')]
+        .filter(Boolean).join(' ').split(/\s+/);
+      for (const id of ids) {
+        const associated = doc.getElementById(id);
+        if (associated && !roots.includes(associated)) roots.push(associated);
+      }
+    }
+    for (const root of roots) {
       // Busca apenas em popovers/menus de menção VISÍVEIS (evita clicar em dropdowns fechados do ticket)
-      const items = d.querySelectorAll<HTMLElement>(
+      const items = root.querySelectorAll<HTMLElement>(
         '.note-hint-popover .note-hint-item, .popover-content .note-hint-item, .note-children-container .person-item, .note-hint-item, .person-item, .popover-content li, .dropdown-menu.open li, .open > .dropdown-menu li',
       );
 
-      for (const item of Array.from(items)) {
+      for (const item of Array.from(items || [])) {
         const targetItem = (item.closest('.note-hint-item') as HTMLElement) || item;
         if (!isElementVisible(targetItem, 10, 10)) continue;
 
@@ -417,7 +416,9 @@ export async function insertMentionForTarget(
   targetDoc: Document,
   target: MentionTarget,
   isFirst: boolean = false,
+  isCurrent: () => boolean = () => true,
 ): Promise<boolean> {
+  if (!isCurrent() || !isElementVisible(targetEditor) || !getScopedTicketContainer(targetEditor)) return false;
   if (targetDoc.activeElement !== targetEditor) {
     targetEditor.focus();
   }
@@ -444,14 +445,7 @@ export async function insertMentionForTarget(
     pattern = new RegExp(target.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   }
 
-  const selected = await selectPersonFromPopover(pattern, targetDoc, 2800);
-
-  if (!selected) {
-    // Se não abriu o popover ou demorou, tenta com enter como fallback
-    targetEditor.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }),
-    );
-  }
+  const selected = await selectPersonFromPopover(pattern, targetDoc, 2800, targetEditor, isCurrent);
 
   await sleep(160);
   return selected;
@@ -471,21 +465,31 @@ export async function automateLicenseMentions(
 ): Promise<{ success: boolean; message: string }> {
   try {
     const targetDoc = editor?.ownerDocument || scope?.ownerDocument || doc;
-    const targetScope: HTMLElement | Document = scope || targetDoc;
+    const targetScope = scope ? getScopedTicketContainer(scope) : editor ? getScopedTicketContainer(editor) : null;
+    if (!targetScope) return { success: false, message: 'Contêiner do ticket não encontrado.' };
+    const ticketIdentity = getTicketIdentity(targetScope);
+    const isCurrentTicket = () => targetScope.isConnected &&
+      ticketIdentity === getTicketIdentity(targetScope) &&
+      !targetScope.closest('[hidden], [aria-hidden="true"]') && targetScope.getBoundingClientRect().width > 0 &&
+      !(targetDoc.activeElement instanceof HTMLElement && getScopedTicketContainer(targetDoc.activeElement) &&
+        getScopedTicketContainer(targetDoc.activeElement) !== targetScope);
     let targetEditor = editor;
 
     // Passo 1: Garantir que está na aba de Anotação Interna
     const isAlreadyInternal = isInternalNoteTabActive(targetScope);
     if (!isAlreadyInternal) {
       console.log('[OctaBlaster] Resposta pública detectada. Alternando para Anotação interna...');
-      await switchToInternalNote(targetScope);
+      const switched = await switchToInternalNote(targetScope);
+      if (!switched || !isCurrentTicket()) {
+        return { success: false, message: 'Não foi possível abrir a Anotação Interna deste ticket.' };
+      }
       // Aguarda o Angular renderizar o novo editor Summernote da Anotação interna
       targetEditor = await waitForInternalNoteEditor(targetScope, 3200);
     } else if (!targetEditor || !isElementVisible(targetEditor, 30, 20)) {
       targetEditor = await waitForInternalNoteEditor(targetScope, 1600);
     }
 
-    if (!targetEditor) {
+    if (!targetEditor || !isCurrentTicket() || !isInternalNoteTabActive(targetScope) || !isInTicketScope(targetEditor, targetScope)) {
       return {
         success: false,
         message: 'Editor de Anotação Interna não encontrado.',
@@ -513,22 +517,25 @@ export async function automateLicenseMentions(
     for (let i = 0; i < targetsToMark.length; i++) {
       const target = targetsToMark[i];
       if (target) {
-        const selected = await insertMentionForTarget(targetEditor, editorDoc, target, i === 0);
+        if (!isCurrentTicket() || !isInternalNoteTabActive(targetScope) || !isElementVisible(targetEditor) || !isInTicketScope(targetEditor, targetScope)) {
+          return { success: false, message: 'O ticket mudou durante a marcação.' };
+        }
+        const selected = await insertMentionForTarget(targetEditor, editorDoc, target, i === 0, () => isCurrentTicket() && isInternalNoteTabActive(targetScope));
         if (selected) {
           markedNames.push(`@${target.name}`);
         }
       }
     }
 
-    if (markedNames.length === 0) {
+    if (!isCurrentTicket() || markedNames.length !== targetsToMark.length) {
       return {
         success: false,
-        message: 'Editor aberto, mas o popover de menção do Octadesk não respondeu para selecionar os usuários.',
+        message: 'Não foi possível concluir todas as menções neste ticket. Confira a anotação antes de tentar novamente.',
       };
     }
 
     // Adiciona espaço final para continuação da escrita
-    insertTextIntoElement(targetEditor, ' ', undefined, true);
+    if (isCurrentTicket() && isElementVisible(targetEditor)) insertTextIntoElement(targetEditor, ' ', undefined, true);
 
     return {
       success: true,
