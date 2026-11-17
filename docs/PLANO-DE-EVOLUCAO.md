@@ -74,3 +74,11 @@ A seleção de responsáveis aceita popovers dentro do ticket e portais associad
 - Interface Vue do popup validada em viewport de 380 × 540 com APIs simuladas, incluindo cadastro de duas variáveis, configuração de `/`, rolagem, salvamento e acesso à lista de respostas.
 
 O popup nativo no Chromium headless não ofereceu um alvo acessível à automação. O fluxo do popup foi coberto pelos testes de mensageria e pela interface Vue com APIs simuladas. A integração com uma sessão autenticada do Octadesk e a execução no Firefox permanecem sem verificação funcional. O build do Firefox foi validado.
+
+## Integração com a versão 0.7.0
+
+A branch `codex/integracao-0.7.0` integra a `main` de `luizGDpulz/octa-blaster` no commit `054b298`, com os cards em acordeão, ações compactas e reordenação de modelos. As variáveis configuráveis, atalhos no editor, isolamento por ticket, migrações e consulta de atualizações do fork continuam disponíveis.
+
+A gravação distingue reordenação intencional de edição do conteúdo. Editar um modelo em um painel aberto antes de uma reordenação preserva a ordem mais recente. Novos modelos criados por outro painel também são preservados.
+
+A integração passou em 32 testes, na checagem TypeScript e nos builds de Chrome e Firefox. O Chromium com a extensão carregada e APIs reais validou os cards em acordeão, reordenação por teclado e arraste, persistência após recarregar, cancelamento com Esc, pesquisa e configurações de variáveis e atalhos. As páginas de ticket usadas nos testes foram fixtures locais. A sessão autenticada do Octadesk permanece sem verificação.

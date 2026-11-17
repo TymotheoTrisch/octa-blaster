@@ -299,7 +299,21 @@ export async function saveStoredTemplatesLocal(
       if (proposed) currentMap.set(id, proposed);
       else currentMap.delete(id);
     }
-    const orderedIds = new Set([...proposedMap.keys(), ...currentMap.keys()]);
+    const baseOrder = [...baseMap.keys()].filter(id => proposedMap.has(id));
+    const proposedOrder = [...proposedMap.keys()].filter(id => baseMap.has(id));
+    const wasReordered = baseOrder.some((id, index) => id !== proposedOrder[index]);
+    let orderedIds: string[];
+    if (wasReordered) {
+      orderedIds = [...new Set([...proposedMap.keys(), ...currentMap.keys()])];
+    } else {
+      // Uma edição de texto com uma lista antiga preserva a ordem mais recente.
+      orderedIds = current.map(template => template.id).filter(id => currentMap.has(id));
+      cleanList.forEach((template, index) => {
+        if (currentMap.has(template.id) && !orderedIds.includes(template.id)) {
+          orderedIds.splice(Math.min(index, orderedIds.length), 0, template.id);
+        }
+      });
+    }
     cleanList = [];
     for (const id of orderedIds) {
       const template = currentMap.get(id);

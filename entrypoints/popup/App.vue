@@ -34,8 +34,13 @@ import {
   RefreshCw,
   Sparkles,
   ExternalLink,
+  GripVertical,
+  Github,
+  MessageSquarePlus,
+  ChevronRight,
 } from 'lucide-vue-next';
 import { checkGithubRelease, type UpdateInfo } from '@/utils/updateChecker';
+import { useTemplateReorder } from '@/utils/useTemplateReorder';
 
 const detectedLicense = ref<LicenseTicketInfo | null>(null);
 const isAutomatingLicense = ref(false);
@@ -58,8 +63,29 @@ let statusTimeout: number | undefined;
 
 const isMenuOpen = ref(false);
 const menuRef = ref<HTMLElement | null>(null);
+const expandedIds = ref<Set<string>>(new Set());
+const openCardMenuId = ref<string | null>(null);
 const showConfirmResetModal = ref(false);
-const appVersion = ref('0.5.9');
+const appVersion = ref('0.7.0');
+
+const GITHUB_REPO_URL = 'https://github.com/luizGDpulz/octa-blaster';
+const GITHUB_DISCUSSIONS_URL = 'https://github.com/luizGDpulz/octa-blaster/discussions';
+
+function openExternalUrl(url: string) {
+  if (browser?.tabs?.create) {
+    browser.tabs.create({ url });
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+function openGithubRepo() {
+  openExternalUrl(GITHUB_REPO_URL);
+}
+
+function openGithubDiscussions() {
+  openExternalUrl(GITHUB_DISCUSSIONS_URL);
+}
 
 const isSidebar = computed(() => {
   if (typeof window === 'undefined') return false;
@@ -331,6 +357,23 @@ const filteredTemplates = computed(() => {
   );
 });
 
+const templatesListRef = ref<HTMLElement | null>(null);
+const canReorder = computed(() => !searchQuery.value.trim());
+
+const {
+  draggingId,
+  keyboardGrabbedId,
+  liveAnnouncement,
+  onHandlePointerDown,
+  onHandleKeydown,
+  onHandleBlur,
+} = useTemplateReorder({
+  templates,
+  canReorder,
+  listRef: templatesListRef,
+  onPersist: saveTemplates,
+});
+
 async function checkLicenseStatus() {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -421,7 +464,31 @@ async function openSidebarPanel() {
   }
 }
 
+function isExpanded(id: string): boolean {
+  return expandedIds.value.has(id);
+}
+
+function toggleExpand(id: string) {
+  const next = new Set(expandedIds.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+  }
+  expandedIds.value = next;
+}
+
+function toggleCardMenu(id: string) {
+  closeMenu();
+  openCardMenuId.value = openCardMenuId.value === id ? null : id;
+}
+
+function closeCardMenu() {
+  openCardMenuId.value = null;
+}
+
 function toggleMenu() {
+  closeCardMenu();
   isMenuOpen.value = !isMenuOpen.value;
 }
 
@@ -435,8 +502,12 @@ function handleMenuAction(action: () => void | Promise<void>) {
 }
 
 function handleClickOutside(event: MouseEvent) {
-  if (menuRef.value && !menuRef.value.contains(event.target as Node)) {
+  const target = event.target as HTMLElement | null;
+  if (menuRef.value && (!target || !menuRef.value.contains(target))) {
     closeMenu();
+  }
+  if (openCardMenuId.value && (!target || !target.closest('.card-more-wrapper'))) {
+    closeCardMenu();
   }
 }
 
@@ -444,6 +515,9 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     if (isMenuOpen.value) {
       closeMenu();
+    }
+    if (openCardMenuId.value) {
+      closeCardMenu();
     }
     if (showConfirmResetModal.value) {
       cancelResetDefaults();
@@ -569,6 +643,22 @@ onUnmounted(() => {
                 >
                   <RefreshCw :size="14" class="menu-item-icon" :class="{ 'spin-icon': isCheckingUpdate }" />
                   <span class="menu-item-text">{{ isCheckingUpdate ? 'Verificando...' : 'Verificar atualizações' }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="menu-item"
+                  @click="handleMenuAction(openGithubRepo)"
+                >
+                  <Github :size="14" class="menu-item-icon" />
+                  <span class="menu-item-text">Repositório no GitHub</span>
+                </button>
+                <button
+                  type="button"
+                  class="menu-item"
+                  @click="handleMenuAction(openGithubDiscussions)"
+                >
+                  <MessageSquarePlus :size="14" class="menu-item-icon" />
+                  <span class="menu-item-text">Sugerir melhorias (Discussions)</span>
                 </button>
               </div>
             </div>
@@ -705,7 +795,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="templates-scroll">
+      <div ref="templatesListRef" class="templates-scroll">
+        <span class="sr-only" aria-live="polite">{{ liveAnnouncement }}</span>
+
         <div v-if="filteredTemplates.length === 0" class="empty-state">
           <p v-if="searchQuery">Nenhum modelo encontrado para "{{ searchQuery }}".</p>
           <p v-else>Nenhum modelo cadastrado. Clique em "Novo" ou abra as opções para restaurar os padrões.</p>
@@ -714,46 +806,137 @@ onUnmounted(() => {
         <div
           v-for="tpl in filteredTemplates"
           :key="tpl.id"
+          :data-template-id="tpl.id"
           class="template-card"
+          :class="{
+            'is-expanded': isExpanded(tpl.id),
+            'is-dragging': draggingId === tpl.id,
+            'is-keyboard-grabbed': keyboardGrabbedId === tpl.id,
+            'has-open-menu': openCardMenuId === tpl.id,
+          }"
         >
           <div class="card-header">
-            <div class="card-title-group">
+            <button
+              v-if="canReorder"
+              type="button"
+              class="drag-handle"
+              :aria-label="`Reordenar ${tpl.title}. Pressione Espaço ou Enter para pegar, setas para mover.`"
+              :aria-pressed="keyboardGrabbedId === tpl.id"
+              title="Arraste para reordenar (ou Espaço + setas)"
+              @pointerdown="onHandlePointerDown($event, tpl.id)"
+              @keydown="onHandleKeydown($event, tpl.id)"
+              @blur="onHandleBlur(tpl.id)"
+            >
+              <GripVertical :size="14" :stroke-width="2" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              class="card-expand-trigger"
+              :aria-expanded="isExpanded(tpl.id)"
+              :title="isExpanded(tpl.id) ? 'Recolher modelo' : `${tpl.title}${tpl.category ? ` (${tpl.category})` : ''}`"
+              @click="toggleExpand(tpl.id)"
+            >
+              <ChevronRight :size="14" :stroke-width="2" class="card-chevron" :class="{ expanded: isExpanded(tpl.id) }" />
               <span class="card-title">{{ tpl.title }}</span>
-              <span v-if="tpl.category" class="card-badge">{{ tpl.category }}</span>
-            </div>
+              <span v-if="tpl.category && !isExpanded(tpl.id)" class="card-badge card-badge-compact">
+                {{ tpl.category }}
+              </span>
+            </button>
+
             <div class="card-menu">
-              <button class="btn-icon" title="Editar modelo" @click="startEdit(tpl)">
-                <Pencil :size="13" :stroke-width="1.8" />
-              </button>
-              <button class="btn-icon btn-icon-del" title="Excluir modelo" @click="removeTemplate(tpl.id)">
-                <Trash2 :size="13" :stroke-width="1.8" />
-              </button>
+              <template v-if="!isExpanded(tpl.id)">
+                <button
+                  type="button"
+                  class="btn-icon-quick"
+                  title="Copiar para área de transferência"
+                  aria-label="Copiar mensagem"
+                  @click="copyToClipboard(tpl)"
+                >
+                  <Copy :size="13" :stroke-width="1.9" />
+                </button>
+                <button
+                  type="button"
+                  class="btn-icon-quick btn-icon-send"
+                  :disabled="isSending"
+                  title="Inserir diretamente no ticket em foco"
+                  aria-label="Inserir no ticket"
+                  @click="insertIntoTicket(tpl)"
+                >
+                  <Loader2 v-if="isSending" :size="13" class="spin-icon" />
+                  <Send v-else :size="13" :stroke-width="2" />
+                </button>
+              </template>
+
+              <div class="card-more-wrapper">
+                <button
+                  type="button"
+                  class="btn-icon card-more-trigger"
+                  :class="{ active: openCardMenuId === tpl.id }"
+                  title="Mais ações"
+                  aria-label="Mais ações do modelo"
+                  @click.stop="toggleCardMenu(tpl.id)"
+                >
+                  <MoreHorizontal :size="14" :stroke-width="2" />
+                </button>
+
+                <transition name="menu-scale">
+                  <div v-if="openCardMenuId === tpl.id" class="card-dropdown-menu">
+                    <button
+                      type="button"
+                      class="menu-item"
+                      @click="closeCardMenu(); startEdit(tpl)"
+                    >
+                      <Pencil :size="13" class="menu-item-icon" />
+                      <span class="menu-item-text">Editar</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="menu-item menu-item-danger"
+                      @click="closeCardMenu(); removeTemplate(tpl.id)"
+                    >
+                      <Trash2 :size="13" class="menu-item-icon" />
+                      <span class="menu-item-text">Excluir</span>
+                    </button>
+                  </div>
+                </transition>
+              </div>
             </div>
           </div>
 
-          <p class="card-preview">{{ tpl.content }}</p>
+          <p v-if="keyboardGrabbedId === tpl.id" class="reorder-key-hint" aria-hidden="true">
+            Setas para mover · Espaço para soltar · Esc para cancelar
+          </p>
 
-          <div class="card-actions">
-            <button
-              type="button"
-              class="btn-action btn-copy"
-              title="Copiar para área de transferência"
-              @click="copyToClipboard(tpl)"
-            >
-              <Copy :size="13" :stroke-width="1.8" />
-              <span>Copiar</span>
-            </button>
-            <button
-              type="button"
-              class="btn-action btn-send"
-              :disabled="isSending"
-              title="Inserir diretamente no ticket em foco"
-              @click="insertIntoTicket(tpl)"
-            >
-              <Loader2 v-if="isSending" :size="13" class="spin-icon" />
-              <Send v-else :size="13" :stroke-width="2" />
-              <span>{{ isSending ? 'Inserindo...' : 'Inserir no Ticket' }}</span>
-            </button>
+          <div v-if="isExpanded(tpl.id)" class="card-body">
+            <div v-if="tpl.category" class="card-meta">
+              <span class="card-badge">{{ tpl.category }}</span>
+            </div>
+
+            <p class="card-preview-expanded">{{ tpl.content }}</p>
+
+            <div class="card-actions">
+              <button
+                type="button"
+                class="btn-action btn-copy"
+                title="Copiar para área de transferência"
+                @click="copyToClipboard(tpl)"
+              >
+                <Copy :size="13" :stroke-width="1.8" />
+                <span>Copiar</span>
+              </button>
+              <button
+                type="button"
+                class="btn-action btn-send"
+                :disabled="isSending"
+                title="Inserir diretamente no ticket em foco"
+                @click="insertIntoTicket(tpl)"
+              >
+                <Loader2 v-if="isSending" :size="13" class="spin-icon" />
+                <Send v-else :size="13" :stroke-width="2" />
+                <span>{{ isSending ? 'Inserindo...' : 'Inserir no Ticket' }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -761,7 +944,15 @@ onUnmounted(() => {
 
     <!-- Rodapé Minimalista -->
     <footer class="footer">
-      <span class="build-version">OctaBlaster v{{ appVersion }}</span>
+      <a
+        :href="GITHUB_REPO_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="build-version-link"
+        title="Abrir repositório no GitHub"
+      >
+        OctaBlaster v{{ appVersion }}
+      </a>
       <input
         ref="fileInputRef"
         type="file"
@@ -940,7 +1131,7 @@ onUnmounted(() => {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  width: 220px;
+  width: 240px;
   background: #ffffff;
   border: 1px solid #dee0e4;
   border-radius: 8px;
@@ -1290,12 +1481,63 @@ textarea {
 }
 
 .templates-scroll {
+  position: relative;
   flex: 1;
   overflow-y: auto;
-  padding: 6px 14px 10px 14px;
+  padding: 10px 14px 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.templates-scroll[data-drop="true"]::after {
+  content: '';
+  position: fixed;
+  left: var(--drop-x);
+  top: var(--drop-y);
+  width: var(--drop-w);
+  height: var(--drop-h, 2px);
+  background: #ffc600;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 50;
+  transform: translateY(-50%);
+}
+
+.templates-scroll[data-drop="true"]::before {
+  content: '';
+  position: fixed;
+  left: calc(var(--drop-x) - 3px);
+  top: var(--drop-y);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #e0af00;
+  pointer-events: none;
+  z-index: 51;
+  transform: translateY(-50%);
+}
+
+@media (forced-colors: active) {
+  .templates-scroll[data-drop="true"]::after {
+    background: Highlight;
+  }
+  .templates-scroll[data-drop="true"]::before {
+    border-color: Highlight;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .empty-state {
@@ -1308,36 +1550,157 @@ textarea {
 .template-card {
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px;
+  padding: 7px 9px;
   background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  scroll-margin: 12px;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.template-card.is-expanded {
+  padding: 9px 10px 10px 10px;
+}
+
+.template-card.has-open-menu {
+  position: relative;
+  z-index: 30;
 }
 
 .template-card:hover {
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
   border-color: #cbd5e1;
+}
+
+.template-card:has(.drag-handle:focus-visible) {
+  outline: 2px solid #ffc600;
+  outline-offset: 1px;
+}
+
+.template-card.is-dragging {
+  position: relative;
+  z-index: 20;
+  transform: scale(1.015);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+  border-color: #e0af00;
+  pointer-events: none;
+  transition: none;
+}
+
+.template-card.is-keyboard-grabbed {
+  border-color: #e0af00;
+  box-shadow: 0 6px 16px rgba(255, 198, 0, 0.25);
+}
+
+:global(.is-reordering),
+:global(.is-reordering *) {
+  cursor: grabbing !important;
 }
 
 .card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
+  margin-bottom: 0;
+}
+
+.template-card.is-expanded .card-header {
+  align-items: flex-start;
   margin-bottom: 6px;
 }
 
-.card-title-group {
+.drag-handle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  margin-left: -3px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #5b5f63;
+  opacity: 0.45;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.drag-handle:is(:hover, :focus-visible) {
+  opacity: 1;
+  color: #1c1b1c;
+  background: #f1f5f9;
+  outline: none;
+}
+
+.drag-handle[aria-pressed="true"] {
+  opacity: 1;
+  color: #1c1b1c;
+  background: rgba(255, 198, 0, 0.28);
+}
+
+.reorder-key-hint {
+  margin: 4px 0 4px 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: #7c6200;
+}
+
+.card-expand-trigger {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
+  padding: 2px 4px 2px 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.card-expand-trigger:focus-visible {
+  outline: 2px solid #ffc600;
+  outline-offset: 1px;
+}
+
+.card-chevron {
+  flex-shrink: 0;
+  color: #8a8f96;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.card-expand-trigger:hover .card-chevron {
+  color: #3c3f43;
+}
+
+.card-chevron.expanded {
+  transform: rotate(90deg);
+  color: #1c1b1c;
 }
 
 .card-title {
-  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.template-card.is-expanded .card-title {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
 }
 
 .card-badge {
@@ -1348,11 +1711,97 @@ textarea {
   border-radius: 12px;
   border: 1px solid #dee0e4;
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.card-badge-compact {
+  flex-shrink: 0;
+  max-width: 68px;
+  padding: 1px 6px;
+  font-size: 9.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-menu {
+  flex-shrink: 0;
   display: flex;
-  gap: 2px;
+  align-items: center;
+  gap: 3px;
+}
+
+.btn-icon-quick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #dee0e4;
+  border-radius: 5px;
+  background: #f7f8f9;
+  color: #3c3f43;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.12s;
+}
+
+.btn-icon-quick:hover:not(:disabled) {
+  background: #eceef0;
+  border-color: #cbd5e1;
+}
+
+.btn-icon-quick.btn-icon-send {
+  background: #ffc600;
+  color: #1c1b1c;
+  border-color: #e5b100;
+}
+
+.btn-icon-quick.btn-icon-send:hover:not(:disabled) {
+  background: #f0ba00;
+  transform: translateY(-0.5px);
+}
+
+.btn-icon-quick:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.card-more-wrapper {
+  position: relative;
+}
+
+.card-more-trigger.active {
+  background: #f1f5f9;
+  color: #1c1b1c;
+}
+
+.card-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 132px;
+  background: #ffffff;
+  border: 1px solid #dee0e4;
+  border-radius: 7px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 4px;
+  z-index: 40;
+  transform-origin: top right;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.menu-item-danger {
+  color: #ba1a1a;
+}
+
+.menu-item-danger .menu-item-icon {
+  color: #ba1a1a;
+}
+
+.menu-item-danger:hover {
+  background: #fee2e2;
 }
 
 .btn-icon {
@@ -1373,23 +1822,26 @@ textarea {
   background: #f1f5f9;
 }
 
-.btn-icon-del:hover {
-  color: #ba1a1a;
-  background: #fee2e2;
+.card-body {
+  padding-top: 4px;
+  border-top: 1px solid #f0f1f3;
 }
 
-.card-preview {
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.card-preview-expanded {
   font-size: 12px;
   color: var(--text-secondary);
   white-space: pre-line;
-  line-height: 1.4;
-  margin-bottom: 10px;
-  max-height: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  line-height: 1.45;
+  margin: 0 0 10px 0;
+  max-height: 180px;
+  overflow-y: auto;
 }
 
 .card-actions {
@@ -1450,11 +1902,26 @@ textarea {
   min-height: 30px;
 }
 
-.build-version {
+.build-version-link {
   font-size: 11px;
   font-weight: 500;
   color: #8a8f96;
   letter-spacing: 0.02em;
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.build-version-link:hover {
+  color: #3c3f43;
+  background-color: rgba(60, 63, 67, 0.06);
+}
+
+.build-version-link:focus-visible {
+  outline: 2px solid #ffc600;
+  outline-offset: 1px;
+  color: #1c1b1c;
 }
 
 /* Modal Estilo Notion */
