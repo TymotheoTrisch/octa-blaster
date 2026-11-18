@@ -37,7 +37,7 @@ const targets = [
 for (const [text, expected] of [
   [contract, 'Contratação 2 lics (com isenção da primeira licença)\n\nBanco: 135558'],
   [contract.replace('Licenças: 2', 'Licenças: 1').replace('Licença: Sim', 'Licença: Não'), 'Contratação 1 lic (sem isenção)\n\nBanco: 135558'],
-  [swap, 'Troca lic 11822\n\nBanco: 158750'],
+  [swap, 'Troca lic 11822\nMotivo: Licença corrompida.\n\nBanco: 158750'],
   [cancel, 'Cancelamento lics: 13039, 13041, 13042\n\nBanco: 151303'],
 ]) {
   test(`email fields format ${expected.split('\n')[0]}`, () => {
@@ -56,6 +56,8 @@ test('an incomplete or ambiguous request never guesses fields from other numbers
     `${contract}\nNúmero do Banco de Dados: 999999`,
     contract.replace('CONTRATAÇÃO', 'CONTRATAÇÃO ou TROCA'),
     swap.replace('Lic_11822', 'Lic_11822, Lic_999'),
+    swap.replace('Motivo da troca de licença: Licença corrompida.', ''),
+    `${swap}\nMotivo da troca de licença: Outro motivo`,
     cancel.replace('Lic_13039, Lic_13041, Lic_13042', 'a confirmar'),
     cancel.replace('Números das licenças: Lic_13039, Lic_13041, Lic_13042', ''),
   ]) assert.equal(parseLicenseRequestText(text).status, 'invalid', text);

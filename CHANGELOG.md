@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 0.9.1 — 18/11/2026
+
+- O resumo de troca inclui **Motivo:**, lido do campo **Motivo da troca de licença** do e-mail. Se o motivo estiver ausente ou divergente, a preparação é interrompida antes de alterar a anotação.
+
 ## 0.9.0 — 18/11/2026
 
 - A marcação de licenças lê o formulário do e-mail no ticket e prepara o resumo após as menções, mantendo os técnicos na mesma linha.

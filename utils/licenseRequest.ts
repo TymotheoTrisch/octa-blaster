@@ -5,6 +5,7 @@ export interface LicenseRequest {
   database: string;
   quantity?: number;
   firstLicenseExempt?: boolean;
+  swapReason?: string;
   licenses: string[];
 }
 
@@ -53,6 +54,11 @@ export function parseLicenseRequestText(text: string): LicenseRequestResult {
     if (!licenses.length || licenses.some(value => !/^(?:Lic_)?\d+(?:\s*[,;\s]\s*(?:Lic_)?\d+)*$/i.test(value))) return invalid('código das licenças ausente ou inválido no e-mail.');
     request.licenses = [...new Set(licenses.flatMap(value => value.split(/[,;\s]+/).map(code => code.replace(/^Lic_/i, ''))))];
     if (operation === 'Troca' && request.licenses.length !== 1) return invalid('há mais de uma licença indicada para troca no e-mail.');
+    if (operation === 'Troca') {
+      const reason = values(['motivo da troca de licenca', 'motivo da troca']);
+      if (reason.length !== 1 || !reason[0]) return invalid('motivo da troca ausente ou divergente no e-mail.');
+      request.swapReason = reason[0];
+    }
   }
   return { status: 'ready', request };
 }
@@ -77,7 +83,7 @@ export function formatLicenseRequest(request: LicenseRequest): string {
   let description: string;
   if (request.operation === 'Contratação') {
     description = `Contratação ${request.quantity} ${request.quantity === 1 ? 'lic' : 'lics'} (${request.firstLicenseExempt ? 'com isenção da primeira licença' : 'sem isenção'})`;
-  } else if (request.operation === 'Troca') description = `Troca lic ${request.licenses[0]}`;
+  } else if (request.operation === 'Troca') description = `Troca lic ${request.licenses[0]}\nMotivo: ${request.swapReason}`;
   else description = `Cancelamento lics: ${request.licenses.join(', ')}`;
   return `${description}\n\nBanco: ${request.database}`;
 }
