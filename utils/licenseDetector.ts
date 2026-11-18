@@ -20,38 +20,43 @@ function extractCleanText(root: HTMLElement | null | undefined): string {
   if (!root) return '';
   if (root.classList && root.classList.contains('octablaster-floating-widget')) return '';
 
-  const widgets =
-    typeof root.querySelectorAll === 'function'
-      ? root.querySelectorAll<HTMLElement>('.octablaster-floating-widget')
-      : null;
-
-  if (!widgets || widgets.length === 0) {
-    return root.innerText || root.textContent || '';
-  }
-
   const clone = root.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll('.octablaster-floating-widget').forEach(widget => widget.remove());
+  clone.querySelectorAll('.octablaster-floating-widget, .octablaster-shortcut-menu, .octablaster-variable-dialog, script, style').forEach(element => element.remove());
   clone.querySelectorAll('br').forEach(el => el.replaceWith('\n'));
   clone.querySelectorAll('div, p, li, section, header, h1, h2, h3, tr').forEach(el => el.append('\n'));
-  const text = clone.textContent || '';
-
-  return text;
+  const subjectValues = Array.from(root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+    'input[name="subject"], input[name="title"], input[ng-model*=".subject"], input[ng-model*=".title"], textarea[name="subject"]',
+  )).map(input => input.value);
+  return [...subjectValues, clone.textContent || ''].join('\n');
 }
 
 /**
  * Obtém o contêiner isolado do ticket específico a partir de qualquer elemento interno.
  * Garante que a busca fique restrita a este ticket, sem vazar dados de outros tickets.
  */
-export const TICKET_SELECTOR = '[ticket-id], [ticket], [data-cy="ticket_content"], .ticket-container, .ticket-view, .ticket-page, [role="tabpanel"], .tab-pane';
+const TICKET_ROOT_SELECTOR = '[ticket-id], [data-ticket-id], [data-cy="ticket_content"], .ticket-container, .ticket-view, .ticket-page';
+const TICKET_PANEL_SELECTOR = '[ticket], [role="tabpanel"], .tab-pane';
+export const TICKET_SELECTOR = `${TICKET_ROOT_SELECTOR}, ${TICKET_PANEL_SELECTOR}`;
 
 export function getScopedTicketContainer(el: HTMLElement): HTMLElement | null {
-  const local = el.closest<HTMLElement>(TICKET_SELECTOR);
-  if (local) return local;
+  // A barra de comentários também recebe [ticket] e pode conter uma .tab-pane.
+  // O cabeçalho e a navegação pertencem ao contêiner externo do chamado.
+  let local: HTMLElement | null = null;
+  for (let ancestor: HTMLElement | null = el; ancestor; ancestor = ancestor.parentElement) {
+    if (ancestor.matches('body, html')) break;
+    if (ancestor.matches(TICKET_ROOT_SELECTOR)) return ancestor;
+    const isCommentBar = ancestor.matches('.space-x-md, [comment-type-selected]');
+    if (ancestor.hasAttribute('ticket') && !isCommentBar) return ancestor;
+    if (!local && ancestor.matches(TICKET_PANEL_SELECTOR)) local = ancestor;
+  }
   try {
     const frame = el.ownerDocument.defaultView?.frameElement;
-    if (frame && frame.nodeType === 1) return getScopedTicketContainer(frame as HTMLElement);
+    if (frame && frame.nodeType === 1) {
+      const parentScope = getScopedTicketContainer(frame as HTMLElement);
+      if (parentScope) return parentScope;
+    }
   } catch { /* Frames de outra origem exigem um contêiner próprio. */ }
-  return null;
+  return local;
 }
 
 export function isInTicketScope(el: HTMLElement, scope: HTMLElement): boolean {

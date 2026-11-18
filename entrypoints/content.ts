@@ -108,7 +108,7 @@ export default defineContentScript({
           }
 
           automateLicenseMentions(target, target.ownerDocument, getScopedTicketContainer(target), req.targets).then((result) => {
-            sendResponse(result);
+            sendResponse({ success: result.success, error: result.success ? undefined : result.message });
           });
           return true;
         }
@@ -518,6 +518,23 @@ export default defineContentScript({
           color: #5b5f63 !important;
           background: #ffffff !important;
         }
+        .octa-license-feedback {
+          position: absolute !important;
+          top: calc(100% + 8px) !important;
+          right: 0 !important;
+          width: min(330px, 80vw) !important;
+          padding: 10px 12px !important;
+          border: 1px solid #ba1a1a !important;
+          border-radius: 8px !important;
+          background: #ffffff !important;
+          color: #ba1a1a !important;
+          font-size: 12px !important;
+          white-space: normal !important;
+          box-shadow: 0 3px 12px #0002 !important;
+        }
+        .octa-license-feedback[hidden] {
+          display: none !important;
+        }
       `;
       (doc.head || doc.documentElement).appendChild(style);
     }
@@ -575,11 +592,16 @@ export default defineContentScript({
       `;
 
       const btnToggle = widget.querySelector('.octa-btn-toggle') as HTMLElement;
-      const btnLicense = widget.querySelector('.octa-btn-license') as HTMLElement;
+      const btnLicense = widget.querySelector('.octa-btn-license') as HTMLButtonElement;
       const btnReplies = widget.querySelector('.octa-btn-replies') as HTMLElement;
       const btnMinimize = widget.querySelector('.octa-btn-minimize') as HTMLElement;
       const dropdownMenu = widget.querySelector('.octa-dropdown-menu') as HTMLElement;
       const dropdownList = widget.querySelector('.octa-dropdown-list') as HTMLElement;
+      const licenseFeedback = doc.createElement('div');
+      licenseFeedback.className = 'octa-license-feedback';
+      licenseFeedback.setAttribute('role', 'status');
+      licenseFeedback.hidden = true;
+      widget.appendChild(licenseFeedback);
 
       // Trava contra submit do formulário que engloba o editor no Octadesk
       widget.addEventListener('submit', (e) => {
@@ -593,6 +615,7 @@ export default defineContentScript({
           btnToggle.title = 'OctaBlaster';
         } else {
           dropdownMenu.style.display = 'none';
+          licenseFeedback.hidden = true;
           btnToggle.title = 'OctaBlaster (Clique para expandir)';
         }
       }
@@ -629,6 +652,8 @@ export default defineContentScript({
       btnLicense.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (btnLicense.disabled) return;
+        licenseFeedback.hidden = true;
 
         // 1. Validação sob demanda do tipo de ticket
         const info = detectLicenseTicket(container);
@@ -654,6 +679,7 @@ export default defineContentScript({
 
         setLicenseBtnState(ICONS.loader, 'Marcando...');
         btnLicense.style.opacity = '0.7';
+        btnLicense.disabled = true;
 
         try {
           const localEditor = findEditorForWidget(widget, container);
@@ -663,11 +689,16 @@ export default defineContentScript({
             setLicenseBtnState(ICONS.check, 'Marcados!');
           } else {
             setLicenseBtnState(ICONS.alert, 'Falha ao marcar');
+            licenseFeedback.textContent = res.message;
+            licenseFeedback.hidden = false;
           }
         } catch (err) {
           console.error('[OctaBlaster] Erro ao marcar responsáveis:', err);
           setLicenseBtnState(ICONS.alert, 'Erro');
+          licenseFeedback.textContent = 'Falha durante a marcação. Recarregue a página do ticket e tente novamente.';
+          licenseFeedback.hidden = false;
         } finally {
+          btnLicense.disabled = false;
           setTimeout(resetLicenseBtn, 2500);
         }
       });
