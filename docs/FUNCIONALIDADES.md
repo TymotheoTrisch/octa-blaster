@@ -24,7 +24,7 @@ O atalho mostra a mesma lista e ordem do botão **Respostas**, com prévia abaix
 
 ## Técnicos e resumo das licenças
 
-A tela **Atalhos** também permite criar, editar, desativar e excluir os técnicos da marcação. Use o nome completo exibido nas sugestões do Octadesk e a busca, como `@nome`. Os técnicos habilitados são marcados sequencialmente na Anotação Interna e permanecem lado a lado. A próxima busca começa após a confirmação do marcador anterior; respostas lentas do Octadesk são aguardadas dentro do limite de 15 segundos por pessoa.
+Abra **Mais opções → Técnicos (Licenças)** para criar, editar, reordenar, ativar/desativar rapidamente ou restaurar os técnicos padrão da marcação. Use o nome completo exibido nas sugestões do Octadesk e a busca, como `@nome` (sugerida automaticamente ao cadastrar). Os técnicos habilitados são marcados sequencialmente na ordem da lista em Anotação Interna e permanecem lado a lado. A próxima busca começa após a confirmação do marcador anterior; respostas lentas do Octadesk são aguardadas dentro do limite de 15 segundos por pessoa.
 
 Quando o ticket contém o formulário de solicitação, **Marcar Licenças** também acrescenta o resumo após os técnicos. O banco vem do campo do e-mail, mesmo que o título mostre outro número. Os nomes abaixo são exemplos; o cadastro define quem será marcado.
 

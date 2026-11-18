@@ -7,6 +7,14 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ## [Não lançado]
 
+### 🚀 Adicionado
+- **Tela dedicada para Técnicos (Licenças) (`Mais opções → Técnicos (Licenças)`):** separada de **Atalhos**, com toggle rápido Ativo/Desativado no card, reordenação da sequência de menções (`↑`/`↓`), sugestão automática de `@busca` ao digitar o nome e botão para restaurar técnicos padrão (#52).
+
+### 🛠️ Modificado
+- **Arquitetura modular por domínio:** `App.vue` (~2.190 → ~350 linhas), `content.ts` (~887 → ~15 linhas) e `background.ts` desmembrados em `components/` (`layout/`, `templates/`, `settings/`, `modals/`), `composables/` e `services/` (`storage/`, `templates/`, `octadesk/`, `background/`, `updates/`) (#53).
+- **Modal de variáveis e menu de atalho harmonizados:** novo visual alinhado ao design system do OctaBlaster (`#1c1b22` / `#3c3f43` / `#ffc600` / `#f7f8f9`) com backdrop suave, cabeçalho com botão fechar e foco automático no primeiro campo (#51).
+- **Refinamento de menções (`mentionHelper.ts`):** evita espaço extra ao final quando já há separador após o token nativo (#52).
+
 ---
 
 ## [0.8.0] - 2026-11-18
