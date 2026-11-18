@@ -4,6 +4,7 @@ import { automateLicenseMentions } from '@/utils/mentionHelper';
 import { prepareTemplate } from '@/utils/templateVariables';
 import { installReplyShortcut } from '@/utils/replyShortcut';
 import { loadStoredTemplates } from '@/utils/templateStorage';
+import { getTemplateTagNames, loadTags } from '@/utils/templateTags';
 import type { InsertMessageRequest, InsertMessageResponse, QuickReplyTemplate } from '@/types/template';
 
 export default defineContentScript({
@@ -721,7 +722,7 @@ export default defineContentScript({
         dropdownMenu.style.display = 'block';
 
         try {
-          const templates = await loadStoredTemplates();
+          const [templates, tags] = await Promise.all([loadStoredTemplates(), loadTags()]);
 
           if (templates.length === 0) {
             dropdownList.innerHTML = '<div class="octa-dropdown-empty">Nenhum modelo cadastrado.</div>';
@@ -742,10 +743,10 @@ export default defineContentScript({
             titleEl.textContent = tpl.title;
             topRow.appendChild(titleEl);
 
-            if (tpl.category) {
+            for (const name of getTemplateTagNames(tpl, tags)) {
               const catBadge = doc.createElement('span');
               catBadge.className = 'octa-item-category';
-              catBadge.textContent = tpl.category;
+              catBadge.textContent = name;
               topRow.appendChild(catBadge);
             }
 

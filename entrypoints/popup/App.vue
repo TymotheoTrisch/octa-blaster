@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template';
 import type { LicenseTicketInfo } from '@/utils/licenseDetector';
-import { prepareTemplate } from '@/utils/templateVariables';
-import Settings from './Settings.vue';
+import { prepareTemplate, loadVariables, type TemplateVariable } from '@/utils/templateVariables';
+import { loadTags, getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/utils/templateTags';
+import VariablesView from './VariablesView.vue';
+import TagsView from './TagsView.vue';
+import ShortcutsView from './ShortcutsView.vue';
 import {
   loadStoredTemplates,
   saveStoredTemplates,
   resetToDefaultTemplates,
   exportTemplatesToJson,
-  parseTemplatesFromJson,
+  parseTemplateBackup,
   mergeImportedTemplates,
 } from '@/utils/templateStorage';
 import {
@@ -38,6 +41,9 @@ import {
   Github,
   MessageSquarePlus,
   ChevronRight,
+  Braces,
+  Tags,
+  Keyboard,
 } from 'lucide-vue-next';
 import { checkGithubRelease, type UpdateInfo } from '@/utils/updateChecker';
 import { useTemplateReorder } from '@/utils/useTemplateReorder';
@@ -53,7 +59,47 @@ const showForm = ref(false);
 const editingId = ref<string | null>(null);
 
 const formTitle = ref('');
-const formCategory = ref('');
+const formTags = ref<string[]>([]);
+const tags = ref<TemplateTag[]>([]);
+const variables = ref<TemplateVariable[]>([]);
+const selectedTagId = ref('');
+const currentView = ref<'templates' | 'variables' | 'tags' | 'shortcuts'>('templates');
+const contentTextarea = ref<HTMLTextAreaElement | null>(null);
+let contentSelection = { start: 0, end: 0 };
+const variableTokens = computed(() => {
+  const names = ['Saudacao', 'Data', 'Hora', ...variables.value.map(variable => variable.name)];
+  return names.map(name => ({ name, token: '{{' + name + '}}' }));
+});
+async function refreshCatalogs() {
+  try {
+    tags.value = await loadTags();
+    variables.value = await loadVariables();
+    formTags.value = formTags.value.filter(id => tags.value.some(tag => tag.id === id));
+    if (!tags.value.some(tag => tag.id === selectedTagId.value)) selectedTagId.value = '';
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : 'Falha ao carregar configurações.', 'error');
+  }
+}
+async function refreshTagsAndTemplates() {
+  await refreshCatalogs();
+  await loadTemplates();
+}
+function openView(view: 'templates' | 'variables' | 'tags' | 'shortcuts') {
+  closeMenu();
+  closeCardMenu();
+  statusMessage.value = '';
+  currentView.value = view;
+}
+function returnToTemplates() {
+  currentView.value = 'templates';
+  void refreshCatalogs();
+}
+function rememberContentSelection() {
+  const textarea = contentTextarea.value;
+  if (textarea) {
+    contentSelection = { start: textarea.selectionStart, end: textarea.selectionEnd };
+  }
+}
 const formContent = ref('');
 
 const isSending = ref(false);
@@ -178,9 +224,9 @@ async function confirmResetDefaults() {
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
-function exportTemplates() {
+async function exportTemplates() {
   try {
-    exportTemplatesToJson(templates.value);
+    await exportTemplatesToJson(templates.value);
     setStatus('Modelos exportados com sucesso!', 'success');
   } catch (err: any) {
     console.error('Erro ao exportar modelos:', err);
@@ -199,10 +245,11 @@ async function handleFileImport(e: Event) {
 
   try {
     const text = await file.text();
-    const importedItems = parseTemplatesFromJson(text);
-    const { count, merged } = await mergeImportedTemplates(templates.value, importedItems, templatesBase);
+    const imported = parseTemplateBackup(text);
+    const { count, merged } = await mergeImportedTemplates(templates.value, imported.templates, templatesBase, imported.tags);
     templates.value = merged;
     rememberTemplatesBase();
+    await refreshCatalogs();
     setStatus(`${count} modelo(s) importado(s) com sucesso!`, 'success');
   } catch (err: any) {
     console.error('Erro ao importar modelos:', err);
@@ -215,7 +262,8 @@ async function handleFileImport(e: Event) {
 function startCreate() {
   editingId.value = null;
   formTitle.value = '';
-  formCategory.value = '';
+  formTags.value = [];
+  contentSelection = { start: 0, end: 0 };
   formContent.value = '';
   showForm.value = true;
 }
@@ -223,7 +271,8 @@ function startCreate() {
 function startEdit(template: QuickReplyTemplate) {
   editingId.value = template.id;
   formTitle.value = template.title;
-  formCategory.value = template.category || '';
+  formTags.value = getTemplateTagIds(template, tags.value);
+  contentSelection = { start: template.content.length, end: template.content.length };
   formContent.value = template.content;
   showForm.value = true;
 }
@@ -236,7 +285,7 @@ function cancelForm() {
 async function submitForm() {
   const title = formTitle.value.trim();
   const content = formContent.value.trim();
-  const category = formCategory.value.trim();
+  const selectedTags = formTags.value.filter(id => tags.value.some(tag => tag.id === id));
 
   if (!title || !content) {
     setStatus('Preencha o título e a mensagem.', 'error');
@@ -254,9 +303,7 @@ async function submitForm() {
           content,
           updatedAt: Date.now(),
         };
-        if (category) {
-          updatedItem.category = category;
-        }
+        updatedItem.tags = [...selectedTags];
         templates.value[idx] = updatedItem;
       }
     } else {
@@ -268,9 +315,7 @@ async function submitForm() {
         content,
         updatedAt: Date.now(),
       };
-      if (category) {
-        newTemplate.category = category;
-      }
+      newTemplate.tags = [...selectedTags];
       templates.value.unshift(newTemplate);
     }
 
@@ -342,23 +387,30 @@ async function copyToClipboard(template: QuickReplyTemplate) {
   }
 }
 
-function insertVariable(tag: string) {
-  formContent.value += tag;
+async function insertVariable(token: string) {
+  const textarea = contentTextarea.value;
+  if (textarea && document.activeElement === textarea) rememberContentSelection();
+  const start = Math.min(contentSelection.start, formContent.value.length);
+  const end = Math.min(contentSelection.end, formContent.value.length);
+  formContent.value = formContent.value.slice(0, start) + token + formContent.value.slice(end);
+  const caret = start + token.length;
+  contentSelection = { start: caret, end: caret };
+  await nextTick();
+  textarea?.focus();
+  textarea?.setSelectionRange(caret, caret);
 }
 
 const filteredTemplates = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return templates.value;
-  return templates.value.filter(
-    (t) =>
-      t.title.toLowerCase().includes(q) ||
-      t.content.toLowerCase().includes(q) ||
-      (t.category && t.category.toLowerCase().includes(q)),
-  );
+  const query = searchQuery.value.trim().toLowerCase();
+  return templates.value.filter(template => {
+    const matchesTag = !selectedTagId.value || getTemplateTagIds(template, tags.value).includes(selectedTagId.value);
+    const searchable = [template.title, template.content, ...getTemplateTagNames(template, tags.value)].join(' ').toLowerCase();
+    return matchesTag && (!query || searchable.includes(query));
+  });
 });
 
 const templatesListRef = ref<HTMLElement | null>(null);
-const canReorder = computed(() => !searchQuery.value.trim());
+const canReorder = computed(() => !searchQuery.value.trim() && !selectedTagId.value);
 
 const {
   draggingId,
@@ -536,7 +588,7 @@ onMounted(() => {
     }
   } catch {}
 
-  loadTemplates();
+  void loadTemplates().then(refreshCatalogs);
   checkLicenseStatus();
   checkSidebarSupport();
 
@@ -562,7 +614,7 @@ onUnmounted(() => {
       </div>
       <div class="header-actions">
         <button
-          v-if="!showForm"
+          v-if="currentView === 'templates' && !showForm"
           type="button"
           class="btn-primary-icon"
           title="Novo modelo de resposta"
@@ -600,6 +652,21 @@ onUnmounted(() => {
 
               <div v-if="canOpenSidebar" class="menu-divider"></div>
 
+              <div class="menu-section">
+                <button type="button" class="menu-item" @click="openView('variables')">
+                  <Braces :size="14" class="menu-item-icon" />
+                  <span class="menu-item-text">Variáveis</span>
+                </button>
+                <button type="button" class="menu-item" @click="openView('tags')">
+                  <Tags :size="14" class="menu-item-icon" />
+                  <span class="menu-item-text">Tags</span>
+                </button>
+                <button type="button" class="menu-item" @click="openView('shortcuts')">
+                  <Keyboard :size="14" class="menu-item-icon" />
+                  <span class="menu-item-text">Atalhos</span>
+                </button>
+              </div>
+              <div class="menu-divider"></div>
               <div class="menu-section">
                 <button
                   type="button"
@@ -666,7 +733,7 @@ onUnmounted(() => {
         </div>
       </div>
     </header>
-    <Settings />
+
 
     <!-- Status Message Alert -->
     <transition name="fade">
@@ -680,6 +747,10 @@ onUnmounted(() => {
       </div>
     </transition>
 
+    <VariablesView v-if="currentView === 'variables'" @back="returnToTemplates" @changed="refreshCatalogs" />
+    <TagsView v-else-if="currentView === 'tags'" @back="returnToTemplates" @changed="refreshTagsAndTemplates" />
+    <ShortcutsView v-else-if="currentView === 'shortcuts'" @back="returnToTemplates" @changed="refreshCatalogs" />
+    <template v-else>
     <!-- Banner de Licença Detectada -->
     <div v-if="detectedLicense" class="license-banner">
       <div class="license-banner-content">
@@ -723,49 +794,44 @@ onUnmounted(() => {
         />
       </div>
 
-      <div class="form-group">
-        <label>Categoria (Opcional)</label>
-        <input
-          v-model="formCategory"
-          type="text"
-          placeholder="Ex: Inatividade, Suporte, Geral"
-          maxlength="30"
-        />
-      </div>
+      <fieldset class="message-tags-field">
+        <legend>Tags</legend>
+        <label v-for="tag in tags" :key="tag.id" class="message-tag-option">
+          <input v-model="formTags" type="checkbox" :value="tag.id" />
+          {{ tag.name }}
+        </label>
+        <p v-if="!tags.length" class="tag-hint">Cadastre tags para organizar suas mensagens.</p>
+        <button type="button" class="tag-btn" @click="openView('tags')">Gerenciar tags</button>
+      </fieldset>
 
       <div class="form-group">
         <div class="label-with-tags">
           <label>Mensagem da Resposta</label>
           <div class="quick-tags">
-            <span class="tag-hint">Inserir tag:</span>
+            <span class="tag-hint">Inserir variável</span>
             <button
-              type="button"
-              class="tag-btn tag-btn-highlight"
-              @click="insertVariable('{{Saudacao}}')"
-              title="Alterna automaticamente entre 'Bom dia!' ou 'Boa tarde!' conforme o horário"
-            >
-              <span v-pre>{{Saudacao}}</span>
-            </button>
-            <button
+              v-for="variable in variableTokens"
+              :key="variable.name"
               type="button"
               class="tag-btn"
-              @click="insertVariable('{{Data}}')"
-              title="Data atual formatada"
+              :class="{ 'tag-btn-highlight': variable.name === 'Saudacao' }"
+              :aria-label="'Inserir ' + variable.token"
+              @mousedown.prevent
+              @click="insertVariable(variable.token)"
             >
-              <span v-pre>{{Data}}</span>
-            </button>
-            <button
-              type="button"
-              class="tag-btn"
-              @click="insertVariable('{{Hora}}')"
-              title="Hora atual formatada"
-            >
-              <span v-pre>{{Hora}}</span>
+              {{ variable.token }}
             </button>
           </div>
         </div>
         <textarea
+          ref="contentTextarea"
           v-model="formContent"
+          aria-label="Mensagem da Resposta"
+          @select="rememberContentSelection"
+          @keyup="rememberContentSelection"
+          @click="rememberContentSelection"
+          @input="rememberContentSelection"
+          @blur="rememberContentSelection"
           rows="6"
           placeholder="Escreva a resposta pronta aqui... Use {{Saudacao}} para Bom dia / Boa tarde automático!"
         ></textarea>
@@ -795,11 +861,18 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <div class="tag-filter">
+        <label for="tag-filter">Filtrar por tag</label>
+        <select id="tag-filter" v-model="selectedTagId" aria-label="Filtrar por tag">
+          <option value="">Todas as tags</option>
+          <option v-for="tag in tags" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
+        </select>
+      </div>
       <div ref="templatesListRef" class="templates-scroll">
         <span class="sr-only" aria-live="polite">{{ liveAnnouncement }}</span>
 
         <div v-if="filteredTemplates.length === 0" class="empty-state">
-          <p v-if="searchQuery">Nenhum modelo encontrado para "{{ searchQuery }}".</p>
+          <p v-if="searchQuery || selectedTagId">Nenhum modelo corresponde aos filtros.</p>
           <p v-else>Nenhum modelo cadastrado. Clique em "Novo" ou abra as opções para restaurar os padrões.</p>
         </div>
 
@@ -834,14 +907,12 @@ onUnmounted(() => {
               type="button"
               class="card-expand-trigger"
               :aria-expanded="isExpanded(tpl.id)"
-              :title="isExpanded(tpl.id) ? 'Recolher modelo' : `${tpl.title}${tpl.category ? ` (${tpl.category})` : ''}`"
+              :title="isExpanded(tpl.id) ? 'Recolher modelo' : tpl.title"
               @click="toggleExpand(tpl.id)"
             >
               <ChevronRight :size="14" :stroke-width="2" class="card-chevron" :class="{ expanded: isExpanded(tpl.id) }" />
               <span class="card-title">{{ tpl.title }}</span>
-              <span v-if="tpl.category && !isExpanded(tpl.id)" class="card-badge card-badge-compact">
-                {{ tpl.category }}
-              </span>
+              <span v-if="getTemplateTagNames(tpl, tags).length && !isExpanded(tpl.id)" class="card-badge card-badge-compact">{{ getTemplateTagNames(tpl, tags).join(', ') }}</span>
             </button>
 
             <div class="card-menu">
@@ -909,8 +980,8 @@ onUnmounted(() => {
           </p>
 
           <div v-if="isExpanded(tpl.id)" class="card-body">
-            <div v-if="tpl.category" class="card-meta">
-              <span class="card-badge">{{ tpl.category }}</span>
+            <div v-if="getTemplateTagNames(tpl, tags).length" class="card-meta">
+              <span v-for="tagName in getTemplateTagNames(tpl, tags)" :key="tagName" class="card-badge">{{ tagName }}</span>
             </div>
 
             <p class="card-preview-expanded">{{ tpl.content }}</p>
@@ -942,6 +1013,7 @@ onUnmounted(() => {
       </div>
     </div>
 
+    </template>
     <!-- Rodapé Minimalista -->
     <footer class="footer">
       <a
@@ -1019,6 +1091,47 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.message-tags-field {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.message-tags-field legend {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+.message-tag-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+.message-tag-option input {
+  accent-color: var(--accent);
+}
+.tag-filter {
+  padding: 0 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tag-filter label { font-size: 11px; color: var(--text-secondary); }
+.tag-filter select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.card-meta { display: flex; flex-wrap: wrap; gap: 5px; }
 .popup-container {
   display: flex;
   flex-direction: column;
@@ -1350,6 +1463,7 @@ onUnmounted(() => {
 
 .quick-tags {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }

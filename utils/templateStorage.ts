@@ -1,4 +1,5 @@
 import type { QuickReplyTemplate } from '@/types/template';
+import { applyTemplateTags, getTemplateTagIds, includeLegacyTags, loadTags, loadTagsLocal, TAGS_KEY, validateTags, type TemplateTag } from './templateTags';
 
 export const STORAGE_KEY = 'octablaster_quick_replies_v2';
 export const HAS_INITIALIZED_KEY = 'octablaster_initialized_v2';
@@ -78,6 +79,9 @@ export function sanitizeTemplate(raw: any): QuickReplyTemplate | null {
   // Define categoria somente se preenchida para nunca enviar undefined ao storage
   if (category) {
     clean.category = category;
+  }
+  if (Array.isArray(raw.tags)) {
+    clean.tags = [...new Set<string>(raw.tags.filter((id: unknown): id is string => typeof id === 'string' && !!id.trim()).map((id: string) => id.trim()))];
   }
 
   return clean;
@@ -278,6 +282,7 @@ export async function loadStoredTemplatesLocal(throwOnError = false): Promise<Qu
 export async function saveStoredTemplatesLocal(
   templates: QuickReplyTemplate[],
   base?: QuickReplyTemplate[],
+  importedCatalog?: TemplateTag[],
 ): Promise<QuickReplyTemplate[]> {
   let cleanList = sanitizeTemplatesList(templates);
   if (base) {
@@ -320,14 +325,23 @@ export async function saveStoredTemplatesLocal(
       if (template) cleanList.push(template);
     }
   }
-  const data = await rawStorageGet([DEFAULTS_STATE_KEY]);
+  const data = await rawStorageGet([DEFAULTS_STATE_KEY, TAGS_KEY]);
   const state = data[DEFAULTS_STATE_KEY];
   const seenIds = new Set<string>(Array.isArray(state?.seenIds) ? state.seenIds : LEGACY_DEFAULT_IDS);
   for (const template of DEFAULT_TEMPLATES) {
     if (!seenIds.has(template.id) && !cleanList.some(item => item.id === template.id)) cleanList.push({ ...template });
     seenIds.add(template.id);
   }
+  const catalog = includeLegacyTags(cleanList, importedCatalog ?? validateTags(data[TAGS_KEY] ?? []));
+  cleanList = cleanList.map(template => {
+    if (!Array.isArray(template.tags)) return template;
+    if (template.tags.some(id => !catalog.some(tag => tag.id === id))) {
+      throw new Error('Uma tag da mensagem foi removida. Abra a edição novamente para escolher as tags atuais.');
+    }
+    return applyTemplateTags(template, catalog, template.tags);
+  });
   await rawStorageSet({
+    [TAGS_KEY]: catalog,
     [DEFAULTS_STATE_KEY]: { version: DEFAULTS_VERSION, seenIds: [...seenIds] },
     [STORAGE_KEY]: cleanList,
     [HAS_INITIALIZED_KEY]: true,
@@ -378,9 +392,10 @@ export async function resetToDefaultTemplates(
 /**
  * Exporta a lista de modelos para download em JSON via Data URI seguro.
  */
-export function exportTemplatesToJson(templates: QuickReplyTemplate[]): void {
-  const cleanList = sanitizeTemplatesList(templates);
-  const dataStr = JSON.stringify(cleanList, null, 2);
+export async function exportTemplatesToJson(templates: QuickReplyTemplate[]): Promise<void> {
+  const tags = await loadTags();
+  const cleanList = sanitizeTemplatesList(templates).map(template => applyTemplateTags(template, tags, getTemplateTagIds(template, tags)));
+  const dataStr = JSON.stringify({ format: 'octablaster', version: 1, templates: cleanList, tags }, null, 2);
   const dateStr = new Date().toISOString().slice(0, 10);
   const filename = `octablaster-templates-${dateStr}.json`;
 
@@ -406,6 +421,10 @@ export function exportTemplatesToJson(templates: QuickReplyTemplate[]): void {
  * Processa e valida texto JSON importado pelo usuário.
  */
 export function parseTemplatesFromJson(jsonText: string): QuickReplyTemplate[] {
+  return parseTemplateBackup(jsonText).templates;
+}
+
+export function parseTemplateBackup(jsonText: string): { templates: QuickReplyTemplate[]; tags: TemplateTag[] } {
   let parsed: any;
   try {
     parsed = JSON.parse(jsonText);
@@ -413,16 +432,20 @@ export function parseTemplatesFromJson(jsonText: string): QuickReplyTemplate[] {
     throw new Error('Arquivo JSON inválido ou corrompido.');
   }
 
-  if (!Array.isArray(parsed)) {
-    throw new Error('O arquivo deve conter uma lista (array) de modelos.');
+  const legacy = Array.isArray(parsed);
+  if (!legacy && (parsed?.format !== 'octablaster' || parsed.version !== 1 || !Array.isArray(parsed.templates))) {
+    throw new Error('O arquivo deve conter um backup do OctaBlaster ou uma lista de modelos.');
   }
-
-  const validItems = sanitizeTemplatesList(parsed);
-  if (validItems.length === 0) {
+  const tags = legacy ? [] : validateTags(parsed.tags ?? []);
+  const validItems = sanitizeTemplatesList(legacy ? parsed : parsed.templates);
+  if (validItems.length === 0 && (legacy || parsed.templates.length > 0)) {
     throw new Error('Nenhum modelo válido encontrado no arquivo JSON.');
   }
 
-  return validItems;
+  if (!legacy && validItems.some(template => template.tags?.some(id => !tags.some(tag => tag.id === id)))) {
+    throw new Error('O backup contém referências a tags ausentes no catálogo.');
+  }
+  return { templates: validItems, tags };
 }
 
 /**
@@ -433,7 +456,38 @@ export async function mergeImportedTemplates(
   current: QuickReplyTemplate[],
   incoming: QuickReplyTemplate[],
   base: QuickReplyTemplate[] = current,
+  incomingTags: TemplateTag[] = [],
 ): Promise<{ count: number; merged: QuickReplyTemplate[] }> {
+  if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
+    const response = await browser.runtime.sendMessage({
+      action: 'TEMPLATE_STORAGE', operation: 'import',
+      current: sanitizeTemplatesList(current), incoming: sanitizeTemplatesList(incoming),
+      base: sanitizeTemplatesList(base), tags: validateTags(incomingTags),
+    });
+    if (!response?.success) throw new Error(response?.error || 'Falha ao importar modelos.');
+    return { count: response.count, merged: response.merged };
+  }
+  return mergeImportedTemplatesLocal(current, incoming, base, incomingTags);
+}
+
+export async function mergeImportedTemplatesLocal(
+  current: QuickReplyTemplate[],
+  incoming: QuickReplyTemplate[],
+  base: QuickReplyTemplate[],
+  incomingTags: TemplateTag[],
+): Promise<{ count: number; merged: QuickReplyTemplate[] }> {
+  const catalog = await loadTagsLocal();
+  const importedIds = new Map<string, string>();
+  for (const tag of validateTags(incomingTags)) {
+    const existing = catalog.find(item => item.name.toLocaleLowerCase('pt-BR') === tag.name.toLocaleLowerCase('pt-BR'));
+    if (existing) {
+      importedIds.set(tag.id, existing.id);
+      continue;
+    }
+    const id = catalog.some(item => item.id === tag.id) ? crypto.randomUUID() : tag.id;
+    catalog.push({ id, name: tag.name });
+    importedIds.set(tag.id, id);
+  }
   const map = new Map<string, QuickReplyTemplate>();
 
   // Adiciona itens existentes
@@ -444,11 +498,14 @@ export async function mergeImportedTemplates(
   // Mescla os novos (preservando ordem e atualizando)
   let count = 0;
   for (const item of incoming) {
-    map.set(item.id, item);
+    const template = Array.isArray(item.tags)
+      ? { ...item, tags: item.tags.map(id => importedIds.get(id) || id) }
+      : item;
+    map.set(item.id, template);
     count++;
   }
 
   const merged = Array.from(map.values());
-  const saved = await saveStoredTemplates(merged, base);
+  const saved = await saveStoredTemplatesLocal(merged, base, catalog);
   return { count, merged: saved };
 }

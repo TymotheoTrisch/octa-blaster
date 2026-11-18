@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
 import { VARIABLES_KEY, validateVariables, findVariableNames, prepareTemplate,
-  loadReplySettings, saveReplySettings } from '../utils/templateVariables.ts';
+  loadReplySettings, saveReplySettings, saveVariables, saveShortcutTrigger } from '../utils/templateVariables.ts';
 
 test('variable names reject reserved names and case-insensitive duplicates', () => {
   for (const name of ['Data', 'hora', 'Saudacao', 'Saudação', 'bad name', '1numero']) {
@@ -21,6 +21,17 @@ test('settings persist variables and slash preference', async () => {
     const settings = { variables: [{ name: 'Assinatura', value: 'Ana', mode: 'saved' }], trigger: '/' };
     await saveReplySettings(settings);
     assert.deepEqual(await loadReplySettings(), settings);
+  } finally { storage.restore(); }
+});
+
+test('saving variables and shortcut preferences independently preserves both screens’ changes', async () => {
+  const storage = installStorage();
+  const variables = [{ name: 'Assinatura', value: 'Ana', mode: 'saved' }];
+  try {
+    await Promise.all([saveVariables(variables), saveShortcutTrigger('/')]);
+    assert.deepEqual(await loadReplySettings(), { variables, trigger: '/' });
+    await saveShortcutTrigger('');
+    assert.deepEqual(await loadReplySettings(), { variables, trigger: '' });
   } finally { storage.restore(); }
 });
 

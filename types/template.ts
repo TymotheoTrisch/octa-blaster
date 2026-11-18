@@ -3,6 +3,7 @@ export interface QuickReplyTemplate {
   title: string;
   content: string;
   category?: string;
+  tags?: string[];
   updatedAt: number;
 }
 

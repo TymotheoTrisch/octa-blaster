@@ -5,6 +5,7 @@ import {
   isTicketElementVisible,
 } from './licenseDetector';
 import { insertTextIntoElement } from './insertText';
+import { rawStorageGet, rawStorageSet } from './templateStorage';
 import type { MentionTarget } from '@/types/template';
 
 export const MENTION_TARGETS_STORAGE_KEY = 'octablaster_mention_targets';
@@ -26,95 +27,36 @@ export const DEFAULT_MENTION_TARGETS: MentionTarget[] = [
   },
 ];
 
-function getBrowserStorageArea(): any {
-  if (typeof browser !== 'undefined' && browser?.storage?.local) {
-    return browser.storage.local;
-  }
-  const gChrome = (globalThis as any).chrome;
-  if (gChrome?.storage?.local) {
-    return gChrome.storage.local;
-  }
-  const gBrowser = (globalThis as any).browser;
-  if (gBrowser?.storage?.local) {
-    return gBrowser.storage.local;
-  }
-  return null;
+export function validateMentionTargets(raw: unknown): MentionTarget[] {
+  if (!Array.isArray(raw)) throw new Error('A lista de técnicos é inválida.');
+  const ids = new Set<string>();
+  return raw.map(item => {
+    const id = typeof item?.id === 'string' ? item.id.trim() : '';
+    const name: string = typeof item?.name === 'string' ? item.name.trim() : '';
+    let query = typeof item?.query === 'string' ? item.query.trim() : '';
+    if (!id || !name) throw new Error('Informe o nome do técnico.');
+    if (ids.has(id)) throw new Error('Há técnicos com identificadores repetidos.');
+    ids.add(id);
+    if (!query) query = name;
+    if (!query.startsWith('@')) query = `@${query}`;
+    const derivedPattern = name.split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+    const pattern = typeof item.pattern === 'string' && item.pattern.trim() ? item.pattern : derivedPattern;
+    try {
+      new RegExp(pattern, 'i');
+    } catch {
+      throw new Error(`Padrão de identificação inválido para ${name}.`);
+    }
+    return { id, name, query, pattern, enabled: item.enabled !== false };
+  });
 }
 
 export async function loadMentionTargets(): Promise<MentionTarget[]> {
-  const storage = getBrowserStorageArea();
-  if (storage) {
-    try {
-      const getRes = storage.get([MENTION_TARGETS_STORAGE_KEY]);
-      const res =
-        getRes && typeof getRes.then === 'function'
-          ? await getRes
-          : await new Promise<any>((resolve) =>
-              storage.get([MENTION_TARGETS_STORAGE_KEY], resolve),
-            );
-      if (
-        res &&
-        Array.isArray(res[MENTION_TARGETS_STORAGE_KEY]) &&
-        res[MENTION_TARGETS_STORAGE_KEY].length > 0
-      ) {
-        return res[MENTION_TARGETS_STORAGE_KEY];
-      }
-    } catch (err) {
-      console.warn(
-        '[OctaBlaster] Erro ao carregar mention targets do storage:',
-        err,
-      );
-    }
-  }
-
-  if (typeof localStorage !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(MENTION_TARGETS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {}
-  }
-
-  return JSON.parse(JSON.stringify(DEFAULT_MENTION_TARGETS));
+  const data = await rawStorageGet([MENTION_TARGETS_STORAGE_KEY]);
+  return validateMentionTargets(data[MENTION_TARGETS_STORAGE_KEY] ?? DEFAULT_MENTION_TARGETS);
 }
 
-export async function saveMentionTargets(
-  targets: MentionTarget[],
-): Promise<void> {
-  const cleanTargets = JSON.parse(JSON.stringify(targets));
-  const storage = getBrowserStorageArea();
-  if (storage) {
-    try {
-      const setRes = storage.set({
-        [MENTION_TARGETS_STORAGE_KEY]: cleanTargets,
-      });
-      if (setRes && typeof setRes.then === 'function') {
-        await setRes;
-      } else {
-        await new Promise<void>((resolve) =>
-          storage.set({ [MENTION_TARGETS_STORAGE_KEY]: cleanTargets }, resolve),
-        );
-      }
-    } catch (err) {
-      console.warn(
-        '[OctaBlaster] Erro ao salvar mention targets no storage:',
-        err,
-      );
-    }
-  }
-
-  if (typeof localStorage !== 'undefined') {
-    try {
-      localStorage.setItem(
-        MENTION_TARGETS_STORAGE_KEY,
-        JSON.stringify(cleanTargets),
-      );
-    } catch {}
-  }
+export async function saveMentionTargets(targets: MentionTarget[]): Promise<void> {
+  await rawStorageSet({ [MENTION_TARGETS_STORAGE_KEY]: validateMentionTargets(targets) });
 }
 
 function sleep(ms: number) {

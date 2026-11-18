@@ -13,6 +13,26 @@ export interface ReplySettings {
   trigger: '\\' | '/' | '';
 }
 const reserved = /^(sauda[cç][aã]o|data|hora)$/i;
+export async function loadVariables(): Promise<TemplateVariable[]> {
+  const data = await rawStorageGet([VARIABLES_KEY]);
+  return validateVariables(data[VARIABLES_KEY] ?? []);
+}
+
+export async function saveVariables(variables: TemplateVariable[]): Promise<TemplateVariable[]> {
+  const clean = validateVariables(variables);
+  await rawStorageSet({ [VARIABLES_KEY]: clean });
+  return clean;
+}
+
+export async function loadShortcutTrigger(): Promise<ReplySettings['trigger']> {
+  const data = await rawStorageGet([SHORTCUT_KEY]);
+  return data[SHORTCUT_KEY] === '/' || data[SHORTCUT_KEY] === '' ? data[SHORTCUT_KEY] : '\\';
+}
+
+export async function saveShortcutTrigger(trigger: ReplySettings['trigger']): Promise<void> {
+  if (!['\\', '/', ''].includes(trigger)) throw new Error('Atalho inválido.');
+  await rawStorageSet({ [SHORTCUT_KEY]: trigger });
+}
 export function validateVariables(
   variables: TemplateVariable[],
 ): TemplateVariable[] {

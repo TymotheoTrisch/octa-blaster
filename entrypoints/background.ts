@@ -1,5 +1,6 @@
 import type { InsertMessageRequest } from '@/types/template';
-import { loadStoredTemplatesLocal, saveStoredTemplatesLocal } from '@/utils/templateStorage';
+import { loadStoredTemplatesLocal, saveStoredTemplatesLocal, mergeImportedTemplatesLocal } from '@/utils/templateStorage';
+import { loadTagsLocal, saveTagsLocal } from '@/utils/templateTags';
 
 export default defineBackground(() => {
   let templateQueue: Promise<unknown> = Promise.resolve();
@@ -7,8 +8,17 @@ export default defineBackground(() => {
   const keyForTab = (tabId: number) => `octablaster_editor_${tabId}`;
   browser.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== browser.runtime.id || !message || typeof message !== 'object') return;
-    if (message.action === 'TEMPLATE_STORAGE') {
+    if (message.action === 'TEMPLATE_STORAGE' || message.action === 'TAG_CATALOG') {
       const task = templateQueue.then(async () => {
+        if (message.action === 'TAG_CATALOG') {
+          if (!['load', 'save'].includes(message.operation)) throw new Error('Operação de tags inválida.');
+          const tags = message.operation === 'load' ? await loadTagsLocal() : await saveTagsLocal(message.tags, message.base);
+          return { success: true, tags };
+        }
+        if (message.operation === 'import') {
+          const result = await mergeImportedTemplatesLocal(message.current, message.incoming, message.base, message.tags ?? []);
+          return { success: true, ...result };
+        }
         if (!['load', 'save'].includes(message.operation)) throw new Error('Operação de modelos inválida.');
         const templates = message.operation === 'load'
           ? await loadStoredTemplatesLocal(true)

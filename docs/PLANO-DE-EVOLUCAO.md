@@ -23,12 +23,16 @@ As verificações incluem regressões automatizadas, tipos TypeScript e builds d
 
 ## Como usar
 
-1. Abra o popup ou painel lateral e expanda **Variáveis e atalhos**, abaixo do cabeçalho.
-2. Selecione **Adicionar variável**, informe um nome como `Assinatura`, escolha **Valor salvo** e preencha o valor. Para dados que mudam a cada resposta, escolha **Preencher ao usar**.
-3. Salve as configurações. Nomes são únicos sem distinção entre maiúsculas e minúsculas. `Saudacao`, `Data` e `Hora` são reservadas.
-4. Crie ou edite uma resposta com `{{Assinatura}}` e `{{Protocolo}}`. Variáveis presentes no texto que ainda não foram cadastradas também são solicitadas no momento do uso.
+1. Abra o menu de três pontos no popup ou painel lateral e escolha **Variáveis**.
+2. Selecione **Nova variável**, informe um nome como `Assinatura`, escolha **Valor salvo** e preencha o valor. Para dados que mudam a cada resposta, escolha **Preencher ao usar**.
+3. Salve a variável. Nomes são únicos sem distinção entre maiúsculas e minúsculas. `Saudacao`, `Data` e `Hora` são reservadas.
+4. Crie ou edite uma resposta. Os botões de variáveis automáticas e cadastradas inserem o token na posição do cursor ou substituem o trecho selecionado. Variáveis presentes no texto que ainda não foram cadastradas também são solicitadas no momento do uso. Ao renomear uma variável, atualize os tokens das mensagens para o novo nome.
 5. Clique no campo de resposta do ticket. Digite `\` e parte do título da resposta. Escolha com as setas e Enter, ou clique no título. O texto fica no rascunho.
-6. Para usar `/` ou desativar o menu, altere **Atalho no editor** e salve.
+6. Para usar `/` ou desativar o menu, abra **Atalhos** no menu da extensão. Nessa tela também é possível cadastrar, editar, desativar e remover os técnicos das menções de licenças.
+
+A tela **Tags**, acessível pelo menu, centraliza os nomes usados para organizar as mensagens. As categorias antigas aparecem nesse cadastro. Uma mensagem pode receber várias tags, selecionadas no formulário, e a lista pode ser filtrada por tag. Renomear uma tag atualiza seu nome nas mensagens associadas. Excluir uma tag remove suas associações.
+
+A exportação JSON inclui mensagens e o catálogo de tags. A importação aceita esse formato e os arquivos antigos com listas de modelos e categorias.
 
 Popup, painel lateral, widget e menu pedem os valores pendentes em um formulário. Cancelar preserva o rascunho. A seleção no menu substitui apenas o gatilho e o trecho de busca. Se o ticket mudar ou o rascunho for editado durante esse formulário, a inserção pendente é descartada.
 
@@ -82,3 +86,9 @@ A branch `codex/integracao-0.7.0` integra a `main` de `luizGDpulz/octa-blaster` 
 A gravação distingue reordenação intencional de edição do conteúdo. Editar um modelo em um painel aberto antes de uma reordenação preserva a ordem mais recente. Novos modelos criados por outro painel também são preservados.
 
 A integração passou em 32 testes, na checagem TypeScript e nos builds de Chrome e Firefox. O Chromium com a extensão carregada e APIs reais validou os cards em acordeão, reordenação por teclado e arraste, persistência após recarregar, cancelamento com Esc, pesquisa e configurações de variáveis e atalhos. As páginas de ticket usadas nos testes foram fixtures locais. A sessão autenticada do Octadesk permanece sem verificação.
+
+## Telas de gerenciamento em 18/11/2026
+
+O menu passa a abrir as telas **Variáveis**, **Tags** e **Atalhos**. O cadastro de técnicos fica na tela de atalhos. O formulário de mensagem apresenta todas as variáveis e permite escolher várias tags. O rascunho e a posição de inserção são preservados ao navegar para os cadastros e voltar.
+
+Essa versão passou em 57 testes automatizados, na checagem TypeScript e nos builds dos dois navegadores. O teste com a extensão carregada no Chromium cobriu o cadastro e a edição das variáveis, inserção de tokens na seleção, filtro de tags, persistência, configuração dos técnicos e uso desses técnicos na automação de uma página de teste. Popup e painel lateral foram conferidos em 380 × 540. A sessão autenticada do Octadesk no Firefox continua dependendo de validação nesse ambiente.
