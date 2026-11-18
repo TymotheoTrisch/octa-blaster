@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
-import { loadMentionTargets, saveMentionTargets, automateLicenseMentions } from '../utils/mentionHelper.ts';
+import { loadMentionTargets, saveMentionTargets, automateLicenseMentions } from '../services/octadesk/mentionHelper.ts';
 
 const targets = [
   { id: 'ana', name: 'Ana Técnica', query: '@ana', pattern: 'ana\\s+t[eé]cnica', enabled: true },

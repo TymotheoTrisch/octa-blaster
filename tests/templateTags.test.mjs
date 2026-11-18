@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
-import { TAGS_KEY, getTemplateTagIds, getTemplateTagNames } from '../utils/templateTagSchema.ts';
-import { loadTags, saveTags } from '../utils/templateTags.ts';
-import { STORAGE_KEY, HAS_INITIALIZED_KEY, loadStoredTemplates, saveStoredTemplates, parseTemplateBackup, parseTemplatesFromJson, mergeImportedTemplates, exportTemplatesToJson } from '../utils/templateStorage.ts';
+import { TAGS_KEY, getTemplateTagIds, getTemplateTagNames } from '../services/storage/templateTagSchema.ts';
+import { loadTags, saveTags } from '../services/storage/templateTags.ts';
+import { STORAGE_KEY, HAS_INITIALIZED_KEY, loadStoredTemplates, saveStoredTemplates, parseTemplateBackup, parseTemplatesFromJson, mergeImportedTemplates, exportTemplatesToJson } from '../services/storage/templateStorage.ts';
 
 const reply = { id: 'reply', title: 'Resposta', content: 'Conteúdo', updatedAt: 1 };
 

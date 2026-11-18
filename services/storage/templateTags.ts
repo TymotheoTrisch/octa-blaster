@@ -1,4 +1,4 @@
-import { rawStorageSet } from './storage';
+import { rawStorageSet } from './rawStorage';
 import { loadStoredTemplatesLocal, loadTagsLocal, STORAGE_KEY } from './templateStorage';
 import { TAGS_KEY, validateTags, getTemplateTagIds, applyTemplateTags, type TemplateTag } from './templateTagSchema';
 

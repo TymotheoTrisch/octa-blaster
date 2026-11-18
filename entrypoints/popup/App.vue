@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template';
-import type { LicenseTicketInfo } from '@/utils/licenseDetector';
-import { prepareTemplate, loadVariables } from '@/utils/templateVariables';
-import { type TemplateVariable } from '@/utils/settingsSchema';
-import { loadSettings } from '@/utils/settingsStorage';
+import type { LicenseTicketInfo } from '@/services/octadesk/licenseDetector';
+import { prepareTemplate, loadVariables } from '@/services/templates/templateVariables';
+import { type TemplateVariable } from '@/services/storage/settingsSchema';
+import { loadSettings } from '@/services/storage/settingsStorage';
 import packageInfo from '../../package.json';
-import { loadTags } from '@/utils/templateTags';
-import { getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/utils/templateTagSchema';
+import { loadTags } from '@/services/storage/templateTags';
+import { getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/services/storage/templateTagSchema';
 import VariablesView from './VariablesView.vue';
 import TagsView from './TagsView.vue';
 import ShortcutsView from './ShortcutsView.vue';
-import { loadStoredTemplates, saveStoredTemplates, resetToDefaultTemplates, exportTemplatesToJson, parseTemplateBackup, mergeImportedTemplates } from '@/utils/templateStorage';
+import { loadStoredTemplates, saveStoredTemplates, resetToDefaultTemplates, exportTemplatesToJson, parseTemplateBackup, mergeImportedTemplates } from '@/services/storage/templateStorage';
 import {
   MoreHorizontal,
   Plus,
@@ -42,8 +42,8 @@ import {
   Tags,
   Keyboard,
 } from 'lucide-vue-next';
-import { checkGithubRelease, type UpdateInfo } from '@/utils/updateChecker';
-import { useTemplateReorder } from '@/utils/useTemplateReorder';
+import { checkGithubRelease, type UpdateInfo } from '@/services/updates/updateChecker';
+import { useTemplateReorder } from '@/composables/useTemplateReorder';
 
 const detectedLicense = ref<LicenseTicketInfo | null>(null);
 const isAutomatingLicense = ref(false);

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-vue-next';
-import { loadVariables, saveVariables } from '@/utils/templateVariables';
-import { type TemplateVariable } from '@/utils/settingsSchema';
+import { loadVariables, saveVariables } from '@/services/templates/templateVariables';
+import { type TemplateVariable } from '@/services/storage/settingsSchema';
 import './management.css';
 const emit = defineEmits<{ back: []; changed: [] }>();
 const variables = ref<TemplateVariable[]>([]);

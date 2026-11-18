@@ -1,4 +1,4 @@
-import { rawStorageGet, rawStorageSet } from './storage';
+import { rawStorageGet, rawStorageSet } from './rawStorage';
 import { VARIABLES_KEY, SHORTCUT_KEY, MENTION_TARGETS_STORAGE_KEY, DEFAULT_MENTION_TARGETS, validateVariables, validateMentionTargets, validateSettingsPatch, type TemplateVariable, type SettingsSnapshot } from './settingsSchema';
 
 export async function loadSettingsLocal(): Promise<SettingsSnapshot> {

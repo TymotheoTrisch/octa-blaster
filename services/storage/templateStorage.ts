@@ -1,4 +1,4 @@
-import { rawStorageGet, rawStorageSet } from './storage';
+import { rawStorageGet, rawStorageSet } from './rawStorage';
 import type { QuickReplyTemplate } from '@/types/template';
 import { applyTemplateTags, getTemplateTagIds, includeLegacyTags, TAGS_KEY, validateTags, type TemplateTag } from './templateTagSchema';
 import { loadSettingsLocal, prepareSettingsSaveLocal } from './settingsStorage';

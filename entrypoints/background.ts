@@ -1,8 +1,8 @@
 import type { InsertMessageRequest } from '@/types/template';
-import { loadStoredTemplatesLocal, saveStoredTemplatesLocal, mergeImportedTemplatesLocal, createTemplateBackupLocal } from '@/utils/templateStorage';
-import { loadTagsLocal } from '@/utils/templateStorage';
-import { saveTagsLocal } from '@/utils/templateTags';
-import { loadSettingsLocal, saveSettingsLocal } from '@/utils/settingsStorage';
+import { loadStoredTemplatesLocal, saveStoredTemplatesLocal, mergeImportedTemplatesLocal, createTemplateBackupLocal } from '@/services/storage/templateStorage';
+import { loadTagsLocal } from '@/services/storage/templateStorage';
+import { saveTagsLocal } from '@/services/storage/templateTags';
+import { loadSettingsLocal, saveSettingsLocal } from '@/services/storage/settingsStorage';
 
 export default defineBackground(() => {
   let templateQueue: Promise<unknown> = Promise.resolve();

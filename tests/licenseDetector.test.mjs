@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom } from './helpers.mjs';
-import { detectLicenseTicket, getScopedTicketContainer, isTicketElementVisible } from '../utils/licenseDetector.ts';
+import { detectLicenseTicket, getScopedTicketContainer, isTicketElementVisible } from '../services/octadesk/licenseDetector.ts';
 
 test('license detection stays within the requested ticket and ignores the document title', () => {
   const dom = installDom(`<title>Contratação de licença facial</title>

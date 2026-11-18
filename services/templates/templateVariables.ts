@@ -1,5 +1,5 @@
-import { RESERVED_VARIABLE_NAME as reserved, type TemplateVariable, type ReplySettings } from './settingsSchema';
-import { loadSettings, saveSettings } from './settingsStorage';
+import { RESERVED_VARIABLE_NAME as reserved, type TemplateVariable, type ReplySettings } from '../storage/settingsSchema';
+import { loadSettings, saveSettings } from '../storage/settingsStorage';
 import { resolveVariables } from './templateResolver';
 
 export async function loadVariables(): Promise<TemplateVariable[]> {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom } from './helpers.mjs';
-import { automateLicenseMentions, insertMentionForTarget } from '../utils/mentionHelper.ts';
+import { automateLicenseMentions, insertMentionForTarget } from '../services/octadesk/mentionHelper.ts';
 
 const tymotheo = { id: 'tymotheo', name: 'Tymotheo Oliveira', query: '@tymotheo', pattern: 'Tymotheo\\s+Oliveira', enabled: true };
 const ana = { id: 'ana', name: 'Ana Souza', query: '@ana', pattern: 'Ana\\s+Souza', enabled: true };

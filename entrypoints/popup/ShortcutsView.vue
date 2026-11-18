@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-vue-next';
-import { loadShortcutTrigger, saveShortcutTrigger } from '@/utils/templateVariables';
-import { loadMentionTargets, saveMentionTargets } from '@/utils/mentionHelper';
+import { loadShortcutTrigger, saveShortcutTrigger } from '@/services/templates/templateVariables';
+import { loadMentionTargets, saveMentionTargets } from '@/services/octadesk/mentionHelper';
 import type { MentionTarget } from '@/types/template';
 import './management.css';
 const emit = defineEmits<{ back: []; changed: [] }>();

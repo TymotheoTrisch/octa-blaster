@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
-import { installReplyShortcut, matchShortcut } from '../utils/replyShortcut.ts';
-import { VARIABLES_KEY, SHORTCUT_KEY } from '../utils/settingsSchema.ts';
-import { STORAGE_KEY, HAS_INITIALIZED_KEY } from '../utils/templateStorage.ts';
+import { installReplyShortcut, matchShortcut } from '../services/octadesk/replyShortcut.ts';
+import { VARIABLES_KEY, SHORTCUT_KEY } from '../services/storage/settingsSchema.ts';
+import { STORAGE_KEY, HAS_INITIALIZED_KEY } from '../services/storage/templateStorage.ts';
 
 const templates = [
   { id: 'return', title: 'Retorno', content: 'Resposta pronta', updatedAt: 1 },

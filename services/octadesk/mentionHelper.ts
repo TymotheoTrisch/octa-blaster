@@ -1,4 +1,4 @@
-import { mentionNamePattern } from './settingsSchema';
+import { mentionNamePattern } from '../storage/settingsSchema';
 import {
   getScopedTicketContainer,
   getTicketIdentity,
@@ -6,7 +6,7 @@ import {
   isTicketElementVisible,
 } from './licenseDetector';
 import { insertTextIntoElement } from './insertText';
-import { loadSettings, saveSettings } from './settingsStorage';
+import { loadSettings, saveSettings } from '../storage/settingsStorage';
 import { readTicketLicenseRequest, formatLicenseRequest } from './licenseRequest';
 import type { MentionTarget } from '@/types/template';
 

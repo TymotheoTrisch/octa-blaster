@@ -1,9 +1,9 @@
-import { insertTextIntoElement } from '@/utils/insertText';
-import { detectLicenseTicket, getScopedTicketContainer, getTicketIdentity, isTicketElementVisible, type LicenseTicketInfo } from '@/utils/licenseDetector';
-import { automateLicenseMentions } from '@/utils/mentionHelper';
-import { prepareTemplate } from '@/utils/templateVariables';
-import { installReplyShortcut } from '@/utils/replyShortcut';
-import { createReplyListItem, loadReplyList } from '@/utils/replyList';
+import { insertTextIntoElement } from '@/services/octadesk/insertText';
+import { detectLicenseTicket, getScopedTicketContainer, getTicketIdentity, isTicketElementVisible, type LicenseTicketInfo } from '@/services/octadesk/licenseDetector';
+import { automateLicenseMentions } from '@/services/octadesk/mentionHelper';
+import { prepareTemplate } from '@/services/templates/templateVariables';
+import { installReplyShortcut } from '@/services/octadesk/replyShortcut';
+import { createReplyListItem, loadReplyList } from '@/services/templates/replyList';
 import type { InsertMessageRequest, InsertMessageResponse } from '@/types/template';
 
 export default defineContentScript({
