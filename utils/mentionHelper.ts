@@ -27,6 +27,10 @@ export const DEFAULT_MENTION_TARGETS: MentionTarget[] = [
   },
 ];
 
+function mentionNamePattern(name: string): string {
+  return name.split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+}
+
 export function validateMentionTargets(raw: unknown): MentionTarget[] {
   if (!Array.isArray(raw)) throw new Error('A lista de técnicos é inválida.');
   const ids = new Set<string>();
@@ -39,7 +43,7 @@ export function validateMentionTargets(raw: unknown): MentionTarget[] {
     ids.add(id);
     if (!query) query = name;
     if (!query.startsWith('@')) query = `@${query}`;
-    const derivedPattern = name.split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+    const derivedPattern = mentionNamePattern(name);
     const pattern = typeof item.pattern === 'string' && item.pattern.trim() ? item.pattern : derivedPattern;
     try {
       new RegExp(pattern, 'i');
@@ -312,6 +316,7 @@ async function selectPersonFromPopover(
   maxWaitMs: number = 2800,
   editor?: HTMLElement,
   isCurrent: () => boolean = () => true,
+  accentInsensitivePattern?: RegExp,
 ): Promise<boolean> {
   const startTime = Date.now();
 
@@ -356,8 +361,9 @@ async function selectPersonFromPopover(
           (item.closest('.note-hint-item') as HTMLElement) || item;
         if (!isElementVisible(targetItem, 10, 10)) continue;
 
-        const text = (targetItem.textContent || '').trim();
-        if (namePattern.test(text)) {
+        const text = (targetItem.innerText || targetItem.textContent || '').trim();
+        const normalizedText = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (namePattern.test(text) || accentInsensitivePattern?.test(normalizedText)) {
           targetItem.dispatchEvent(
             new MouseEvent('mouseenter', { bubbles: true }),
           );
@@ -406,33 +412,18 @@ export async function insertMentionForTarget(
   const mentionQuery = target.query.startsWith('@')
     ? target.query
     : `@${target.query}`;
-  insertTextIntoElement(
-    targetEditor,
-    `${prefix}${mentionQuery}`,
-    undefined,
-    true,
-  );
-
-  // Dispara eventos de tecla e input para acionar o popover do Summernote
-  const triggerChar = mentionQuery.slice(-1) || 'a';
-  const charCode = triggerChar.charCodeAt(0);
-  targetEditor.dispatchEvent(
-    new KeyboardEvent('keydown', {
-      key: triggerChar,
-      keyCode: charCode,
-      which: charCode,
-      bubbles: true,
-    }),
-  );
-  targetEditor.dispatchEvent(new Event('input', { bubbles: true }));
-  targetEditor.dispatchEvent(
-    new KeyboardEvent('keyup', {
-      key: triggerChar,
-      keyCode: charCode,
-      which: charCode,
-      bubbles: true,
-    }),
-  );
+  if (prefix && !insertTextIntoElement(targetEditor, prefix, undefined, true)) return false;
+  const KeyEvent = targetDoc.defaultView?.KeyboardEvent || KeyboardEvent;
+  // O editor precisa receber o acionamento de @ antes de atualizar a busca.
+  for (const character of mentionQuery) {
+    if (!isCurrent() || targetDoc.activeElement !== targetEditor || !isElementVisible(targetEditor)) return false;
+    const keyCode = character === '@' ? 50 : character.toUpperCase().charCodeAt(0);
+    const options = { key: character, keyCode, which: keyCode, shiftKey: character === '@', bubbles: true, cancelable: true };
+    targetEditor.dispatchEvent(new KeyEvent('keydown', options));
+    if (!insertTextIntoElement(targetEditor, character, undefined, true)) return false;
+    targetEditor.dispatchEvent(new KeyEvent('keyup', options));
+    await sleep(35);
+  }
 
   let pattern: RegExp;
   try {
@@ -450,6 +441,9 @@ export async function insertMentionForTarget(
     2800,
     targetEditor,
     isCurrent,
+    pattern.source.toLowerCase() === mentionNamePattern(target.name).toLowerCase()
+      ? new RegExp(mentionNamePattern(target.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')), 'i')
+      : undefined,
   );
 
   await sleep(160);
@@ -568,6 +562,11 @@ export async function automateLicenseMentions(
         );
         if (selected) {
           markedNames.push(`@${target.name}`);
+        } else {
+          return {
+            success: false,
+            message: `Não foi possível selecionar o técnico "${target.name}" na busca "${target.query}". Confira o nome exibido nas sugestões do Octadesk e revise a anotação antes de tentar novamente.`,
+          };
         }
       }
     }

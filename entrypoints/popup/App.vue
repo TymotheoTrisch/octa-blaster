@@ -63,7 +63,10 @@ const formTags = ref<string[]>([]);
 const tags = ref<TemplateTag[]>([]);
 const variables = ref<TemplateVariable[]>([]);
 const selectedTagId = ref('');
-const currentView = ref<'templates' | 'variables' | 'tags' | 'shortcuts'>('templates');
+type View = 'templates' | 'variables' | 'tags' | 'shortcuts';
+const currentView = ref<View>('templates');
+const viewHistory: View[] = [];
+const tagPicker = ref<HTMLDetailsElement | null>(null);
 const contentTextarea = ref<HTMLTextAreaElement | null>(null);
 let contentSelection = { start: 0, end: 0 };
 const variableTokens = computed(() => {
@@ -84,14 +87,16 @@ async function refreshTagsAndTemplates() {
   await refreshCatalogs();
   await loadTemplates();
 }
-function openView(view: 'templates' | 'variables' | 'tags' | 'shortcuts') {
+function openView(view: View) {
   closeMenu();
   closeCardMenu();
+  if (tagPicker.value) tagPicker.value.open = false;
   statusMessage.value = '';
+  if (currentView.value !== view) viewHistory.push(currentView.value);
   currentView.value = view;
 }
-function returnToTemplates() {
-  currentView.value = 'templates';
+function returnToPreviousView() {
+  currentView.value = viewHistory.pop() || 'templates';
   void refreshCatalogs();
 }
 function rememberContentSelection() {
@@ -555,6 +560,9 @@ function handleMenuAction(action: () => void | Promise<void>) {
 
 function handleClickOutside(event: MouseEvent) {
   const target = event.target as HTMLElement | null;
+  if (tagPicker.value && (!target || !tagPicker.value.contains(target))) {
+    tagPicker.value.open = false;
+  }
   if (menuRef.value && (!target || !menuRef.value.contains(target))) {
     closeMenu();
   }
@@ -565,6 +573,7 @@ function handleClickOutside(event: MouseEvent) {
 
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    if (tagPicker.value) tagPicker.value.open = false;
     if (isMenuOpen.value) {
       closeMenu();
     }
@@ -747,9 +756,9 @@ onUnmounted(() => {
       </div>
     </transition>
 
-    <VariablesView v-if="currentView === 'variables'" @back="returnToTemplates" @changed="refreshCatalogs" />
-    <TagsView v-else-if="currentView === 'tags'" @back="returnToTemplates" @changed="refreshTagsAndTemplates" />
-    <ShortcutsView v-else-if="currentView === 'shortcuts'" @back="returnToTemplates" @changed="refreshCatalogs" />
+    <VariablesView v-if="currentView === 'variables'" @back="returnToPreviousView" @changed="refreshCatalogs" />
+    <TagsView v-else-if="currentView === 'tags'" @back="returnToPreviousView" @changed="refreshTagsAndTemplates" />
+    <ShortcutsView v-else-if="currentView === 'shortcuts'" @back="returnToPreviousView" @changed="refreshCatalogs" />
     <template v-else>
     <!-- Banner de Licença Detectada -->
     <div v-if="detectedLicense" class="license-banner">
@@ -796,12 +805,20 @@ onUnmounted(() => {
 
       <fieldset class="message-tags-field">
         <legend>Tags</legend>
-        <label v-for="tag in tags" :key="tag.id" class="message-tag-option">
-          <input v-model="formTags" type="checkbox" :value="tag.id" />
-          {{ tag.name }}
-        </label>
-        <p v-if="!tags.length" class="tag-hint">Cadastre tags para organizar suas mensagens.</p>
-        <button type="button" class="tag-btn" @click="openView('tags')">Gerenciar tags</button>
+        <details ref="tagPicker" class="message-tag-picker">
+          <summary aria-label="Selecionar tags da mensagem">
+            <span>{{ tags.filter(tag => formTags.includes(tag.id)).map(tag => tag.name).join(', ') || 'Selecionar tags' }}</span>
+            <ChevronRight :size="14" class="tag-picker-chevron" />
+          </summary>
+          <div class="message-tag-menu">
+            <label v-for="tag in tags" :key="tag.id" class="message-tag-option">
+              <input v-model="formTags" type="checkbox" :value="tag.id" />
+              {{ tag.name }}
+            </label>
+            <p v-if="!tags.length" class="tag-hint">Cadastre tags para organizar suas mensagens.</p>
+            <button type="button" class="tag-picker-manage" @click="openView('tags')">Gerenciar tags</button>
+          </div>
+        </details>
       </fieldset>
 
       <div class="form-group">
@@ -859,14 +876,13 @@ onUnmounted(() => {
             placeholder="Buscar por título ou conteúdo..."
           />
         </div>
-      </div>
-
-      <div class="tag-filter">
-        <label for="tag-filter">Filtrar por tag</label>
-        <select id="tag-filter" v-model="selectedTagId" aria-label="Filtrar por tag">
-          <option value="">Todas as tags</option>
-          <option v-for="tag in tags" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
-        </select>
+        <div class="tag-filter">
+          <label for="tag-filter" class="sr-only">Filtrar por tag</label>
+          <select id="tag-filter" v-model="selectedTagId" aria-label="Filtrar por tag">
+            <option value="">Todas as tags</option>
+            <option v-for="tag in tags" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
+          </select>
+        </div>
       </div>
       <div ref="templatesListRef" class="templates-scroll">
         <span class="sr-only" aria-live="polite">{{ liveAnnouncement }}</span>
@@ -1092,39 +1108,90 @@ onUnmounted(() => {
 
 <style scoped>
 .message-tags-field {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  border: 0;
+  min-width: 0;
+  padding: 0;
 }
 .message-tags-field legend {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
-  padding: 0 4px;
+  margin-bottom: 5px;
+}
+.message-tag-picker {
+  position: relative;
+}
+.message-tag-picker summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.message-tag-picker summary::-webkit-details-marker { display: none; }
+.message-tag-picker summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-picker-chevron { transform: rotate(90deg); flex-shrink: 0; }
+.message-tag-picker[open] .tag-picker-chevron { transform: rotate(-90deg); }
+.message-tag-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  box-shadow: 0 4px 14px #0002;
 }
 .message-tag-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-}
-.message-tag-option input {
-  accent-color: var(--accent);
-}
-.tag-filter {
-  padding: 0 12px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
 }
-.tag-filter label { font-size: 11px; color: var(--text-secondary); }
-.tag-filter select {
-  flex: 1;
+.message-tag-option:hover { background: var(--bg-tertiary); }
+.message-tag-option input {
+  accent-color: var(--accent);
+}
+.tag-picker-manage {
+  display: block;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tag-filter {
+  flex: 0 1 125px;
   min-width: 0;
-  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+}
+.tag-filter select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 5px;
   background: #fff;
@@ -1573,7 +1640,10 @@ textarea {
 }
 
 .search-box {
-  padding: 10px 14px 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 6px;
   background: var(--bg-primary);
 }
 
@@ -1581,6 +1651,8 @@ textarea {
   position: relative;
   display: flex;
   align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .search-input-icon {

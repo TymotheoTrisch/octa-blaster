@@ -1,5 +1,6 @@
 import { loadStoredTemplates } from './templateStorage';
-import { loadReplySettings, prepareTemplate } from './templateVariables';
+import { applyCustomVariables, loadReplySettings, prepareTemplate } from './templateVariables';
+import { resolveVariables } from './templateResolver';
 import { insertTextIntoElement } from './insertText';
 import { getScopedTicketContainer, getTicketIdentity } from './licenseDetector';
 import type { QuickReplyTemplate } from '@/types/template';
@@ -89,6 +90,7 @@ export function installReplyShortcut(
   let editor: HTMLElement | null = null;
   let currentQuery: EditorQuery | null = null;
   let choices: QuickReplyTemplate[] = [];
+  let previews = new Map<string, string>();
   let selected = 0;
   let generation = 0;
   let choosing = false;
@@ -136,6 +138,16 @@ export function installReplyShortcut(
       choosing = false;
     }
   }
+  function updateSelection() {
+    if (!menu) return;
+    menu.querySelectorAll<HTMLElement>('[role="option"]').forEach((button, index) => {
+      button.setAttribute('aria-selected', String(index === selected));
+      button.style.background = index === selected ? '#fff0b3' : 'white';
+    });
+    const preview = menu.querySelector<HTMLElement>('.octablaster-shortcut-preview');
+    const template = choices[selected];
+    if (preview && template) preview.textContent = previews.get(template.id) || template.content;
+  }
   function render() {
     if (!menu) return;
     menu.replaceChildren();
@@ -143,6 +155,10 @@ export function installReplyShortcut(
       menu.textContent = 'Nenhuma resposta encontrada';
       return;
     }
+    const list = doc.createElement('div');
+    list.setAttribute('role', 'listbox');
+    list.setAttribute('aria-label', 'Respostas rápidas');
+    list.style.cssText = 'max-height:180px;overflow:auto';
     choices.forEach((template, index) => {
       const button = doc.createElement('button');
       button.type = 'button';
@@ -150,14 +166,25 @@ export function installReplyShortcut(
       button.setAttribute('role', 'option');
       button.setAttribute('aria-selected', String(selected === index));
       button.style.cssText = `display:block;width:100%;text-align:left;padding:9px;border:0;border-radius:4px;color:#222;background:${selected === index ? '#fff0b3' : 'white'};cursor:pointer`;
+      button.addEventListener('mouseenter', () => {
+        selected = index;
+        updateSelection();
+      });
       button.addEventListener('mousedown', (event) => event.preventDefault());
       button.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
         void choose(index);
       });
-      menu!.append(button);
+      list.append(button);
     });
+    const preview = doc.createElement('div');
+    preview.className = 'octablaster-shortcut-preview';
+    preview.setAttribute('aria-label', 'Prévia da mensagem');
+    preview.setAttribute('aria-live', 'polite');
+    preview.style.cssText = 'border-top:1px solid #ddd;margin-top:6px;padding:10px 5px;max-height:150px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5;color:#444';
+    menu.append(list, preview);
+    updateSelection();
   }
   doc.addEventListener(
     'input',
@@ -189,15 +216,23 @@ export function installReplyShortcut(
               .includes(query.query.toLocaleLowerCase('pt-BR')),
           )
           .slice(0, 12);
+        const savedValues = Object.fromEntries(settings.variables
+          .filter(variable => variable.mode === 'saved' && variable.value.trim())
+          .map(variable => [variable.name.toLocaleLowerCase('pt-BR'), variable.value]));
+        previews = new Map(choices.map(template => [template.id, applyCustomVariables(resolveVariables(template.content), savedValues)]));
         menu?.remove();
         menu = doc.createElement('div');
         menu.className = 'octablaster-shortcut-menu';
-        menu.setAttribute('role', 'listbox');
+        menu.setAttribute('role', 'region');
         menu.setAttribute('aria-label', 'Respostas rápidas');
         const rect =
           query.range?.getBoundingClientRect() ||
           target.getBoundingClientRect();
-        menu.style.cssText = `position:fixed;left:${Math.max(8, Math.min(rect.left, doc.documentElement.clientWidth - 330))}px;top:${Math.max(8, Math.min(rect.bottom + 4, doc.documentElement.clientHeight - 270))}px;z-index:2147483646;width:310px;max-height:250px;overflow:auto;border:1px solid #aaa;border-radius:8px;background:white;color:#222;padding:6px;box-shadow:0 4px 16px #0003;font:14px system-ui`;
+        const width = doc.documentElement.clientWidth || doc.defaultView?.innerWidth || 380;
+        const height = doc.documentElement.clientHeight || doc.defaultView?.innerHeight || 600;
+        const menuWidth = Math.min(360, width - 16);
+        const menuHeight = Math.min(380, height - 16);
+        menu.style.cssText = `position:fixed;left:${Math.max(8, Math.min(rect.left, width - menuWidth - 8))}px;top:${Math.max(8, Math.min(rect.bottom + 4, height - menuHeight - 8))}px;z-index:2147483646;width:${menuWidth}px;max-height:${menuHeight}px;overflow:auto;border:1px solid #aaa;border-radius:8px;background:white;color:#222;padding:6px;box-shadow:0 4px 16px #0003;font:14px system-ui`;
         doc.body.append(menu);
         render();
       } catch {
@@ -239,7 +274,7 @@ export function installReplyShortcut(
         selected =
           (selected + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) %
           choices.length;
-      render();
+      updateSelection();
       menu
         .querySelector('[aria-selected="true"]')
         ?.scrollIntoView({ block: 'nearest' });

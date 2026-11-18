@@ -27,10 +27,12 @@ As verificações incluem regressões automatizadas, tipos TypeScript e builds d
 2. Selecione **Nova variável**, informe um nome como `Assinatura`, escolha **Valor salvo** e preencha o valor. Para dados que mudam a cada resposta, escolha **Preencher ao usar**.
 3. Salve a variável. Nomes são únicos sem distinção entre maiúsculas e minúsculas. `Saudacao`, `Data` e `Hora` são reservadas.
 4. Crie ou edite uma resposta. Os botões de variáveis automáticas e cadastradas inserem o token na posição do cursor ou substituem o trecho selecionado. Variáveis presentes no texto que ainda não foram cadastradas também são solicitadas no momento do uso. Ao renomear uma variável, atualize os tokens das mensagens para o novo nome.
-5. Clique no campo de resposta do ticket. Digite `\` e parte do título da resposta. Escolha com as setas e Enter, ou clique no título. O texto fica no rascunho.
+5. Clique no campo de resposta do ticket. Digite `\` e parte do título da resposta. A prévia acompanha o item destacado pelas setas ou pelo mouse. Escolha com Enter ou clique no título. O texto fica no rascunho.
 6. Para usar `/` ou desativar o menu, abra **Atalhos** no menu da extensão. Nessa tela também é possível cadastrar, editar, desativar e remover os técnicos das menções de licenças.
 
 A tela **Tags**, acessível pelo menu, centraliza os nomes usados para organizar as mensagens. As categorias antigas aparecem nesse cadastro. Uma mensagem pode receber várias tags, selecionadas no formulário, e a lista pode ser filtrada por tag. Renomear uma tag atualiza seu nome nas mensagens associadas. Excluir uma tag remove suas associações.
+
+No formulário, **Selecionar tags** abre um menu com as opções de seleção múltipla. Na lista de mensagens, o filtro de tags fica ao lado da busca. A seta de voltar dos formulários de cadastro retorna à lista daquele cadastro. A seta da lista retorna à tela visitada anteriormente.
 
 A exportação JSON inclui mensagens e o catálogo de tags. A importação aceita esse formato e os arquivos antigos com listas de modelos e categorias.
 

@@ -23,6 +23,14 @@ onMounted(async () => {
       error instanceof Error ? error.message : 'Falha ao carregar tags.';
   }
 });
+function goBack() {
+  if (showForm.value) {
+    showForm.value = false;
+    status.value = '';
+    return;
+  }
+  emit('back');
+}
 function startEdit(tag?: TemplateTag) {
   editingId.value = tag?.id || null;
   name.value = tag?.name || '';
@@ -77,8 +85,8 @@ async function remove(tag: TemplateTag) {
       <button
         type="button"
         class="management-icon"
-        aria-label="Voltar para mensagens"
-        @click="emit('back')"
+        :aria-label="showForm ? 'Voltar para a lista de tags' : 'Voltar para a tela anterior'"
+        @click="goBack"
       >
         <ArrowLeft :size="16" />
       </button>

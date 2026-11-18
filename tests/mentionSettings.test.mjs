@@ -24,6 +24,72 @@ test('deleting every configured mention target persists an empty list', async ()
   } finally { storage.restore(); }
 });
 
+test('a newly configured technician matches suggestions with accent differences', async () => {
+  const dom = installDom('<section ticket-id="A"><button role="tab" aria-selected="true" aria-controls="internal">Anotação interna</button><div id="internal"><textarea class="note-editable"></textarea><div class="note-children-container"></div></div></section>');
+  const storage = installStorage();
+  dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({ width: 300, height: 100 });
+  let selected = false;
+  try {
+    await saveMentionTargets([{ id: 'new', name: 'Tymotheo Trisch', query: '@tymotheo', pattern: '', enabled: true }]);
+    const editor = dom.document.querySelector('textarea');
+    const menu = dom.document.querySelector('.note-children-container');
+    editor.addEventListener('input', () => {
+      if (!editor.value.includes('@tymotheo') || selected || menu.childElementCount) return;
+      const person = dom.document.createElement('button');
+      person.className = 'person-item';
+      person.textContent = 'Tymótheo Trisch';
+      person.addEventListener('click', () => { selected = true; menu.replaceChildren(); });
+      menu.append(person);
+    });
+    const result = await automateLicenseMentions(editor, dom.document, editor.closest('section'));
+    assert.equal(result.success, true, result.message);
+    assert.equal(selected, true);
+  } finally { storage.restore(); dom.restore(); }
+});
+
+test('a failed technician suggestion reports its configured name and query', async () => {
+  const dom = installDom('<section ticket-id="A"><button role="tab" aria-selected="true" aria-controls="internal">Anotação interna</button><div id="internal"><textarea class="note-editable"></textarea></div></section>');
+  const storage = installStorage();
+  dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({ width: 300, height: 100 });
+  try {
+    await saveMentionTargets([{ id: 'missing', name: 'Tymotheo Trisch', query: '@tymotheo', pattern: '', enabled: true }]);
+    const editor = dom.document.querySelector('textarea');
+    const result = await automateLicenseMentions(editor, dom.document, editor.closest('section'));
+    assert.equal(result.success, false);
+    assert.ok(result.message.includes('Tymotheo Trisch'));
+    assert.ok(result.message.includes('@tymotheo'));
+    assert.equal(editor.value, '@tymotheo');
+  } finally { storage.restore(); dom.restore(); }
+});
+
+test('a new technician opens the mention picker with @ before updating its search', async () => {
+  const dom = installDom('<section ticket-id="A"><button role="tab" aria-selected="true" aria-controls="internal">Anotação interna</button><div id="internal"><textarea class="note-editable"></textarea><div class="note-children-container"></div></div></section>');
+  const storage = installStorage();
+  dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({ width: 300, height: 100 });
+  let pickerStarted = false;
+  let selected = false;
+  try {
+    await saveMentionTargets([{ id: 'tymotheo', name: 'Tymotheo Oliveira', query: '@tymotheo', pattern: '', enabled: true }]);
+    const editor = dom.document.querySelector('textarea');
+    const menu = dom.document.querySelector('.note-children-container');
+    editor.addEventListener('keydown', event => {
+      if (event.key === '@' && editor.value === '') pickerStarted = true;
+    });
+    editor.addEventListener('input', () => {
+      if (!pickerStarted || editor.value !== '@tymotheo' || menu.childElementCount) return;
+      const person = dom.document.createElement('button');
+      person.className = 'person-item';
+      person.textContent = 'Tymotheo Oliveira';
+      person.addEventListener('click', () => { selected = true; menu.replaceChildren(); });
+      menu.append(person);
+    });
+    const result = await automateLicenseMentions(editor, dom.document, editor.closest('section'));
+    assert.equal(result.success, true, result.message);
+    assert.equal(selected, true);
+    assert.equal(editor.value.trim(), '@tymotheo');
+  } finally { storage.restore(); dom.restore(); }
+});
+
 test('license automation uses the saved enabled targets and skips disabled targets', async () => {
   const dom = installDom(`<section ticket-id="A">
     <button role="tab" aria-selected="true" aria-controls="internal">Anotação interna</button>

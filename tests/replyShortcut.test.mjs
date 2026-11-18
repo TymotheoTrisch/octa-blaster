@@ -11,6 +11,38 @@ const templates = [
 ];
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
+test('shortcut preview follows keyboard and mouse selection without prompting for values', async () => {
+  const dom = installDom('<section ticket-id="A"><textarea></textarea></section>');
+  dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+  const storage = installStorage({
+    [STORAGE_KEY]: [
+      { ...templates[0], content: 'Olá {{Assinatura}}\nProtocolo {{Protocolo}}' },
+      templates[1],
+    ],
+    [HAS_INITIALIZED_KEY]: true,
+    [VARIABLES_KEY]: [{ name: 'Assinatura', value: 'Ana', mode: 'saved' }],
+  });
+  const editor = dom.document.querySelector('textarea');
+  installReplyShortcut(dom.document, target => target === editor, () => true);
+  try {
+    editor.value = '\\';
+    editor.setSelectionRange(1, 1);
+    editor.focus();
+    editor.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true }));
+    await settle();
+    const preview = dom.document.querySelector('.octablaster-shortcut-preview');
+    assert.equal(preview.textContent, 'Olá Ana\nProtocolo {{Protocolo}}');
+    assert.equal(dom.document.querySelector('dialog'), null);
+    editor.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    assert.equal(preview.textContent, 'Olá!');
+    const first = dom.document.querySelector('[role="option"]');
+    first.dispatchEvent(new dom.window.MouseEvent('mouseenter'));
+    assert.equal(first.getAttribute('aria-selected'), 'true');
+    assert.equal(preview.textContent, 'Olá Ana\nProtocolo {{Protocolo}}');
+    assert.equal(editor.value, '\\');
+  } finally { storage.restore(); dom.restore(); }
+});
+
 test('shortcut matches only a standalone trigger before the caret', () => {
   assert.deepEqual(matchShortcut('Olá \\ret', '\\'), { query: 'ret', start: 4, end: 8 });
   assert.equal(matchShortcut('https://example.com', '/'), null);

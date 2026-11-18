@@ -28,6 +28,14 @@ onMounted(async () => {
       error instanceof Error ? error.message : 'Falha ao carregar variáveis.';
   }
 });
+function goBack() {
+  if (showForm.value) {
+    showForm.value = false;
+    status.value = '';
+    return;
+  }
+  emit('back');
+}
 function startEdit(variable?: TemplateVariable) {
   editingName.value = variable?.name || null;
   name.value = variable?.name || '';
@@ -82,8 +90,8 @@ async function remove(variable: TemplateVariable) {
       <button
         type="button"
         class="management-icon"
-        aria-label="Voltar para mensagens"
-        @click="emit('back')"
+        :aria-label="showForm ? 'Voltar para a lista de variáveis' : 'Voltar para a tela anterior'"
+        @click="goBack"
       >
         <ArrowLeft :size="16" />
       </button>
