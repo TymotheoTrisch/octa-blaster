@@ -25,6 +25,7 @@ function addMarker(editor, target) {
   range.collapse(false);
   doc.getSelection().removeAllRanges();
   doc.getSelection().addRange(range);
+  return marker;
 }
 
 test('slow suggestions and marker rendering are confirmed before starting the next technician', async () => {
@@ -42,8 +43,10 @@ test('slow suggestions and marker rendering are confirmed before starting the ne
     item.addEventListener('click', () => {
       selected.push(target.id);
       menu.replaceChildren();
+      const marker = addMarker(editor, target);
+      marker.hidden = true;
       timers.push(setTimeout(() => {
-        addMarker(editor, target);
+        marker.hidden = false;
         if (target.id === tymotheo.id) firstMarkedAt = Date.now();
       }, delay));
     });
@@ -107,4 +110,88 @@ test('retrying an already confirmed technician preserves its marker without typi
     assert.equal(inputs, 0);
     assert.equal(editor.innerHTML, before);
   } finally { dom.restore(); }
+});
+
+test('a marker with custom classes selected on mousedown is confirmed without a duplicate click', async () => {
+  const { dom, editor, menu } = installEditor();
+  const target = { id: 'jorge', name: 'Jorge Tigre', query: '@Jorge', pattern: 'Jorge\\s+Tigre', enabled: true };
+  let duplicateClicks = 0;
+  let inputs = 0;
+  function mark() {
+    const marker = dom.document.createElement('span');
+    marker.className = 'octadesk-person-token-v2';
+    marker.style.cssText = 'background:#ffda40;border-radius:12px;padding:4px';
+    marker.textContent = '@Jorge Tigre';
+    editor.replaceChildren(marker, dom.document.createTextNode(' '));
+  }
+  editor.addEventListener('input', () => {
+    inputs++;
+    if (!editor.textContent.includes('@Jorge') || menu.childElementCount) return;
+    const person = dom.document.createElement('button');
+    person.className = 'person-item';
+    person.textContent = target.name;
+    person.addEventListener('mousedown', mark);
+    person.addEventListener('click', () => { duplicateClicks++; mark(); });
+    menu.append(person);
+  });
+  try {
+    assert.equal(await insertMentionForTarget(editor, dom.document, target, true), true);
+    assert.equal(duplicateClicks, 0);
+    assert.equal(editor.querySelectorAll('.octadesk-person-token-v2').length, 1);
+    const before = inputs;
+    assert.equal(await insertMentionForTarget(editor, dom.document, target, true), true);
+    assert.equal(inputs, before);
+    assert.equal(duplicateClicks, 0);
+  } finally { dom.restore(); }
+});
+
+test('a selected name rendered beside a nested editable is recognized in its own note editor', async () => {
+  const { dom, editor, menu } = installEditor();
+  const wrapper = dom.document.createElement('div');
+  wrapper.className = 'note-editor';
+  editor.before(wrapper);
+  wrapper.append(editor);
+  editor.addEventListener('input', () => {
+    if (!editor.textContent.includes('@tymotheo') || menu.childElementCount) return;
+    const person = dom.document.createElement('button');
+    person.className = 'person-item';
+    person.textContent = tymotheo.name;
+    person.addEventListener('click', () => {
+      const marker = dom.document.createElement('span');
+      marker.textContent = '@Tymotheo Oliveira';
+      wrapper.append(marker);
+      editor.textContent = '';
+      menu.replaceChildren();
+    });
+    menu.append(person);
+  });
+  try {
+    assert.equal(await insertMentionForTarget(editor, dom.document, tymotheo, true), true);
+    assert.equal(editor.textContent.trim(), '');
+    assert.equal(wrapper.querySelector('span').textContent, '@Tymotheo Oliveira');
+  } finally { dom.restore(); }
+});
+
+test('a plain full-name search is not a confirmed selection before the suggestion changes the editor', async () => {
+  const { dom, editor, menu } = installEditor();
+  let current = true;
+  let clicked = false;
+  let timer;
+  editor.addEventListener('input', () => {
+    if (!editor.textContent.includes('@Tymotheo Oliveira') || menu.childElementCount) return;
+    const person = dom.document.createElement('button');
+    person.className = 'person-item';
+    person.textContent = tymotheo.name;
+    person.addEventListener('click', () => {
+      clicked = true;
+      menu.replaceChildren();
+      timer = setTimeout(() => { current = false; }, 150);
+    });
+    menu.append(person);
+  });
+  try {
+    const result = await insertMentionForTarget(editor, dom.document, { ...tymotheo, query: '@Tymotheo Oliveira' }, true, () => current);
+    assert.equal(clicked, true);
+    assert.equal(result, false);
+  } finally { clearTimeout(timer); dom.restore(); }
 });

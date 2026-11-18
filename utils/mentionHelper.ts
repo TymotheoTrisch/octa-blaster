@@ -315,14 +315,51 @@ function matchesMentionName(text: string, pattern: RegExp, accentInsensitivePatt
   return pattern.test(text) || !!accentInsensitivePattern?.test(text.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
 }
 
+const SUGGESTION_SELECTOR = '.note-hint-popover, .note-children-container, .person-item, .note-hint-item, .popover-content, [role="listbox"], .octablaster-floating-widget';
+const MARKER_SELECTOR = '[contenteditable="false"], [data-mention], [data-mention-id], [data-user-id], [data-person-id], .mention, .atwho-inserted, .note-hint-token, .label, .badge';
+
+function getMentionArea(editor: HTMLElement): HTMLElement {
+  const area = editor.closest<HTMLElement>('.note-editing-area, .note-editor');
+  return area && getScopedTicketContainer(area) === getScopedTicketContainer(editor) ? area : editor;
+}
+
+function countNamedMentions(editor: HTMLElement, name: string): number {
+  const area = getMentionArea(editor);
+  const input = editor.matches('input, textarea') ? editor as HTMLInputElement | HTMLTextAreaElement : null;
+  let text = input?.value;
+  if (text === undefined) {
+    const clone = area.cloneNode(true) as HTMLElement;
+    const elements = area.querySelectorAll<HTMLElement>('*');
+    const clonedElements = clone.querySelectorAll<HTMLElement>('*');
+    elements.forEach((element, index) => {
+      const style = element.ownerDocument.defaultView?.getComputedStyle(element);
+      if (element.hidden || element.getAttribute('aria-hidden') === 'true' || style?.display === 'none' || style?.visibility === 'hidden' || style?.opacity === '0') {
+        clonedElements[index]?.remove();
+      }
+    });
+    clone.querySelectorAll(SUGGESTION_SELECTOR).forEach(element => element.remove());
+    clone.querySelectorAll('*').forEach(element => element.append(' '));
+    text = clone.textContent || '';
+  }
+  const normalizedName = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+  const normalizedText = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+  const expression = new RegExp(`@\\s*${mentionNamePattern(normalizedName)}(?=$|[^\\p{L}\\p{N}_])`, 'gu');
+  return [...normalizedText.matchAll(expression)].length;
+}
+
 function hasMentionMarker(editor: HTMLElement, pattern: RegExp, query: string, accentInsensitivePattern?: RegExp): boolean {
-  const markers = editor.querySelectorAll<HTMLElement>(
-    '[contenteditable="false"], [data-mention], [data-mention-id], [data-user-id], [data-person-id], .mention, .atwho-inserted, .note-hint-token, .label, .badge',
-  );
+  const markers = getMentionArea(editor).querySelectorAll<HTMLElement>('*');
   return Array.from(markers).some(marker => {
-    if (!isElementVisible(marker)) return false;
+    if (marker === editor || marker.contains(editor) || marker.closest(SUGGESTION_SELECTOR) || !isElementVisible(marker)) return false;
     const text = (marker.innerText || marker.textContent || marker.getAttribute('aria-label') || '').trim();
-    return matchesMentionName(text, pattern, accentInsensitivePattern) || text.toLocaleLowerCase('pt-BR') === query.toLocaleLowerCase('pt-BR');
+    const queryMatches = text.toLocaleLowerCase('pt-BR') === query.toLocaleLowerCase('pt-BR');
+    if (marker.matches(MARKER_SELECTOR)) return matchesMentionName(text, pattern, accentInsensitivePattern) || queryMatches;
+    if (!text.startsWith('@')) return false;
+    const name = text.slice(1).replace(/[×✕]\s*$/, '').trim();
+    const match = pattern.exec(name) || accentInsensitivePattern?.exec(name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+    if (!queryMatches && (!match || match.index !== 0 || match[0].length !== name.length)) return false;
+    const background = marker.ownerDocument.defaultView?.getComputedStyle(marker).backgroundColor;
+    return !!background && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)';
   });
 }
 
@@ -333,12 +370,15 @@ async function waitForMentionConfirmation(
   deadline: number,
   isCurrent: () => boolean,
   accentInsensitivePattern?: RegExp,
+  name = '',
+  previousCount = 0,
 ): Promise<boolean> {
   const input = editor.matches('input, textarea') ? editor as HTMLInputElement | HTMLTextAreaElement : null;
   const before = input?.value;
   while (Date.now() < deadline) {
     if (!isCurrent() || !isElementVisible(editor)) return false;
     if (hasMentionMarker(editor, pattern, query, accentInsensitivePattern)) return true;
+    if (name && countNamedMentions(editor, name) > previousCount) return true;
     // Editores simples confirmam a escolha substituindo a busca pelo nome.
     if (input && input.value !== before && matchesMentionName(input.value, pattern, accentInsensitivePattern)) return true;
     await sleep(75);
@@ -354,6 +394,7 @@ async function selectPersonFromPopover(
   isCurrent: () => boolean = () => true,
   accentInsensitivePattern?: RegExp,
   query = '',
+  name = '',
 ): Promise<boolean> {
   const startTime = Date.now();
 
@@ -401,7 +442,9 @@ async function selectPersonFromPopover(
         const text = (targetItem.innerText || targetItem.textContent || '').trim();
         if (matchesMentionName(text, namePattern, accentInsensitivePattern)) {
           if (!editor) return false;
-          const confirmation = waitForMentionConfirmation(editor, namePattern, query, startTime + maxWaitMs, isCurrent, accentInsensitivePattern);
+          const beforeCount = countNamedMentions(editor, name);
+          const confirmed = () => hasMentionMarker(editor, namePattern, query, accentInsensitivePattern) || countNamedMentions(editor, name) > beforeCount;
+          const confirmation = waitForMentionConfirmation(editor, namePattern, query, startTime + maxWaitMs, isCurrent, accentInsensitivePattern, name, beforeCount);
           targetItem.dispatchEvent(
             new MouseEvent('mouseenter', { bubbles: true }),
           );
@@ -411,9 +454,11 @@ async function selectPersonFromPopover(
           targetItem.dispatchEvent(
             new MouseEvent('mousedown', { bubbles: true, cancelable: true }),
           );
+          if (!targetItem.isConnected || !isElementVisible(targetItem) || confirmed()) return confirmation;
           targetItem.dispatchEvent(
             new MouseEvent('mouseup', { bubbles: true, cancelable: true }),
           );
+          if (!targetItem.isConnected || !isElementVisible(targetItem) || confirmed()) return confirmation;
           targetItem.click();
           return confirmation;
         }
@@ -465,16 +510,14 @@ export async function insertMentionForTarget(
   const prefix = isFirst ? '' : ' ';
   if (prefix && !insertTextIntoElement(targetEditor, prefix, undefined, true)) return false;
   const KeyEvent = targetDoc.defaultView?.KeyboardEvent || KeyboardEvent;
-  // O editor precisa receber o acionamento de @ antes de atualizar a busca.
-  for (const character of query) {
-    if (!isCurrent() || targetDoc.activeElement !== targetEditor || !isElementVisible(targetEditor)) return false;
-    const keyCode = character === '@' ? 50 : character.toUpperCase().charCodeAt(0);
-    const options = { key: character, keyCode, which: keyCode, shiftKey: character === '@', bubbles: true, cancelable: true };
-    targetEditor.dispatchEvent(new KeyEvent('keydown', options));
-    if (!insertTextIntoElement(targetEditor, character, undefined, true)) return false;
-    targetEditor.dispatchEvent(new KeyEvent('keyup', options));
-    await sleep(35);
-  }
+  targetEditor.dispatchEvent(new KeyEvent('keydown', { key: '@', keyCode: 50, which: 50, shiftKey: true, bubbles: true }));
+  if (!insertTextIntoElement(targetEditor, query, undefined, true)) return false;
+  const lastCharacter = query.slice(-1);
+  const keyCode = lastCharacter.toUpperCase().charCodeAt(0);
+  const options = { key: lastCharacter, keyCode, which: keyCode, bubbles: true };
+  targetEditor.dispatchEvent(new KeyEvent('keydown', options));
+  targetEditor.dispatchEvent(new Event('input', { bubbles: true }));
+  targetEditor.dispatchEvent(new KeyEvent('keyup', options));
 
   const selected = await selectPersonFromPopover(
     pattern,
@@ -484,9 +527,23 @@ export async function insertMentionForTarget(
     isCurrent,
     accentPattern,
     query,
+    target.name,
   );
 
-  await sleep(160);
+  if (selected && isCurrent() && !targetEditor.matches('input, textarea')) {
+    // Mantém a próxima busca fora do marcador e de sua formatação.
+    const space = targetDoc.createTextNode('\u00a0');
+    targetEditor.append(space);
+    targetEditor.focus();
+    const range = targetDoc.createRange();
+    range.setStart(space, 1);
+    range.collapse(true);
+    const selection = targetDoc.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const Input = targetDoc.defaultView?.InputEvent || InputEvent;
+    targetEditor.dispatchEvent(new Input('input', { bubbles: true, inputType: 'insertText', data: '\u00a0' }));
+  }
   return selected;
 }
 
