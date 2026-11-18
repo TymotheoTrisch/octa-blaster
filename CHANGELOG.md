@@ -1,5 +1,15 @@
 # Histórico de versões
 
+## 0.9.0 — 18/11/2026
+
+- A marcação de licenças lê o formulário do e-mail no ticket e prepara o resumo após as menções, mantendo os técnicos na mesma linha.
+- Contratação informa a quantidade total solicitada e a isenção da primeira licença; troca informa a licença; cancelamento informa a lista de licenças. O banco vem do campo do e-mail, independentemente do título do ticket.
+- Códigos no formato `Lic_11822` são apresentados como `11822`. A extração usa os campos identificados do formulário e ignora CNPJ, procedimentos e observações.
+- Campos obrigatórios ausentes, inválidos ou divergentes interrompem a preparação antes de alterar a anotação. Citações de e-mails e conteúdo do editor são ignorados; campos de mensagens distintas não são combinados.
+- Repetir a ação preserva os marcadores confirmados e evita duplicar um resumo já presente. Sem formulário reconhecido, o botão mantém a função de apenas marcar os técnicos. A anotação fica como rascunho para revisão.
+
+Build temporária do Firefox: `.output/firefox-mv2/manifest.json`. Após recarregar a extensão e atualizar o Octadesk, confirme a versão **0.9.0**.
+
 ## 0.8.0 — 18/11/2026
 
 - Corrigido o retorno de sucesso quando falham tanto o armazenamento principal quanto o backup local. A API Chrome com callbacks faz uma única tentativa e verifica `runtime.lastError`.

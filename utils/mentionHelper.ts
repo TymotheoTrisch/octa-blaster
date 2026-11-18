@@ -6,6 +6,7 @@ import {
 } from './licenseDetector';
 import { insertTextIntoElement } from './insertText';
 import { loadSettings, saveSettings } from './settingsStorage';
+import { readTicketLicenseRequest, formatLicenseRequest } from './licenseRequest';
 import type { MentionTarget } from '@/types/template';
 
 export const MENTION_TARGETS_STORAGE_KEY = 'octablaster_mention_targets';
@@ -591,6 +592,9 @@ export async function automateLicenseMentions(
         : null;
     if (!targetScope)
       return { success: false, message: 'Contêiner do ticket não encontrado.' };
+    const licenseRequest = readTicketLicenseRequest(targetScope);
+    if (licenseRequest.status === 'invalid') return { success: false, message: licenseRequest.message };
+    const summary = licenseRequest.status === 'ready' ? formatLicenseRequest(licenseRequest.request) : '';
     const ticketIdentity = getTicketIdentity(targetScope);
     const isCurrentTicket = () =>
       targetScope.isConnected &&
@@ -699,13 +703,36 @@ export async function automateLicenseMentions(
       };
     }
 
-    // Adiciona espaço final para continuação da escrita
-    if (isCurrentTicket() && isElementVisible(targetEditor))
+    if (summary) {
+      const clone = targetEditor.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('br').forEach(element => element.replaceWith('\n'));
+      clone.querySelectorAll('div, p').forEach(element => element.append('\n'));
+      const draft = targetEditor.matches('input, textarea') ? (targetEditor as HTMLInputElement).value : clone.textContent || '';
+      const normalize = (text: string) => text.replace(/\s+/g, ' ').trim();
+      if (!normalize(draft).includes(normalize(summary))) {
+        // Acrescenta o resumo sem substituir os tokens nativos nem o rascunho.
+        targetEditor.focus();
+        if (targetEditor.matches('input, textarea')) {
+          const input = targetEditor as HTMLTextAreaElement;
+          input.setSelectionRange(input.value.length, input.value.length);
+        } else {
+          const range = editorDoc.createRange();
+          range.selectNodeContents(targetEditor);
+          range.collapse(false);
+          editorDoc.getSelection()?.removeAllRanges();
+          editorDoc.getSelection()?.addRange(range);
+        }
+        if (!insertTextIntoElement(targetEditor, `\n\n${summary}`, undefined, true)) {
+          return { success: false, message: 'Os técnicos foram marcados, mas não foi possível inserir o resumo da solicitação.' };
+        }
+      }
+    } else if (isCurrentTicket() && isElementVisible(targetEditor)) {
       insertTextIntoElement(targetEditor, ' ', undefined, true);
+    }
 
     return {
       success: true,
-      message: `Responsáveis de Licenças (${markedNames.join(' e ')}) marcados com sucesso em Anotação Interna!`,
+      message: summary ? 'Responsáveis marcados e resumo da solicitação preparado em Anotação Interna.' : `Responsáveis de Licenças (${markedNames.join(' e ')}) marcados com sucesso em Anotação Interna!`,
     };
   } catch (error) {
     console.error(

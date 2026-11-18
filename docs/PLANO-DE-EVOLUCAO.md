@@ -108,3 +108,13 @@ O backup no formato 2 inclui mensagens, tags e configurações completas. A expo
 Uma falha nos dois armazenamentos agora rejeita a operação. Se o principal salvar e o backup local falhar, a gravação permanece válida. Se apenas o fallback estiver disponível, todas as chaves precisam ser gravadas para a função retornar sucesso.
 
 A entrega 0.8.0 passou em 87 testes, na checagem TypeScript e nos builds de Chrome e Firefox. Com a extensão carregada no Chromium, dois painéis validaram conflitos de variáveis, técnicos e atalho, mesclagem de edições independentes e exportação/restauração do backup pela interface. A automação de menções e as prévias de respostas também passaram em uma página de teste. O teste funcional no Firefox com uma sessão autenticada do Octadesk continua a ser feito pelo usuário.
+
+## Resumo de solicitações na versão 0.9.0
+
+O botão de marcação lê o formulário em `.content-comment-interaction` do próprio ticket. O último formulário reconhecido na ordem da conversa fornece a operação e os campos; os valores de comentários distintos não são combinados. Conteúdo citado, widgets e editores são ignorados. O banco vem do campo **Número do Banco de Dados**, independentemente do título do ticket.
+
+Contratação usa **Número de Licenças** e **Isenção da Primeira Licença**, mantendo a quantidade total e descrevendo a isenção separadamente. Troca usa **Número da licença**. Cancelamento usa **Números das licenças**. O prefixo `Lic_` é removido na apresentação dos códigos. Valores obrigatórios ausentes, inválidos ou divergentes impedem a preparação antes de modificar a anotação.
+
+Após a confirmação das menções nativas, o resumo é acrescentado ao rascunho. Repetir a ação não duplica o resumo já presente nem os marcadores confirmados. Sem formulário reconhecido, permanece a função anterior de apenas marcar os responsáveis. Nenhuma anotação é enviada automaticamente.
+
+A entrega passou em 99 testes automatizados, TypeScript e builds dos dois navegadores. A extensão carregada no Chromium validou os três modelos de e-mail fornecidos em páginas de teste: extração do banco diferente do título, quantidade e isenção, códigos com prefixo, menções na mesma linha, resumo abaixo e repetição sem duplicação. A execução no Firefox com a sessão autenticada continua dependendo do teste do usuário.
