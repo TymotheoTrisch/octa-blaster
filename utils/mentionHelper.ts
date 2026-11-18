@@ -348,7 +348,23 @@ function countNamedMentions(editor: HTMLElement, name: string): number {
 }
 
 function hasMentionMarker(editor: HTMLElement, pattern: RegExp, query: string, accentInsensitivePattern?: RegExp): boolean {
-  const markers = getMentionArea(editor).querySelectorAll<HTMLElement>('*');
+  const area = getMentionArea(editor);
+  const people = area.querySelectorAll<HTMLElement>('person');
+  // O personid é a confirmação nativa do Octadesk, inclusive em tokens sem caixa própria.
+  if (people.length) {
+    return Array.from(people).some(person => {
+      if (!person.getAttribute('personid')?.trim() || person.closest(SUGGESTION_SELECTOR)) return false;
+      for (let element: HTMLElement | null = person; element; element = element.parentElement) {
+        const style = element.ownerDocument.defaultView?.getComputedStyle(element);
+        if (element.hidden || element.getAttribute('aria-hidden') === 'true' || style?.display === 'none' || style?.visibility === 'hidden' || style?.opacity === '0') return false;
+        if (element === area) break;
+      }
+      const text = (person.innerText || person.textContent || '').trim();
+      const name = text.replace(/^@\s*/, '');
+      return matchesMentionName(name, pattern, accentInsensitivePattern) || text.toLocaleLowerCase('pt-BR') === query.toLocaleLowerCase('pt-BR');
+    });
+  }
+  const markers = area.querySelectorAll<HTMLElement>('*');
   return Array.from(markers).some(marker => {
     if (marker === editor || marker.contains(editor) || marker.closest(SUGGESTION_SELECTOR) || !isElementVisible(marker)) return false;
     const text = (marker.innerText || marker.textContent || marker.getAttribute('aria-label') || '').trim();
@@ -378,9 +394,10 @@ async function waitForMentionConfirmation(
   while (Date.now() < deadline) {
     if (!isCurrent() || !isElementVisible(editor)) return false;
     if (hasMentionMarker(editor, pattern, query, accentInsensitivePattern)) return true;
-    if (name && countNamedMentions(editor, name) > previousCount) return true;
+    const nativeMention = !!getMentionArea(editor).querySelector('person');
+    if (!nativeMention && name && countNamedMentions(editor, name) > previousCount) return true;
     // Editores simples confirmam a escolha substituindo a busca pelo nome.
-    if (input && input.value !== before && matchesMentionName(input.value, pattern, accentInsensitivePattern)) return true;
+    if (!nativeMention && input && input.value !== before && matchesMentionName(input.value, pattern, accentInsensitivePattern)) return true;
     await sleep(75);
   }
   return false;
@@ -443,7 +460,8 @@ async function selectPersonFromPopover(
         if (matchesMentionName(text, namePattern, accentInsensitivePattern)) {
           if (!editor) return false;
           const beforeCount = countNamedMentions(editor, name);
-          const confirmed = () => hasMentionMarker(editor, namePattern, query, accentInsensitivePattern) || countNamedMentions(editor, name) > beforeCount;
+          const confirmed = () => hasMentionMarker(editor, namePattern, query, accentInsensitivePattern) ||
+            (!getMentionArea(editor).querySelector('person') && countNamedMentions(editor, name) > beforeCount);
           const confirmation = waitForMentionConfirmation(editor, namePattern, query, startTime + maxWaitMs, isCurrent, accentInsensitivePattern, name, beforeCount);
           targetItem.dispatchEvent(
             new MouseEvent('mouseenter', { bubbles: true }),

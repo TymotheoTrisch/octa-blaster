@@ -195,3 +195,80 @@ test('a plain full-name search is not a confirmed selection before the suggestio
     assert.equal(result, false);
   } finally { clearTimeout(timer); dom.restore(); }
 });
+
+for (const pattern of ['Jorge\\s+Tigre', '^Jorge\\s+Tigre$']) {
+  test(`the native personid markup is already confirmed without requiring a marker box (${pattern})`, async () => {
+    const { dom, editor } = installEditor();
+    editor.innerHTML = '<p><span><span>&nbsp;</span><person personid="11111111-1111-4111-8111-111111111111" class="mentioned">@Jorge Tigre</person><span>&nbsp;</span></span></p>';
+    editor.querySelector('person').getBoundingClientRect = () => ({ width: 0, height: 0 });
+    const before = editor.innerHTML;
+    let current = true;
+    let inputs = 0;
+    editor.addEventListener('input', () => { inputs++; current = false; });
+    try {
+      const result = await insertMentionForTarget(editor, dom.document, { id: 'jorge', name: 'Jorge Tigre', query: '@Jorge', pattern, enabled: true }, true, () => current);
+      assert.equal(result, true);
+      assert.equal(inputs, 0);
+      assert.equal(editor.innerHTML, before);
+    } finally { dom.restore(); }
+  });
+}
+
+test('native mention confirmation waits for personid before starting another technician', async () => {
+  const { dom, editor, menu } = installEditor();
+  const timers = [];
+  let firstIdAt = 0;
+  let secondSearchAt = 0;
+  const selected = [];
+  editor.addEventListener('input', () => {
+    const target = [tymotheo, ana].find(item => editor.textContent.includes(item.query) && !selected.includes(item.id));
+    if (!target || menu.childElementCount) return;
+    if (target.id === 'ana') secondSearchAt = Date.now();
+    const option = dom.document.createElement('button');
+    option.className = 'person-item';
+    option.textContent = target.name;
+    option.addEventListener('click', () => {
+      selected.push(target.id);
+      menu.replaceChildren();
+      const person = dom.document.createElement('person');
+      person.className = 'mentioned';
+      person.setAttribute('personid', '');
+      person.textContent = `@${target.name}`;
+      editor.replaceChildren(...editor.querySelectorAll('person'), person);
+      timers.push(setTimeout(() => {
+        person.setAttribute('personid', `${target.id}-person-id`);
+        if (target.id === 'tymotheo') firstIdAt = Date.now();
+      }, 250));
+    });
+    menu.append(option);
+  });
+  try {
+    const result = await automateLicenseMentions(editor, dom.document, editor.closest('section'), [tymotheo, ana]);
+    assert.equal(result.success, true, result.message);
+    assert.deepEqual(selected, ['tymotheo', 'ana']);
+    assert.ok(firstIdAt > 0);
+    assert.ok(secondSearchAt >= firstIdAt);
+    assert.equal(editor.querySelectorAll('person[personid]:not([personid=""])').length, 2);
+  } finally { timers.forEach(clearTimeout); dom.restore(); }
+});
+
+test('a person placeholder with no personid does not confirm a mention', async () => {
+  const { dom, editor, menu } = installEditor();
+  let current = true;
+  let timer;
+  editor.addEventListener('input', () => {
+    if (!editor.textContent.includes(tymotheo.query) || menu.childElementCount) return;
+    const option = dom.document.createElement('button');
+    option.className = 'person-item';
+    option.textContent = tymotheo.name;
+    option.addEventListener('click', () => {
+      editor.innerHTML = '<person personid="" class="mentioned">@Tymotheo Oliveira</person>';
+      menu.replaceChildren();
+      timer = setTimeout(() => { current = false; }, 150);
+    });
+    menu.append(option);
+  });
+  try {
+    assert.equal(await insertMentionForTarget(editor, dom.document, tymotheo, true, () => current), false);
+  } finally { clearTimeout(timer); dom.restore(); }
+});
