@@ -70,7 +70,23 @@ test('canceling variable entry returns null and removes the dialog', async () =>
   try {
     const pending = prepareTemplate('{{Missing}}', dom.document);
     await new Promise(resolve => setImmediate(resolve));
+    assert.ok(dom.document.getElementById('octablaster-variable-dialog-styles'));
     dom.document.querySelector('button[type="button"]').click();
+    assert.equal(await pending, null);
+    assert.equal(dom.document.querySelector('dialog'), null);
+  } finally { storage.restore(); dom.restore(); }
+});
+
+test('styled variable modal close button cancels and removes the dialog', async () => {
+  const dom = installDom();
+  const storage = installStorage();
+  dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  try {
+    const pending = prepareTemplate('{{Cliente}}', dom.document);
+    await new Promise(resolve => setImmediate(resolve));
+    const closeBtn = dom.document.querySelector('.octa-var-close');
+    assert.ok(closeBtn);
+    closeBtn.click();
     assert.equal(await pending, null);
     assert.equal(dom.document.querySelector('dialog'), null);
   } finally { storage.restore(); dom.restore(); }
