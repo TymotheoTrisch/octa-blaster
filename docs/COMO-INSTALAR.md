@@ -13,7 +13,7 @@ O Firefox oferece o melhor suporte ao OctaBlaster devido à integração nativa 
 A partir da versão com assinatura digital, a instalação é permanente e não expira:
 
 1. Acesse a página de [Releases do OctaBlaster no GitHub](https://github.com/luizGDpulz/octa-blaster/releases).
-2. Na versão mais recente, clique no arquivo **`.xpi`** (ex: `octablaster-X.X.X.xpi` ou similar).
+2. Na versão mais recente, clique no arquivo **`.xpi`** (ex: `octa-blaster-X.X.X.xpi`).
 3. O Firefox abrirá uma janela nativa:
    👉 *"Adicionar OctaBlaster?"* -> Clique em **Adicionar**.
 4. Marque a caixa para permitir navegação em janelas privativas se desejar e clique em **OK**.

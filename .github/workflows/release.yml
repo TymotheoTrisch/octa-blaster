@@ -33,6 +33,9 @@ jobs:
       - name: Check TypeScript types
         run: pnpm compile
 
+      - name: Run regression tests
+        run: pnpm test
+
       - name: Build & Zip for Chrome MV3
         run: pnpm zip
 
@@ -49,15 +52,55 @@ jobs:
             --api-key "${{ secrets.FIREFOX_JWT_ISSUER }}" \
             --api-secret "${{ secrets.FIREFOX_JWT_SECRET }}" \
             --timeout 900000
+          VERSION=$(node -p "require('./package.json').version")
+          for f in .output/*.xpi; do
+            if [ -f "$f" ]; then
+              mv "$f" ".output/octa-blaster-${VERSION}.xpi"
+              break
+            fi
+          done
         env:
           FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
           FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
 
       - name: Generate clean release notes
         run: |
-          NOTES=$(gh api repos/${{ github.repository }}/releases/generate-notes -f tag_name=${{ github.ref_name }} --jq '.body')
-          CLEAN_NOTES=$(echo "$NOTES" | sed '/## New Contributors/,/^\*\*Full Changelog\*\*/ { /^\*\*Full Changelog\*\*/!d }')
-          echo "$CLEAN_NOTES" > notes.md
+          RAW_NOTES=$(gh api repos/${{ github.repository }}/releases/generate-notes -f tag_name=${{ github.ref_name }} --jq '.body')
+          export RAW_NOTES
+          export TAG_NAME="${{ github.ref_name }}"
+          node - <<'EOF'
+          const fs = require('node:fs');
+          const tag = process.env.TAG_NAME || '';
+          const version = tag.replace(/^v/, '');
+          const rawNotes = (process.env.RAW_NOTES || '')
+            .replace(/## New Contributors[\s\S]*?(?=\*\*Full Changelog\*\*)/, '')
+            .trim();
+
+          let changelogSection = '';
+          if (fs.existsSync('CHANGELOG.md')) {
+            const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+            const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const match = changelog.match(new RegExp(`^## \\[${escaped}\\][^\\n]*\\n([\\s\\S]*?)(?=^## \\[|^\\[[^\\]]+\\]:|(?![\\s\\S]))`, 'm'));
+            if (match && match[1]) {
+              changelogSection = `## 📋 O que mudou na ${tag}\n\n${match[1].replace(/\n---\s*$/, '').trim()}`;
+            }
+          }
+
+          const updateGuide = `## 🔄 Como Instalar ou Atualizar
+
+          ### 🦊 Mozilla Firefox (1 clique — Recomendado)
+          1. Nos **Assets** abaixo, clique diretamente no arquivo **\`octa-blaster-${version}.xpi\`**.
+          2. Confirme em **Adicionar** na janela nativa do Firefox.
+          3. Se você já usava uma versão anterior assinada, o Firefox **atualiza automaticamente** preservando seus modelos, tags, variáveis e configurações.
+
+          ### 🌐 Google Chrome / Edge / Brave (Chromium)
+          1. Baixe o arquivo **\`octa-blaster-${version}-chrome.zip\`** nos **Assets** abaixo.
+          2. **Primeira instalação:** extraia o \`.zip\` em uma pasta permanente, abra \`chrome://extensions\` (ou \`edge://extensions\`), ative o **Modo do desenvolvedor** e clique em **Carregar sem compactação** apontando para a pasta extraída.
+          3. **Para atualizar:** extraia o novo \`.zip\` **substituindo os arquivos na mesma pasta** usada anteriormente e clique no ícone **🔄 Recarregar** no card do OctaBlaster em \`chrome://extensions\` (suas configurações salvas são mantidas).`.replace(/^          /gm, '');
+
+          const parts = [changelogSection, rawNotes, updateGuide].filter(Boolean);
+          fs.writeFileSync('notes.md', parts.join('\n\n---\n\n') + '\n', 'utf8');
+          EOF
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

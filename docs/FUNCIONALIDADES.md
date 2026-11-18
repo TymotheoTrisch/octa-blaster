@@ -1,6 +1,6 @@
 # Guia das funcionalidades e teste manual
 
-Este guia descreve a contribuição sobre a base 0.7.0. A versão proposta no código é **0.9.1**; isso não significa que uma release oficial já foi publicada.
+Este guia descreve as funcionalidades atuais da extensão a partir da versão **0.8.0**.
 
 ## Variáveis
 
@@ -83,8 +83,6 @@ pnpm build:firefox
 ```
 
 Abra `about:debugging#/runtime/this-firefox`, escolha **Carregar extensão temporária** e selecione `.output/firefox-mv2/manifest.json`. Em atualizações, clique em **Recarregar** e atualize o Octadesk com F5. Confira a versão instalada na extensão.
-
-No Windows, `Executar-Firefox.cmd` abre um Firefox de teste após instalar dependências e gerar a build. O script procura o Firefox nas pastas usuais e mantém um perfil em `%LOCALAPPDATA%\OctaBlaster\Firefox-Teste`. Ele cria os diretórios necessários e deve permanecer aberto durante a sessão. Esse perfil tem login próprio no Octadesk. O script não assina nem instala permanentemente a extensão. A instalação temporária manual funciona sem esse script.
 
 ## Roteiro para aprovação funcional
 

@@ -107,7 +107,7 @@ Projetada especificamente para equipes de atendimento e suporte que utilizam o *
 
 ## Cadastros, atalhos e resumos de licenças
 
-A contribuição com versão proposta **0.9.1** amplia a base 0.7.0 com:
+A partir da versão **0.8.0**, o OctaBlaster inclui:
 
 - Telas de **Variáveis**, **Tags** e **Atalhos**, incluindo cadastro dos técnicos de licenças, edição e navegação que preserva o rascunho.
 - Variáveis com valor salvo ou preenchimento ao usar, inseridas na posição do cursor. Tags com seleção múltipla e filtro ao lado da busca.
@@ -116,15 +116,15 @@ A contribuição com versão proposta **0.9.1** amplia a base 0.7.0 com:
 - Backup completo de mensagens, tags, variáveis, técnicos e atalho, compatível com arquivos antigos. Edições simultâneas preservam mudanças independentes e avisam sobre conflitos.
 - Roteamento ao editor/frame registrado e isolamento por ticket, migrações que preservam exclusões e erro de salvamento quando principal e fallback falham.
 
-As mensagens e anotações ficam como rascunho para revisão. A versão proposta não representa uma release oficial já publicada.
+As mensagens e anotações ficam como rascunho para revisão.
 
 Documentação:
 
 - [Guia de uso e roteiro de teste manual](docs/FUNCIONALIDADES.md)
 - [Arquitetura, dados e pontos de extensão](docs/ARQUITETURA.md)
 - [Como contribuir e validar o projeto](CONTRIBUTING.md)
-- [Resumo da contribuição e validação](docs/PLANO-DE-EVOLUCAO.md)
-- [Histórico de versões propostas](CHANGELOG.md)
+- [Resumo técnico e validação da v0.8.0](docs/PLANO-DE-EVOLUCAO.md)
+- [Histórico de versões (CHANGELOG)](CHANGELOG.md)
 
 ## 🛠️ Comandos de Desenvolvimento (`pnpm`)
 
@@ -179,7 +179,7 @@ Você não precisa ter Node.js ou pnpm instalado para rodar o OctaBlaster no seu
 
 1. Acesse a aba de [Releases do Repositório](https://github.com/luizGDpulz/octa-blaster/releases).
 2. Escolha o instalador de acordo com o navegador:
-   - **Firefox (Instalação Definitiva com 1 Clique)**: baixe o arquivo assinado digitalmente **`.xpi`** (ex: `octablaster-<versao>.xpi`). O Firefox abrirá o aviso de instalação imediatamente, sem necessitar de modo desenvolvedor nem expirar.
+   - **Firefox (Instalação Definitiva com 1 Clique)**: baixe o arquivo assinado digitalmente **`.xpi`** (ex: `octa-blaster-<versao>.xpi`). O Firefox abrirá o aviso de instalação imediatamente, sem necessitar de modo desenvolvedor nem expirar.
    - **Firefox (Modo Dev / Pasta Extraída)**: baixe `octa-blaster-<versao>-firefox.zip`.
    - **Chrome / Edge / Brave**: baixe `octa-blaster-<versao>-chrome.zip`.
 3. Para carregar pacotes `.zip` em modo desenvolvedor:
