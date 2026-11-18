@@ -1,5 +1,6 @@
 import type { QuickReplyTemplate } from '@/types/template';
-import { applyTemplateTags, getTemplateTagIds, includeLegacyTags, loadTags, loadTagsLocal, TAGS_KEY, validateTags, type TemplateTag } from './templateTags';
+import { applyTemplateTags, getTemplateTagIds, includeLegacyTags, loadTagsLocal, TAGS_KEY, validateTags, type TemplateTag } from './templateTags';
+import { loadSettingsLocal, prepareSettingsSaveLocal, validateSettingsSnapshot, type SettingsSnapshot } from './settingsStorage';
 
 export const STORAGE_KEY = 'octablaster_quick_replies_v2';
 export const HAS_INITIALIZED_KEY = 'octablaster_initialized_v2';
@@ -173,42 +174,43 @@ export async function rawStorageGet(keys: string[]): Promise<Record<string, any>
 export async function rawStorageSet(items: Record<string, any>): Promise<void> {
   const st = getBrowserStorageArea();
   let storageSaved = false;
+  let backupSaved = false;
 
   // Sanitiza tudo que vai pro storage para garantir POJO puro sem undefined
   const pojoItems = JSON.parse(JSON.stringify(items));
 
   if (st) {
     try {
-      const res = st.set(pojoItems);
-      if (res && typeof res.then === 'function') {
-        await res;
-        storageSaved = true;
-      } else {
+      if (st === (globalThis as any).chrome?.storage?.local) {
         await new Promise<void>((resolve, reject) => {
-          st.set(pojoItems, () => {
+          const result = st.set(pojoItems, () => {
             const err = (globalThis as any).chrome?.runtime?.lastError;
             if (err) reject(new Error(err.message || String(err)));
             else resolve();
           });
+          if (result && typeof result.then === 'function') result.then(resolve, reject);
         });
-        storageSaved = true;
+      } else {
+        await st.set(pojoItems);
       }
+      storageSaved = true;
     } catch (err) {
       console.warn('[OctaBlaster] Erro ao salvar em browser.storage.local:', err);
     }
   }
 
   // Backup em localStorage
-  if (typeof localStorage !== 'undefined') {
-    try {
+  try {
+    if (typeof localStorage !== 'undefined') {
       for (const [key, value] of Object.entries(pojoItems)) {
         localStorage.setItem(key, JSON.stringify(value));
       }
-    } catch {}
-  }
+      backupSaved = true;
+    }
+  } catch {}
 
-  if (!storageSaved && typeof localStorage === 'undefined') {
-    throw new Error('Nenhum armazenamento disponível no navegador para salvar.');
+  if (!storageSaved && !backupSaved) {
+    throw new Error('Não foi possível salvar os dados no armazenamento do navegador nem no backup local. Tente novamente.');
   }
 }
 
@@ -283,6 +285,7 @@ export async function saveStoredTemplatesLocal(
   templates: QuickReplyTemplate[],
   base?: QuickReplyTemplate[],
   importedCatalog?: TemplateTag[],
+  additionalItems: Record<string, unknown> = {},
 ): Promise<QuickReplyTemplate[]> {
   let cleanList = sanitizeTemplatesList(templates);
   if (base) {
@@ -341,6 +344,7 @@ export async function saveStoredTemplatesLocal(
     return applyTemplateTags(template, catalog, template.tags);
   });
   await rawStorageSet({
+    ...additionalItems,
     [TAGS_KEY]: catalog,
     [DEFAULTS_STATE_KEY]: { version: DEFAULTS_VERSION, seenIds: [...seenIds] },
     [STORAGE_KEY]: cleanList,
@@ -390,12 +394,24 @@ export async function resetToDefaultTemplates(
 }
 
 /**
- * Exporta a lista de modelos para download em JSON via Data URI seguro.
+ * Obtém um backup dos dados persistidos. No background, participa da fila de gravações.
  */
-export async function exportTemplatesToJson(templates: QuickReplyTemplate[]): Promise<void> {
-  const tags = await loadTags();
+export async function createTemplateBackupLocal() {
+  const templates = await loadStoredTemplatesLocal(true);
+  const tags = await loadTagsLocal();
   const cleanList = sanitizeTemplatesList(templates).map(template => applyTemplateTags(template, tags, getTemplateTagIds(template, tags)));
-  const dataStr = JSON.stringify({ format: 'octablaster', version: 1, templates: cleanList, tags }, null, 2);
+  const settings = await loadSettingsLocal();
+  return { format: 'octablaster', version: 2, templates: cleanList, tags, settings };
+}
+
+export async function exportTemplatesToJson(): Promise<void> {
+  let backup;
+  if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
+    const response = await browser.runtime.sendMessage({ action: 'TEMPLATE_STORAGE', operation: 'export' });
+    if (!response?.success) throw new Error(response?.error || 'Falha ao exportar backup.');
+    backup = response.backup;
+  } else backup = await createTemplateBackupLocal();
+  const dataStr = JSON.stringify(backup, null, 2);
   const dateStr = new Date().toISOString().slice(0, 10);
   const filename = `octablaster-templates-${dateStr}.json`;
 
@@ -424,7 +440,7 @@ export function parseTemplatesFromJson(jsonText: string): QuickReplyTemplate[] {
   return parseTemplateBackup(jsonText).templates;
 }
 
-export function parseTemplateBackup(jsonText: string): { templates: QuickReplyTemplate[]; tags: TemplateTag[] } {
+export function parseTemplateBackup(jsonText: string): { templates: QuickReplyTemplate[]; tags: TemplateTag[]; settings?: SettingsSnapshot } {
   let parsed: any;
   try {
     parsed = JSON.parse(jsonText);
@@ -433,7 +449,7 @@ export function parseTemplateBackup(jsonText: string): { templates: QuickReplyTe
   }
 
   const legacy = Array.isArray(parsed);
-  if (!legacy && (parsed?.format !== 'octablaster' || parsed.version !== 1 || !Array.isArray(parsed.templates))) {
+  if (!legacy && (parsed?.format !== 'octablaster' || ![1, 2].includes(parsed.version) || !Array.isArray(parsed.templates))) {
     throw new Error('O arquivo deve conter um backup do OctaBlaster ou uma lista de modelos.');
   }
   const tags = legacy ? [] : validateTags(parsed.tags ?? []);
@@ -445,7 +461,8 @@ export function parseTemplateBackup(jsonText: string): { templates: QuickReplyTe
   if (!legacy && validItems.some(template => template.tags?.some(id => !tags.some(tag => tag.id === id)))) {
     throw new Error('O backup contém referências a tags ausentes no catálogo.');
   }
-  return { templates: validItems, tags };
+  const settings = !legacy && parsed.version === 2 ? validateSettingsSnapshot(parsed.settings) : undefined;
+  return settings ? { templates: validItems, tags, settings } : { templates: validItems, tags };
 }
 
 /**
@@ -457,17 +474,19 @@ export async function mergeImportedTemplates(
   incoming: QuickReplyTemplate[],
   base: QuickReplyTemplate[] = current,
   incomingTags: TemplateTag[] = [],
+  settings?: SettingsSnapshot,
+  settingsBase?: SettingsSnapshot,
 ): Promise<{ count: number; merged: QuickReplyTemplate[] }> {
   if (typeof browser !== 'undefined' && browser.runtime?.sendMessage) {
     const response = await browser.runtime.sendMessage({
       action: 'TEMPLATE_STORAGE', operation: 'import',
       current: sanitizeTemplatesList(current), incoming: sanitizeTemplatesList(incoming),
-      base: sanitizeTemplatesList(base), tags: validateTags(incomingTags),
+      base: sanitizeTemplatesList(base), tags: validateTags(incomingTags), settings, settingsBase,
     });
     if (!response?.success) throw new Error(response?.error || 'Falha ao importar modelos.');
     return { count: response.count, merged: response.merged };
   }
-  return mergeImportedTemplatesLocal(current, incoming, base, incomingTags);
+  return mergeImportedTemplatesLocal(current, incoming, base, incomingTags, settings, settingsBase);
 }
 
 export async function mergeImportedTemplatesLocal(
@@ -475,7 +494,10 @@ export async function mergeImportedTemplatesLocal(
   incoming: QuickReplyTemplate[],
   base: QuickReplyTemplate[],
   incomingTags: TemplateTag[],
+  settings?: SettingsSnapshot,
+  settingsBase?: SettingsSnapshot,
 ): Promise<{ count: number; merged: QuickReplyTemplate[] }> {
+  const settingsItems = settings === undefined ? {} : await prepareSettingsSaveLocal(validateSettingsSnapshot(settings), settingsBase);
   const catalog = await loadTagsLocal();
   const importedIds = new Map<string, string>();
   for (const tag of validateTags(incomingTags)) {
@@ -506,6 +528,6 @@ export async function mergeImportedTemplatesLocal(
   }
 
   const merged = Array.from(map.values());
-  const saved = await saveStoredTemplatesLocal(merged, base, catalog);
+  const saved = await saveStoredTemplatesLocal(merged, base, catalog, settingsItems);
   return { count, merged: saved };
 }

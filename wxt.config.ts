@@ -1,4 +1,5 @@
 import { defineConfig } from 'wxt';
+import packageInfo from './package.json';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -6,7 +7,7 @@ export default defineConfig({
   manifest: {
     name: 'OctaBlaster - Respostas Rápidas Octadesk',
     description: 'Respostas prontas automatizadas, injeção rápida de texto e automação de licenças para tickets no Octadesk',
-    version: '0.7.0',
+    version: packageInfo.version,
     permissions: ['storage', 'activeTab', 'tabs'],
     host_permissions: ['*://app.octadesk.com/*', '*://*.octadesk.com/*'],
     browser_specific_settings: {

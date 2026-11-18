@@ -10,6 +10,7 @@ import type { MentionTarget } from '@/types/template';
 import './management.css';
 const emit = defineEmits<{ back: []; changed: [] }>();
 const trigger = ref<'\\' | '/' | ''>('\\');
+let triggerBase: '\\' | '/' | '' = '\\';
 const targets = ref<MentionTarget[]>([]);
 const showForm = ref(false);
 const editingId = ref<string | null>(null);
@@ -21,6 +22,7 @@ const busy = ref(false);
 onMounted(async () => {
   try {
     trigger.value = await loadShortcutTrigger();
+    triggerBase = trigger.value;
     targets.value = await loadMentionTargets();
   } catch (error) {
     status.value =
@@ -44,13 +46,19 @@ function startEdit(target?: MentionTarget) {
   showForm.value = true;
 }
 async function saveTrigger() {
+  if (busy.value) return;
+  busy.value = true;
   try {
-    await saveShortcutTrigger(trigger.value);
+    await saveShortcutTrigger(trigger.value, triggerBase);
+    trigger.value = await loadShortcutTrigger();
+    triggerBase = trigger.value;
     status.value = 'Atalho salvo.';
     emit('changed');
   } catch (error) {
     status.value =
       error instanceof Error ? error.message : 'Falha ao salvar atalho.';
+  } finally {
+    busy.value = false;
   }
 }
 async function saveTarget() {
@@ -76,7 +84,7 @@ async function saveTarget() {
           target.id === editingId.value ? updated : target,
         )
       : [...targets.value, updated];
-    await saveMentionTargets(next);
+    await saveMentionTargets(next, targets.value);
     targets.value = await loadMentionTargets();
     showForm.value = false;
     status.value = 'Técnico salvo.';
@@ -94,6 +102,7 @@ async function removeTarget(target: MentionTarget) {
   try {
     await saveMentionTargets(
       targets.value.filter((item) => item.id !== target.id),
+      targets.value,
     );
     targets.value = await loadMentionTargets();
     status.value = 'Técnico removido.';
@@ -175,7 +184,7 @@ async function removeTarget(target: MentionTarget) {
           </select></label
         >
         <div class="management-actions">
-          <button type="submit" class="management-primary">
+          <button type="submit" class="management-primary" :disabled="busy">
             Salvar atalho
           </button>
         </div>

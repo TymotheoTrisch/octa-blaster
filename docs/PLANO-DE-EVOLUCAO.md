@@ -98,3 +98,13 @@ A marcação de técnicos aguarda até 15 segundos por pessoa entre a busca das 
 A busca do técnico é inserida em uma única operação. No HTML nativo do Octadesk, a confirmação verifica o nome em `<person>` com `personid` preenchido, sem depender do tamanho visual da etiqueta. Se a etiqueta aparecer antes de receber o identificador, a rotina continua aguardando antes de buscar o próximo técnico. Se a seleção acontece no primeiro evento do mouse, a rotina evita um segundo acionamento. O cursor é posicionado fora do marcador antes da próxima busca.
 
 Essa versão passou em 57 testes automatizados, na checagem TypeScript e nos builds dos dois navegadores. O teste com a extensão carregada no Chromium cobriu o cadastro e a edição das variáveis, inserção de tokens na seleção, filtro de tags, persistência, configuração dos técnicos e uso desses técnicos na automação de uma página de teste. Popup e painel lateral foram conferidos em 380 × 540. A sessão autenticada do Octadesk no Firefox continua dependendo de validação nesse ambiente.
+
+## Persistência e backup na versão 0.8.0
+
+Variáveis, técnicos e atalho compartilham a fila de gravações do background com mensagens e tags. Cada tela informa a versão que carregou: mudanças em itens diferentes são mescladas, enquanto conflitos no mesmo item exibem erro e mantêm a edição aberta. Nomes de variáveis são comparados sem diferenciar maiúsculas de minúsculas; técnicos usam seus identificadores.
+
+O backup no formato 2 inclui mensagens, tags e configurações completas. A exportação lê os dados persistidos dentro da mesma fila para incluir alterações salvas por outros painéis. Na importação, configurações e mensagens são validadas antes da gravação conjunta. Listas antigas e backups no formato 1 continuam aceitos e preservam as configurações atuais. O comportamento de restauração e o procedimento de atualização estão descritos em `CHANGELOG.md`.
+
+Uma falha nos dois armazenamentos agora rejeita a operação. Se o principal salvar e o backup local falhar, a gravação permanece válida. Se apenas o fallback estiver disponível, todas as chaves precisam ser gravadas para a função retornar sucesso.
+
+A entrega 0.8.0 passou em 87 testes, na checagem TypeScript e nos builds de Chrome e Firefox. Com a extensão carregada no Chromium, dois painéis validaram conflitos de variáveis, técnicos e atalho, mesclagem de edições independentes e exportação/restauração do backup pela interface. A automação de menções e as prévias de respostas também passaram em uma página de teste. O teste funcional no Firefox com uma sessão autenticada do Octadesk continua a ser feito pelo usuário.

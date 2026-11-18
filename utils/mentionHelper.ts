@@ -5,7 +5,7 @@ import {
   isTicketElementVisible,
 } from './licenseDetector';
 import { insertTextIntoElement } from './insertText';
-import { rawStorageGet, rawStorageSet } from './templateStorage';
+import { loadSettings, saveSettings } from './settingsStorage';
 import type { MentionTarget } from '@/types/template';
 
 export const MENTION_TARGETS_STORAGE_KEY = 'octablaster_mention_targets';
@@ -56,12 +56,11 @@ export function validateMentionTargets(raw: unknown): MentionTarget[] {
 }
 
 export async function loadMentionTargets(): Promise<MentionTarget[]> {
-  const data = await rawStorageGet([MENTION_TARGETS_STORAGE_KEY]);
-  return validateMentionTargets(data[MENTION_TARGETS_STORAGE_KEY] ?? DEFAULT_MENTION_TARGETS);
+  return (await loadSettings()).targets;
 }
 
-export async function saveMentionTargets(targets: MentionTarget[]): Promise<void> {
-  await rawStorageSet({ [MENTION_TARGETS_STORAGE_KEY]: validateMentionTargets(targets) });
+export async function saveMentionTargets(targets: MentionTarget[], base?: MentionTarget[]): Promise<void> {
+  await saveSettings({ targets }, base ? { targets: base } : undefined);
 }
 
 function sleep(ms: number) {

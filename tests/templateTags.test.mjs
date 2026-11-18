@@ -80,7 +80,7 @@ test('exported backups include both response associations and the tag catalog', 
   dom.window.HTMLAnchorElement.prototype.click = function () { download = this.href; this.remove(); };
   try {
     await saveTags([{ id: 'support', name: 'Suporte' }]);
-    await exportTemplatesToJson([tagged]);
+    await exportTemplatesToJson();
     assert.ok(download?.startsWith('data:application/json'));
     const json = decodeURIComponent(download.slice(download.indexOf(',') + 1));
     const backup = parseTemplateBackup(json);
@@ -102,7 +102,7 @@ test('saving tags from another panel keeps concurrent additions and rejects conf
   } finally { storage.restore(); }
 });
 
-test('exporting an old response snapshot after deleting its tag does not recreate the tag', async () => {
+test('exporting persisted responses after deleting a tag does not recreate the tag', async () => {
   const dom = installDom();
   const tagged = { ...reply, category: 'Suporte', tags: ['support'] };
   const storage = installStorage({ [STORAGE_KEY]: [tagged], [HAS_INITIALIZED_KEY]: true,
@@ -111,7 +111,7 @@ test('exporting an old response snapshot after deleting its tag does not recreat
   dom.window.HTMLAnchorElement.prototype.click = function () { download = this.href; this.remove(); };
   try {
     await saveTags([]);
-    await exportTemplatesToJson([tagged]);
+    await exportTemplatesToJson();
     const json = decodeURIComponent(download.slice(download.indexOf(',') + 1));
     const backup = parseTemplateBackup(json);
     assert.deepEqual(backup.tags, []);

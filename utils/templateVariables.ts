@@ -1,4 +1,4 @@
-import { rawStorageGet, rawStorageSet } from './templateStorage';
+import { loadSettings, saveSettings } from './settingsStorage';
 import { resolveVariables } from './templateResolver';
 
 export const VARIABLES_KEY = 'octablaster_variables';
@@ -14,30 +14,27 @@ export interface ReplySettings {
 }
 const reserved = /^(sauda[cç][aã]o|data|hora)$/i;
 export async function loadVariables(): Promise<TemplateVariable[]> {
-  const data = await rawStorageGet([VARIABLES_KEY]);
-  return validateVariables(data[VARIABLES_KEY] ?? []);
+  return (await loadSettings()).variables;
 }
 
-export async function saveVariables(variables: TemplateVariable[]): Promise<TemplateVariable[]> {
-  const clean = validateVariables(variables);
-  await rawStorageSet({ [VARIABLES_KEY]: clean });
-  return clean;
+export async function saveVariables(variables: TemplateVariable[], base?: TemplateVariable[]): Promise<TemplateVariable[]> {
+  return (await saveSettings({ variables }, base ? { variables: base } : undefined)).variables;
 }
 
 export async function loadShortcutTrigger(): Promise<ReplySettings['trigger']> {
-  const data = await rawStorageGet([SHORTCUT_KEY]);
-  return data[SHORTCUT_KEY] === '/' || data[SHORTCUT_KEY] === '' ? data[SHORTCUT_KEY] : '\\';
+  return (await loadSettings()).trigger;
 }
 
-export async function saveShortcutTrigger(trigger: ReplySettings['trigger']): Promise<void> {
-  if (!['\\', '/', ''].includes(trigger)) throw new Error('Atalho inválido.');
-  await rawStorageSet({ [SHORTCUT_KEY]: trigger });
+export async function saveShortcutTrigger(trigger: ReplySettings['trigger'], base?: ReplySettings['trigger']): Promise<void> {
+  await saveSettings({ trigger }, base === undefined ? undefined : { trigger: base });
 }
 export function validateVariables(
   variables: TemplateVariable[],
 ): TemplateVariable[] {
   const names = new Set<string>();
+  if (!Array.isArray(variables)) throw new Error('Lista de variáveis inválida.');
   return variables.map((variable) => {
+    if (!variable || typeof variable.name !== 'string') throw new Error('Variável inválida.');
     const name = variable.name.trim();
     const normalized = name.toLocaleLowerCase('pt-BR');
     if (!/^[A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_]*$/.test(name) || reserved.test(name))
@@ -50,24 +47,14 @@ export function validateVariables(
   });
 }
 export async function loadReplySettings(): Promise<ReplySettings> {
-  const data = await rawStorageGet([VARIABLES_KEY, SHORTCUT_KEY]);
-  const variables = validateVariables(
-    Array.isArray(data[VARIABLES_KEY]) ? data[VARIABLES_KEY] : [],
-  );
-  const trigger = data[SHORTCUT_KEY];
-  return {
-    variables,
-    trigger: trigger === '/' || trigger === '' ? trigger : '\\',
-  };
+  const { variables, trigger } = await loadSettings();
+  return { variables, trigger };
 }
 export async function saveReplySettings(
   settings: ReplySettings,
+  base?: ReplySettings,
 ): Promise<void> {
-  const variables = validateVariables(settings.variables);
-  await rawStorageSet({
-    [VARIABLES_KEY]: variables,
-    [SHORTCUT_KEY]: settings.trigger,
-  });
+  await saveSettings(settings, base);
 }
 export function findVariableNames(text: string): string[] {
   const names = new Map<string, string>();

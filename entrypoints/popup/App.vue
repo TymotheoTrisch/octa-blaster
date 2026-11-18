@@ -3,6 +3,8 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template';
 import type { LicenseTicketInfo } from '@/utils/licenseDetector';
 import { prepareTemplate, loadVariables, type TemplateVariable } from '@/utils/templateVariables';
+import { loadSettings } from '@/utils/settingsStorage';
+import packageInfo from '../../package.json';
 import { loadTags, getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/utils/templateTags';
 import VariablesView from './VariablesView.vue';
 import TagsView from './TagsView.vue';
@@ -117,7 +119,7 @@ const menuRef = ref<HTMLElement | null>(null);
 const expandedIds = ref<Set<string>>(new Set());
 const openCardMenuId = ref<string | null>(null);
 const showConfirmResetModal = ref(false);
-const appVersion = ref('0.7.0');
+const appVersion = ref(packageInfo.version);
 
 const GITHUB_REPO_URL = 'https://github.com/luizGDpulz/octa-blaster';
 const GITHUB_DISCUSSIONS_URL = 'https://github.com/luizGDpulz/octa-blaster/discussions';
@@ -231,8 +233,8 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 
 async function exportTemplates() {
   try {
-    await exportTemplatesToJson(templates.value);
-    setStatus('Modelos exportados com sucesso!', 'success');
+    await exportTemplatesToJson();
+    setStatus('Backup completo exportado com sucesso!', 'success');
   } catch (err: any) {
     console.error('Erro ao exportar modelos:', err);
     setStatus(err?.message || 'Falha ao exportar modelos.', 'error');
@@ -249,13 +251,14 @@ async function handleFileImport(e: Event) {
   if (!file) return;
 
   try {
+    const settingsBase = await loadSettings();
     const text = await file.text();
     const imported = parseTemplateBackup(text);
-    const { count, merged } = await mergeImportedTemplates(templates.value, imported.templates, templatesBase, imported.tags);
+    const { count, merged } = await mergeImportedTemplates(templates.value, imported.templates, templatesBase, imported.tags, imported.settings, settingsBase);
     templates.value = merged;
     rememberTemplatesBase();
     await refreshCatalogs();
-    setStatus(`${count} modelo(s) importado(s) com sucesso!`, 'success');
+    setStatus(imported.settings ? `Backup restaurado: ${count} mensagem(ns) e configurações.` : `${count} modelo(s) importado(s) com sucesso!`, 'success');
   } catch (err: any) {
     console.error('Erro ao importar modelos:', err);
     setStatus(err?.message || 'Erro ao processar arquivo JSON.', 'error');
@@ -683,7 +686,7 @@ onUnmounted(() => {
                   @click="handleMenuAction(exportTemplates)"
                 >
                   <Download :size="14" class="menu-item-icon" />
-                  <span class="menu-item-text">Exportar modelos (JSON)</span>
+                  <span class="menu-item-text">Exportar backup completo (JSON)</span>
                 </button>
                 <button
                   type="button"
@@ -691,7 +694,7 @@ onUnmounted(() => {
                   @click="handleMenuAction(triggerImport)"
                 >
                   <Upload :size="14" class="menu-item-icon" />
-                  <span class="menu-item-text">Importar modelos (JSON)</span>
+                  <span class="menu-item-text">Importar backup ou modelos (JSON)</span>
                 </button>
               </div>
 

@@ -1,6 +1,7 @@
 import type { InsertMessageRequest } from '@/types/template';
-import { loadStoredTemplatesLocal, saveStoredTemplatesLocal, mergeImportedTemplatesLocal } from '@/utils/templateStorage';
+import { loadStoredTemplatesLocal, saveStoredTemplatesLocal, mergeImportedTemplatesLocal, createTemplateBackupLocal } from '@/utils/templateStorage';
 import { loadTagsLocal, saveTagsLocal } from '@/utils/templateTags';
+import { loadSettingsLocal, saveSettingsLocal } from '@/utils/settingsStorage';
 
 export default defineBackground(() => {
   let templateQueue: Promise<unknown> = Promise.resolve();
@@ -8,17 +9,23 @@ export default defineBackground(() => {
   const keyForTab = (tabId: number) => `octablaster_editor_${tabId}`;
   browser.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== browser.runtime.id || !message || typeof message !== 'object') return;
-    if (message.action === 'TEMPLATE_STORAGE' || message.action === 'TAG_CATALOG') {
+    if (['TEMPLATE_STORAGE', 'TAG_CATALOG', 'SETTINGS_STORAGE'].includes(message.action)) {
       const task = templateQueue.then(async () => {
+        if (message.action === 'SETTINGS_STORAGE') {
+          if (!['load', 'save'].includes(message.operation)) throw new Error('Operação de configurações inválida.');
+          const settings = message.operation === 'load' ? await loadSettingsLocal() : await saveSettingsLocal(message.settings, message.base);
+          return { success: true, settings };
+        }
         if (message.action === 'TAG_CATALOG') {
           if (!['load', 'save'].includes(message.operation)) throw new Error('Operação de tags inválida.');
           const tags = message.operation === 'load' ? await loadTagsLocal() : await saveTagsLocal(message.tags, message.base);
           return { success: true, tags };
         }
         if (message.operation === 'import') {
-          const result = await mergeImportedTemplatesLocal(message.current, message.incoming, message.base, message.tags ?? []);
+          const result = await mergeImportedTemplatesLocal(message.current, message.incoming, message.base, message.tags ?? [], message.settings, message.settingsBase);
           return { success: true, ...result };
         }
+        if (message.operation === 'export') return { success: true, backup: await createTemplateBackupLocal() };
         if (!['load', 'save'].includes(message.operation)) throw new Error('Operação de modelos inválida.');
         const templates = message.operation === 'load'
           ? await loadStoredTemplatesLocal(true)

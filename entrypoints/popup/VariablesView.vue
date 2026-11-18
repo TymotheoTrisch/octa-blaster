@@ -54,8 +54,7 @@ async function save() {
           variable.name === editingName.value ? updated : variable,
         )
       : [...variables.value, updated];
-    await saveVariables(next);
-    variables.value = await loadVariables();
+    variables.value = await saveVariables(next, variables.value);
     showForm.value = false;
     status.value = 'Variável salva.';
     emit('changed');
@@ -70,10 +69,10 @@ async function remove(variable: TemplateVariable) {
   if (busy.value) return;
   busy.value = true;
   try {
-    await saveVariables(
+    variables.value = await saveVariables(
       variables.value.filter((item) => item.name !== variable.name),
+      variables.value,
     );
-    variables.value = await loadVariables();
     status.value = 'Variável removida.';
     emit('changed');
   } catch (error) {
