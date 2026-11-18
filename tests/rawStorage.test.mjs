@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rawStorageSet } from '../utils/templateStorage.ts';
+import { rawStorageSet } from '../utils/storage.ts';
 import { installStorage } from './helpers.mjs';
 
 function replaceGlobal(name, value) {

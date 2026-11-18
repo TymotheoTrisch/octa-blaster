@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { checkGithubRelease } from '../utils/updateChecker.ts';
 
-test('update checks use the fork release endpoint', async () => {
+test('update checks use the official project release endpoint', async () => {
   const previous = globalThis.fetch;
   const requests = [];
   globalThis.fetch = async (url) => {
@@ -11,8 +11,8 @@ test('update checks use the fork release endpoint', async () => {
   };
   try {
     const result = await checkGithubRelease('0.5.9');
-    assert.deepEqual(requests, ['https://api.github.com/repos/TymotheoTrisch/octa-blaster/releases/latest']);
+    assert.deepEqual(requests, ['https://api.github.com/repos/luizGDpulz/octa-blaster/releases/latest']);
     assert.equal(result.hasUpdate, true);
-    assert.equal(result.releaseUrl, 'https://github.com/TymotheoTrisch/octa-blaster/releases');
+    assert.equal(result.releaseUrl, 'https://github.com/luizGDpulz/octa-blaster/releases');
   } finally { globalThis.fetch = previous; }
 });

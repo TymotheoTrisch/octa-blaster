@@ -1,6 +1,7 @@
 import type { InsertMessageRequest } from '@/types/template';
 import { loadStoredTemplatesLocal, saveStoredTemplatesLocal, mergeImportedTemplatesLocal, createTemplateBackupLocal } from '@/utils/templateStorage';
-import { loadTagsLocal, saveTagsLocal } from '@/utils/templateTags';
+import { loadTagsLocal } from '@/utils/templateStorage';
+import { saveTagsLocal } from '@/utils/templateTags';
 import { loadSettingsLocal, saveSettingsLocal } from '@/utils/settingsStorage';
 
 export default defineBackground(() => {

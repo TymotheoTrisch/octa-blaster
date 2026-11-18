@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-vue-next';
-import { loadTags, saveTags, type TemplateTag } from '@/utils/templateTags';
+import { loadTags, saveTags } from '@/utils/templateTags';
+import { type TemplateTag } from '@/utils/templateTagSchema';
 import './management.css';
 const emit = defineEmits<{ back: []; changed: [] }>();
 const tags = ref<TemplateTag[]>([]);

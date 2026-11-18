@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
-import { VARIABLES_KEY, validateVariables, findVariableNames, prepareTemplate,
-  loadReplySettings, saveReplySettings, saveVariables, saveShortcutTrigger } from '../utils/templateVariables.ts';
+import { VARIABLES_KEY, validateVariables } from '../utils/settingsSchema.ts';
+import { findVariableNames, prepareTemplate, loadReplySettings, saveReplySettings, saveVariables, saveShortcutTrigger } from '../utils/templateVariables.ts';
 
 test('variable names reject reserved names and case-insensitive duplicates', () => {
   for (const name of ['Data', 'hora', 'Saudacao', 'Saudação', 'bad name', '1numero']) {

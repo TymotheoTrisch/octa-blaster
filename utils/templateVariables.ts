@@ -1,18 +1,7 @@
+import { RESERVED_VARIABLE_NAME as reserved, type TemplateVariable, type ReplySettings } from './settingsSchema';
 import { loadSettings, saveSettings } from './settingsStorage';
 import { resolveVariables } from './templateResolver';
 
-export const VARIABLES_KEY = 'octablaster_variables';
-export const SHORTCUT_KEY = 'octablaster_shortcut';
-export interface TemplateVariable {
-  name: string;
-  value: string;
-  mode: 'saved' | 'prompt';
-}
-export interface ReplySettings {
-  variables: TemplateVariable[];
-  trigger: '\\' | '/' | '';
-}
-const reserved = /^(sauda[cç][aã]o|data|hora)$/i;
 export async function loadVariables(): Promise<TemplateVariable[]> {
   return (await loadSettings()).variables;
 }
@@ -27,24 +16,6 @@ export async function loadShortcutTrigger(): Promise<ReplySettings['trigger']> {
 
 export async function saveShortcutTrigger(trigger: ReplySettings['trigger'], base?: ReplySettings['trigger']): Promise<void> {
   await saveSettings({ trigger }, base === undefined ? undefined : { trigger: base });
-}
-export function validateVariables(
-  variables: TemplateVariable[],
-): TemplateVariable[] {
-  const names = new Set<string>();
-  if (!Array.isArray(variables)) throw new Error('Lista de variáveis inválida.');
-  return variables.map((variable) => {
-    if (!variable || typeof variable.name !== 'string') throw new Error('Variável inválida.');
-    const name = variable.name.trim();
-    const normalized = name.toLocaleLowerCase('pt-BR');
-    if (!/^[A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_]*$/.test(name) || reserved.test(name))
-      throw new Error(`Nome de variável inválido ou reservado: ${name}`);
-    if (names.has(normalized)) throw new Error(`Variável repetida: ${name}`);
-    if (!['saved', 'prompt'].includes(variable.mode))
-      throw new Error('Modo de variável inválido.');
-    names.add(normalized);
-    return { name, value: String(variable.value || ''), mode: variable.mode };
-  });
 }
 export async function loadReplySettings(): Promise<ReplySettings> {
   const { variables, trigger } = await loadSettings();

@@ -1,6 +1,6 @@
 import { createReplyListItem, loadReplyList } from './replyList';
 import { loadReplySettings, prepareTemplate } from './templateVariables';
-import type { TemplateTag } from './templateTags';
+import type { TemplateTag } from './templateTagSchema';
 import { insertTextIntoElement } from './insertText';
 import { getScopedTicketContainer, getTicketIdentity } from './licenseDetector';
 import type { QuickReplyTemplate } from '@/types/template';

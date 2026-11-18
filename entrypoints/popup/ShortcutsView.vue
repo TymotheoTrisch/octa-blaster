@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-vue-next';
-import {
-  loadShortcutTrigger,
-  saveShortcutTrigger,
-} from '@/utils/templateVariables';
+import { loadShortcutTrigger, saveShortcutTrigger } from '@/utils/templateVariables';
 import { loadMentionTargets, saveMentionTargets } from '@/utils/mentionHelper';
 import type { MentionTarget } from '@/types/template';
 import './management.css';

@@ -2,21 +2,16 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template';
 import type { LicenseTicketInfo } from '@/utils/licenseDetector';
-import { prepareTemplate, loadVariables, type TemplateVariable } from '@/utils/templateVariables';
+import { prepareTemplate, loadVariables } from '@/utils/templateVariables';
+import { type TemplateVariable } from '@/utils/settingsSchema';
 import { loadSettings } from '@/utils/settingsStorage';
 import packageInfo from '../../package.json';
-import { loadTags, getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/utils/templateTags';
+import { loadTags } from '@/utils/templateTags';
+import { getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/utils/templateTagSchema';
 import VariablesView from './VariablesView.vue';
 import TagsView from './TagsView.vue';
 import ShortcutsView from './ShortcutsView.vue';
-import {
-  loadStoredTemplates,
-  saveStoredTemplates,
-  resetToDefaultTemplates,
-  exportTemplatesToJson,
-  parseTemplateBackup,
-  mergeImportedTemplates,
-} from '@/utils/templateStorage';
+import { loadStoredTemplates, saveStoredTemplates, resetToDefaultTemplates, exportTemplatesToJson, parseTemplateBackup, mergeImportedTemplates } from '@/utils/templateStorage';
 import {
   MoreHorizontal,
   Plus,

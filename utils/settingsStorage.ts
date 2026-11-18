@@ -1,33 +1,5 @@
-import type { MentionTarget } from '@/types/template';
-import { rawStorageGet, rawStorageSet } from './templateStorage';
-import { VARIABLES_KEY, SHORTCUT_KEY, validateVariables, type TemplateVariable, type ReplySettings } from './templateVariables';
-import { MENTION_TARGETS_STORAGE_KEY, DEFAULT_MENTION_TARGETS, validateMentionTargets } from './mentionHelper';
-
-export interface SettingsSnapshot extends ReplySettings {
-  targets: MentionTarget[];
-}
-
-export function validateSettingsPatch(raw: unknown): Partial<SettingsSnapshot> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Configurações inválidas.');
-  const value = raw as Record<string, unknown>;
-  const clean: Partial<SettingsSnapshot> = {};
-  if (Object.hasOwn(value, 'variables')) {
-    if (!Array.isArray(value.variables)) throw new Error('Lista de variáveis inválida.');
-    clean.variables = validateVariables(value.variables);
-  }
-  if (Object.hasOwn(value, 'targets')) clean.targets = validateMentionTargets(value.targets);
-  if (Object.hasOwn(value, 'trigger')) {
-    if (value.trigger !== '\\' && value.trigger !== '/' && value.trigger !== '') throw new Error('Atalho inválido.');
-    clean.trigger = value.trigger;
-  }
-  return clean;
-}
-
-export function validateSettingsSnapshot(raw: unknown): SettingsSnapshot {
-  const clean = validateSettingsPatch(raw);
-  if (!clean.variables || !clean.targets || clean.trigger === undefined) throw new Error('O backup está incompleto nas configurações.');
-  return clean as SettingsSnapshot;
-}
+import { rawStorageGet, rawStorageSet } from './storage';
+import { VARIABLES_KEY, SHORTCUT_KEY, MENTION_TARGETS_STORAGE_KEY, DEFAULT_MENTION_TARGETS, validateVariables, validateMentionTargets, validateSettingsPatch, type TemplateVariable, type SettingsSnapshot } from './settingsSchema';
 
 export async function loadSettingsLocal(): Promise<SettingsSnapshot> {
   const data = await rawStorageGet([VARIABLES_KEY, SHORTCUT_KEY, MENTION_TARGETS_STORAGE_KEY]);

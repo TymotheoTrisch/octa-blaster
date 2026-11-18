@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installStorage } from './helpers.mjs';
-import { DEFAULT_TEMPLATES, STORAGE_KEY, HAS_INITIALIZED_KEY, DEFAULTS_STATE_KEY,
-  loadStoredTemplates, saveStoredTemplates, resetToDefaultTemplates } from '../utils/templateStorage.ts';
+import { DEFAULT_TEMPLATES, STORAGE_KEY, HAS_INITIALIZED_KEY, DEFAULTS_STATE_KEY, loadStoredTemplates, saveStoredTemplates, resetToDefaultTemplates } from '../utils/templateStorage.ts';
 
 const custom = { id: 'my-reply', title: 'Meu modelo', content: 'Meu conteúdo', updatedAt: 123 };
 

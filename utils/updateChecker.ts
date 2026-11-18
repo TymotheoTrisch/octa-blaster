@@ -38,7 +38,7 @@ export function compareSemver(v1: string, v2: string): number {
  */
 export async function checkGithubRelease(
   currentVersion: string,
-  repo = 'TymotheoTrisch/octa-blaster',
+  repo = 'luizGDpulz/octa-blaster',
 ): Promise<UpdateInfo> {
   const cleanCurrent = currentVersion.replace(/^v/, '').trim();
   const endpoint = `https://api.github.com/repos/${repo}/releases/latest`;

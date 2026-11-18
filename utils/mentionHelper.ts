@@ -1,3 +1,4 @@
+import { mentionNamePattern } from './settingsSchema';
 import {
   getScopedTicketContainer,
   getTicketIdentity,
@@ -9,52 +10,7 @@ import { loadSettings, saveSettings } from './settingsStorage';
 import { readTicketLicenseRequest, formatLicenseRequest } from './licenseRequest';
 import type { MentionTarget } from '@/types/template';
 
-export const MENTION_TARGETS_STORAGE_KEY = 'octablaster_mention_targets';
 const MENTION_WAIT_MS = 15_000;
-
-export const DEFAULT_MENTION_TARGETS: MentionTarget[] = [
-  {
-    id: 'jorge_tigre',
-    name: 'Jorge Tigre',
-    query: '@Jorge',
-    pattern: 'jorge\\s+tigre',
-    enabled: true,
-  },
-  {
-    id: 'roberto_renck',
-    name: 'Roberto Renck',
-    query: '@roberto',
-    pattern: 'roberto\\s+renck',
-    enabled: true,
-  },
-];
-
-function mentionNamePattern(name: string): string {
-  return name.split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
-}
-
-export function validateMentionTargets(raw: unknown): MentionTarget[] {
-  if (!Array.isArray(raw)) throw new Error('A lista de técnicos é inválida.');
-  const ids = new Set<string>();
-  return raw.map(item => {
-    const id = typeof item?.id === 'string' ? item.id.trim() : '';
-    const name: string = typeof item?.name === 'string' ? item.name.trim() : '';
-    let query = typeof item?.query === 'string' ? item.query.trim() : '';
-    if (!id || !name) throw new Error('Informe o nome do técnico.');
-    if (ids.has(id)) throw new Error('Há técnicos com identificadores repetidos.');
-    ids.add(id);
-    if (!query) query = name;
-    if (!query.startsWith('@')) query = `@${query}`;
-    const derivedPattern = mentionNamePattern(name);
-    const pattern = typeof item.pattern === 'string' && item.pattern.trim() ? item.pattern : derivedPattern;
-    try {
-      new RegExp(pattern, 'i');
-    } catch {
-      throw new Error(`Padrão de identificação inválido para ${name}.`);
-    }
-    return { id, name, query, pattern, enabled: item.enabled !== false };
-  });
-}
 
 export async function loadMentionTargets(): Promise<MentionTarget[]> {
   return (await loadSettings()).targets;

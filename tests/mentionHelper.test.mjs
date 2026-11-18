@@ -39,11 +39,7 @@ for (const navigation of [
     }
   });
 }
-import {
-  isInternalNoteTabActive,
-  switchToInternalNote,
-  waitForInternalNoteEditor,
-} from '../utils/mentionHelper.ts';
+import { isInternalNoteTabActive, switchToInternalNote, waitForInternalNoteEditor } from '../utils/mentionHelper.ts';
 
 function showElements(window) {
   window.HTMLElement.prototype.getBoundingClientRect = () => ({
