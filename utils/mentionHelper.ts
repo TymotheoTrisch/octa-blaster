@@ -549,9 +549,15 @@ export async function insertMentionForTarget(
   );
 
   if (selected && isCurrent() && !targetEditor.matches('input, textarea')) {
-    // Mantém a próxima busca fora do marcador e de sua formatação.
+    // Mantém a próxima busca fora do marcador, dentro do mesmo parágrafo.
     const space = targetDoc.createTextNode('\u00a0');
-    targetEditor.append(space);
+    const marker = Array.from(targetEditor.querySelectorAll<HTMLElement>('person[personid]')).reverse().find(person => {
+      const text = (person.innerText || person.textContent || '').trim();
+      return !!person.getAttribute('personid')?.trim() &&
+        (matchesMentionName(text.replace(/^@\s*/, ''), pattern, accentPattern) || text.toLocaleLowerCase('pt-BR') === query.toLocaleLowerCase('pt-BR'));
+    });
+    if (marker) marker.after(space);
+    else targetEditor.append(space);
     targetEditor.focus();
     const range = targetDoc.createRange();
     range.setStart(space, 1);
