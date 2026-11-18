@@ -3,6 +3,7 @@
 ## 0.9.1 — 18/11/2026
 
 - O resumo de troca inclui **Motivo:**, lido do campo **Motivo da troca de licença** do e-mail. Se o motivo estiver ausente ou divergente, a preparação é interrompida antes de alterar a anotação.
+- Preparação da contribuição: guia funcional, arquitetura e fluxo de contribuição; validações e adaptador de armazenamento separados para remover ciclos de dependência; consulta de atualizações restaurada para o repositório oficial `luizGDpulz/octa-blaster`.
 
 ## 0.9.0 — 18/11/2026
 

@@ -1,120 +1,44 @@
-# Evolução do OctaBlaster
+# Resumo da contribuição sobre a versão 0.7.0
 
-## Etapa 1 — Integração e dados existentes
+Esta contribuição integra a `main` do projeto original no commit `054b298` e reúne as funcionalidades descritas abaixo. A versão proposta é **0.9.1**. O histórico detalhado está em [CHANGELOG.md](../CHANGELOG.md); a publicação de uma versão oficial depende da aprovação da manutenção.
 
-| Mudança | Resultado esperado | Verificação |
+## Escopo implementado
+
+| Área | Comportamento resultante | Documentação |
 | --- | --- | --- |
-| Mensagens direcionadas | A interface envia a ação ao frame e editor identificados pela extensão. | Dois frames recebem comandos distintos, mensagens da página não inserem texto. |
-| Isolamento por ticket | Detecção, inserção e menções usam o chamado de origem. | Texto de outro chamado e título global não influenciam a detecção. Troca de contexto interrompe uma ação pendente. |
-| Evolução dos modelos padrão | Novos padrões chegam a instalações existentes, preservando personalizações e exclusões. | Primeira instalação, dados legados, repetição de migração, edição e exclusão de padrões. |
-| Releases do fork | A verificação consulta TymotheoTrisch/octa-blaster. | Conferência do endereço consultado e comparação de versões. |
+| Variáveis | Cadastro, edição, exclusão, valores salvos ou solicitados, tokens no cursor/seleção e cancelamento que preserva o rascunho. | [Guia funcional](FUNCIONALIDADES.md#variáveis) |
+| Tags | Catálogo com IDs, migração de categorias, múltiplas tags por mensagem, renomeação/exclusão de associações, filtro combinado com busca. | [Tags e navegação](FUNCIONALIDADES.md#tags-e-navegação) |
+| Atalhos | Gatilho configurável, busca, teclado, clique, mesma ordem e prévia por item do botão Respostas. | [Atalhos](FUNCIONALIDADES.md#atalhos-e-respostas) |
+| Técnicos e licenças | Cadastro de técnicos, ativação da nota interna, espera pela confirmação nativa, menções lado a lado e resumo do formulário, incluindo motivo da troca. | [Licenças](FUNCIONALIDADES.md#técnicos-e-resumo-das-licenças) |
+| Contexto de edição | Roteamento por aba/frame e token, escopo por ticket, preservação da resposta pública e cancelamento ao perder o contexto. | [Roteamento](ARQUITETURA.md#roteamento-e-contexto) |
+| Persistência | Migrações de padrões, ordem preservada durante edições concorrentes, conflitos por item e erro quando ambos os armazenamentos falham. | [Persistência](ARQUITETURA.md#persistência-e-compatibilidade) |
+| Backup | Exportação do estado salvo e restauração de mensagens, tags e configurações; leitura de formatos antigos. | [Backup](FUNCIONALIDADES.md#backup-e-edições-simultâneas) |
+| Desenvolvimento | Testes de regressão no CI, builds de ambos os navegadores, versão centralizada, consulta de releases oficiais e script Windows para teste temporário. | [Contribuição](../CONTRIBUTING.md) |
 
-## Etapa 2 — Variáveis e respostas pelo teclado
+## Arquitetura adotada
 
-Variáveis automáticas continuam disponíveis como `{{Saudacao}}`, `{{Data}}` e `{{Hora}}`. O cadastro permite valores salvos, como `{{Assinatura}}`, e valores solicitados a cada uso, como `{{Protocolo}}`. Popup, painel lateral, widget e menu do editor devem compartilhar a resolução. Cancelar o preenchimento encerra a operação antes de alterar o rascunho.
+A estrutura WXT/Vue/TypeScript e os diretórios existentes foram mantidos. Validação e modelos foram extraídos para esquemas sem efeitos colaterais; o adaptador de armazenamento foi separado dos serviços de mensagens, tags e configurações. O background centraliza coordenação e serialização; componentes Vue cuidam dos formulários e a automação do Octadesk permanece nos módulos de integração com o DOM. Veja o mapa de dependências e os pontos de extensão em [ARQUITETURA.md](ARQUITETURA.md).
 
-O menu do editor usa `\` inicialmente, com opção de `/` ou desativação. O gatilho no início da linha ou depois de espaço abre os títulos de respostas. Digitar filtra a lista. Setas navegam, Enter escolhe, Esc fecha e clique seleciona. A escolha substitui o gatilho e a busca pelo texto da resposta, mantendo a mensagem como rascunho. A inserção deve validar novamente o editor e o chamado de origem depois de qualquer preenchimento assíncrono.
+## Verificação automatizada
 
-## Execução e validação
+O conjunto inclui 99 testes do executor nativo do Node.js com jsdom. Os casos cobrem isolamento de tickets/frames, registro de destino, cancelamento, IME, seleção, atalhos, previews, variáveis, migrações, reordenação, conflitos, falhas de armazenamento, callbacks do Chrome, backup completo e formatos antigos. Para licenças, há sugestões lentas, confirmação por `personid`, repetição sem duplicação e os três formulários de e-mail com campos válidos, incompletos ou ambíguos.
 
-Um agente implementa o código de produção, um segundo revisa os caminhos afetados e um terceiro desenvolve e executa as verificações independentes. A coordenação integra os achados antes da entrega.
+Comandos do CI:
 
-As verificações incluem regressões automatizadas, tipos TypeScript e builds de Chrome e Firefox. O relatório de entrega distingue testes com fixtures do editor e validação em uma sessão real autenticada do Octadesk.
-
-## Como usar
-
-1. Abra o menu de três pontos no popup ou painel lateral e escolha **Variáveis**.
-2. Selecione **Nova variável**, informe um nome como `Assinatura`, escolha **Valor salvo** e preencha o valor. Para dados que mudam a cada resposta, escolha **Preencher ao usar**.
-3. Salve a variável. Nomes são únicos sem distinção entre maiúsculas e minúsculas. `Saudacao`, `Data` e `Hora` são reservadas.
-4. Crie ou edite uma resposta. Os botões de variáveis automáticas e cadastradas inserem o token na posição do cursor ou substituem o trecho selecionado. Variáveis presentes no texto que ainda não foram cadastradas também são solicitadas no momento do uso. Ao renomear uma variável, atualize os tokens das mensagens para o novo nome.
-5. Clique no campo de resposta do ticket. Digite `\` e parte do título da resposta. Cada item apresenta a prévia abaixo do título, usando a mesma lista, ordem e renderização do botão **Respostas**. Escolha com as setas e Enter ou clique no título. O texto fica no rascunho.
-6. Para usar `/` ou desativar o menu, abra **Atalhos** no menu da extensão. Nessa tela também é possível cadastrar, editar, desativar e remover os técnicos das menções de licenças.
-
-A tela **Tags**, acessível pelo menu, centraliza os nomes usados para organizar as mensagens. As categorias antigas aparecem nesse cadastro. Uma mensagem pode receber várias tags, selecionadas no formulário, e a lista pode ser filtrada por tag. Renomear uma tag atualiza seu nome nas mensagens associadas. Excluir uma tag remove suas associações.
-
-No formulário, **Selecionar tags** abre um menu com as opções de seleção múltipla. Na lista de mensagens, o filtro de tags fica ao lado da busca. A seta de voltar dos formulários de cadastro retorna à lista daquele cadastro. A seta da lista retorna à tela visitada anteriormente.
-
-A exportação JSON inclui mensagens e o catálogo de tags. A importação aceita esse formato e os arquivos antigos com listas de modelos e categorias.
-
-Popup, painel lateral, widget e menu pedem os valores pendentes em um formulário. Cancelar preserva o rascunho. A seleção no menu substitui apenas o gatilho e o trecho de busca. Se o ticket mudar ou o rascunho for editado durante esse formulário, a inserção pendente é descartada.
-
-## Fluxo de inserção
-
-```mermaid
-flowchart TD
-    A[Foco no editor do ticket] --> B[Registro do frame e token no background]
-    C[Resposta escolhida no popup ou painel] --> D[Captura do token de destino]
-    D --> E[Resolução de variáveis e preenchimento]
-    E --> F[Background confirma token e direciona ao frame]
-    F --> G[Content script valida editor e ticket]
-    G --> H[Inserção no rascunho]
-    I[Resposta escolhida no widget ou menu] --> J[Captura do editor e identidade do ticket]
-    J --> K[Resolução de variáveis e preenchimento]
-    K --> L[Validação do ticket e do rascunho original]
-    L --> H
-    B --> F
-```
-
-## Comandos de verificação
-
-```powershell
-pnpm test
+```sh
+pnpm install --frozen-lockfile
 pnpm compile
+pnpm test
 pnpm build
 pnpm build:firefox
 ```
 
-A suíte usa os hooks de módulos do Node.js e o jsdom. A versão instalada do jsdom exige Node.js 22.22.2+, 24.15+ ou 26+. O CI usa a versão mais recente da linha Node.js 22 e executa testes, tipos e os dois builds. Os pacotes para carregar no navegador ficam em `.output/chrome-mv3` e `.output/firefox-mv2`.
+## Verificação em navegador e limites
 
-## Pontos que dependem do DOM do Octadesk
+Durante a implementação, testes com a extensão carregada no Chromium e APIs reais da extensão cobriram popup/painel, cadastros, conflitos entre painéis, exportação/restauração, gatilhos, prévias e menções/resumos nas páginas locais de teste. Esses testes não acessaram uma sessão autenticada do Octadesk. As automações de navegador usadas nessas verificações não fazem parte da suíte Node versionada; o procedimento manual reproduzível está no guia funcional.
 
-A extensão reconhece contêineres de ticket pelos seletores em `utils/licenseDetector.ts`. Editores em frames de mesma origem podem usar o contêiner do ticket no documento pai. Frames de outra origem precisam de um contêiner reconhecido no próprio documento.
+A build do Firefox foi verificada; o comportamento na sessão autenticada deve ser conferido pelos passos de [aprovação funcional](FUNCIONALIDADES.md#roteiro-para-aprovação-funcional). O HTML do marcador e dos formulários foi fornecido durante os testes de uso e transformado em fixtures anonimizadas.
 
-A seleção de responsáveis aceita popovers dentro do ticket e portais associados ao editor por atributos ARIA. Um portal sem essa associação exige conferir o DOM real antes de definir como vinculá-lo ao chamado. O teste final em uma sessão autenticada deve incluir anotação interna, menções, vários tickets abertos e os editores efetivamente usados pela equipe.
+Seletores e a ordem do DOM do Octadesk podem mudar. Cancelamento sem lista explícita de códigos não tem tratamento específico. O fallback local não oferece transação entre chaves, e um backup inclui valores legíveis de variáveis. A importação de configurações restaura o conteúdo do arquivo, com proteção para mudanças concorrentes; arquivos antigos não alteram essas configurações.
 
-## Resultado da validação em 17/11/2026
-
-- 30 testes automatizados aprovados, cobrindo migrações, alterações concorrentes, mensagens direcionadas, variáveis, atalhos, cancelamento, composição de texto, iframes ocultos e bloqueio de menções na resposta pública.
-- Checagem TypeScript e builds de Chrome e Firefox aprovados.
-- Extensão carregada no Chromium validou menu em textarea e iframe, armazenamento e background reais, além da rejeição de comando direcionado a iframe oculto.
-- Interface Vue do popup validada em viewport de 380 × 540 com APIs simuladas, incluindo cadastro de duas variáveis, configuração de `/`, rolagem, salvamento e acesso à lista de respostas.
-
-O popup nativo no Chromium headless não ofereceu um alvo acessível à automação. O fluxo do popup foi coberto pelos testes de mensageria e pela interface Vue com APIs simuladas. A integração com uma sessão autenticada do Octadesk e a execução no Firefox permanecem sem verificação funcional. O build do Firefox foi validado.
-
-## Integração com a versão 0.7.0
-
-A branch `codex/integracao-0.7.0` integra a `main` de `luizGDpulz/octa-blaster` no commit `054b298`, com os cards em acordeão, ações compactas e reordenação de modelos. As variáveis configuráveis, atalhos no editor, isolamento por ticket, migrações e consulta de atualizações do fork continuam disponíveis.
-
-A gravação distingue reordenação intencional de edição do conteúdo. Editar um modelo em um painel aberto antes de uma reordenação preserva a ordem mais recente. Novos modelos criados por outro painel também são preservados.
-
-A integração passou em 32 testes, na checagem TypeScript e nos builds de Chrome e Firefox. O Chromium com a extensão carregada e APIs reais validou os cards em acordeão, reordenação por teclado e arraste, persistência após recarregar, cancelamento com Esc, pesquisa e configurações de variáveis e atalhos. As páginas de ticket usadas nos testes foram fixtures locais. A sessão autenticada do Octadesk permanece sem verificação.
-
-## Telas de gerenciamento em 18/11/2026
-
-O menu passa a abrir as telas **Variáveis**, **Tags** e **Atalhos**. O cadastro de técnicos fica na tela de atalhos. O formulário de mensagem apresenta todas as variáveis e permite escolher várias tags. O rascunho e a posição de inserção são preservados ao navegar para os cadastros e voltar.
-
-A marcação de técnicos aguarda até 15 segundos por pessoa entre a busca das sugestões e a confirmação do marcador no editor. A próxima busca começa após a confirmação. Marcadores já presentes são reconhecidos em uma nova tentativa. A troca de ticket ou o desaparecimento do editor interrompe a espera. Os testes incluem sugestões lentas, renderização atrasada do marcador e um clique que não produz marcação.
-
-A busca do técnico é inserida em uma única operação. No HTML nativo do Octadesk, a confirmação verifica o nome em `<person>` com `personid` preenchido, sem depender do tamanho visual da etiqueta. Se a etiqueta aparecer antes de receber o identificador, a rotina continua aguardando antes de buscar o próximo técnico. Se a seleção acontece no primeiro evento do mouse, a rotina evita um segundo acionamento. O cursor é posicionado fora do marcador antes da próxima busca.
-
-Essa versão passou em 57 testes automatizados, na checagem TypeScript e nos builds dos dois navegadores. O teste com a extensão carregada no Chromium cobriu o cadastro e a edição das variáveis, inserção de tokens na seleção, filtro de tags, persistência, configuração dos técnicos e uso desses técnicos na automação de uma página de teste. Popup e painel lateral foram conferidos em 380 × 540. A sessão autenticada do Octadesk no Firefox continua dependendo de validação nesse ambiente.
-
-## Persistência e backup na versão 0.8.0
-
-Variáveis, técnicos e atalho compartilham a fila de gravações do background com mensagens e tags. Cada tela informa a versão que carregou: mudanças em itens diferentes são mescladas, enquanto conflitos no mesmo item exibem erro e mantêm a edição aberta. Nomes de variáveis são comparados sem diferenciar maiúsculas de minúsculas; técnicos usam seus identificadores.
-
-O backup no formato 2 inclui mensagens, tags e configurações completas. A exportação lê os dados persistidos dentro da mesma fila para incluir alterações salvas por outros painéis. Na importação, configurações e mensagens são validadas antes da gravação conjunta. Listas antigas e backups no formato 1 continuam aceitos e preservam as configurações atuais. O comportamento de restauração e o procedimento de atualização estão descritos em `CHANGELOG.md`.
-
-Uma falha nos dois armazenamentos agora rejeita a operação. Se o principal salvar e o backup local falhar, a gravação permanece válida. Se apenas o fallback estiver disponível, todas as chaves precisam ser gravadas para a função retornar sucesso.
-
-A entrega 0.8.0 passou em 87 testes, na checagem TypeScript e nos builds de Chrome e Firefox. Com a extensão carregada no Chromium, dois painéis validaram conflitos de variáveis, técnicos e atalho, mesclagem de edições independentes e exportação/restauração do backup pela interface. A automação de menções e as prévias de respostas também passaram em uma página de teste. O teste funcional no Firefox com uma sessão autenticada do Octadesk continua a ser feito pelo usuário.
-
-## Resumo de solicitações na versão 0.9.0
-
-O botão de marcação lê o formulário em `.content-comment-interaction` do próprio ticket. O último formulário reconhecido na ordem da conversa fornece a operação e os campos; os valores de comentários distintos não são combinados. Conteúdo citado, widgets e editores são ignorados. O banco vem do campo **Número do Banco de Dados**, independentemente do título do ticket.
-
-Contratação usa **Número de Licenças** e **Isenção da Primeira Licença**, mantendo a quantidade total e descrevendo a isenção separadamente. Troca usa **Número da licença**. Cancelamento usa **Números das licenças**. O prefixo `Lic_` é removido na apresentação dos códigos. Valores obrigatórios ausentes, inválidos ou divergentes impedem a preparação antes de modificar a anotação.
-
-Após a confirmação das menções nativas, o resumo é acrescentado ao rascunho. Repetir a ação não duplica o resumo já presente nem os marcadores confirmados. Sem formulário reconhecido, permanece a função anterior de apenas marcar os responsáveis. Nenhuma anotação é enviada automaticamente.
-
-A entrega passou em 99 testes automatizados, TypeScript e builds dos dois navegadores. A extensão carregada no Chromium validou os três modelos de e-mail fornecidos em páginas de teste: extração do banco diferente do título, quantidade e isenção, códigos com prefixo, menções na mesma linha, resumo abaixo e repetição sem duplicação. A execução no Firefox com a sessão autenticada continua dependendo do teste do usuário.
+A contribuição não publica release, tag ou pacote assinado. A consulta de atualizações usa o repositório oficial.
