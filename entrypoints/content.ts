@@ -3,9 +3,8 @@ import { detectLicenseTicket, getScopedTicketContainer, getTicketIdentity, isTic
 import { automateLicenseMentions } from '@/utils/mentionHelper';
 import { prepareTemplate } from '@/utils/templateVariables';
 import { installReplyShortcut } from '@/utils/replyShortcut';
-import { loadStoredTemplates } from '@/utils/templateStorage';
-import { getTemplateTagNames, loadTags } from '@/utils/templateTags';
-import type { InsertMessageRequest, InsertMessageResponse, QuickReplyTemplate } from '@/types/template';
+import { createReplyListItem, loadReplyList } from '@/utils/replyList';
+import type { InsertMessageRequest, InsertMessageResponse } from '@/types/template';
 
 export default defineContentScript({
   matches: ['*://app.octadesk.com/*', '*://*.octadesk.com/*'],
@@ -462,56 +461,6 @@ export default defineContentScript({
         .octa-dropdown-list::-webkit-scrollbar-thumb:hover {
           background: #94a3b8 !important;
         }
-        .octa-dropdown-item {
-          flex-shrink: 0 !important;
-          padding: 8px 12px !important;
-          cursor: pointer !important;
-          border-bottom: 1px solid #f0f1f3 !important;
-          text-align: left !important;
-          background: transparent !important;
-          border-left: none !important;
-          border-right: none !important;
-          border-top: none !important;
-          width: 100% !important;
-          font-size: 12px !important;
-          transition: background 0.12s ease !important;
-        }
-        .octa-dropdown-item:last-child {
-          border-bottom: none !important;
-        }
-        .octa-dropdown-item:hover {
-          background: #f1f2f4 !important;
-        }
-        .octa-item-header {
-          display: flex !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          gap: 6px !important;
-        }
-        .octa-item-title {
-          font-weight: 600 !important;
-          color: #1c1b1c !important;
-          display: block !important;
-          font-size: 12px !important;
-        }
-        .octa-item-category {
-          font-size: 10px !important;
-          background: #f1f2f4 !important;
-          color: #5b5f63 !important;
-          padding: 1px 6px !important;
-          border-radius: 4px !important;
-          font-weight: 500 !important;
-          white-space: nowrap !important;
-          flex-shrink: 0 !important;
-        }
-        .octa-item-preview {
-          font-size: 11px !important;
-          color: #5b5f63 !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          margin-top: 2px !important;
-        }
         .octa-dropdown-empty {
           padding: 16px !important;
           text-align: center !important;
@@ -722,7 +671,7 @@ export default defineContentScript({
         dropdownMenu.style.display = 'block';
 
         try {
-          const [templates, tags] = await Promise.all([loadStoredTemplates(), loadTags()]);
+          const { templates, tags } = await loadReplyList();
 
           if (templates.length === 0) {
             dropdownList.innerHTML = '<div class="octa-dropdown-empty">Nenhum modelo cadastrado.</div>';
@@ -731,31 +680,7 @@ export default defineContentScript({
 
           dropdownList.innerHTML = '';
           templates.forEach((tpl) => {
-            const itemBtn = doc.createElement('button');
-            itemBtn.type = 'button';
-            itemBtn.className = 'octa-dropdown-item';
-
-            const topRow = doc.createElement('div');
-            topRow.className = 'octa-item-header';
-
-            const titleEl = doc.createElement('span');
-            titleEl.className = 'octa-item-title';
-            titleEl.textContent = tpl.title;
-            topRow.appendChild(titleEl);
-
-            for (const name of getTemplateTagNames(tpl, tags)) {
-              const catBadge = doc.createElement('span');
-              catBadge.className = 'octa-item-category';
-              catBadge.textContent = name;
-              topRow.appendChild(catBadge);
-            }
-
-            const previewEl = doc.createElement('div');
-            previewEl.className = 'octa-item-preview';
-            previewEl.textContent = tpl.content.replace(/\n/g, ' ');
-
-            itemBtn.appendChild(topRow);
-            itemBtn.appendChild(previewEl);
+            const itemBtn = createReplyListItem(doc, tpl, tags);
 
             itemBtn.addEventListener('mousedown', (e) => {
               e.preventDefault();

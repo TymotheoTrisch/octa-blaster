@@ -38,7 +38,7 @@ test('a newly configured technician matches suggestions with accent differences'
       const person = dom.document.createElement('button');
       person.className = 'person-item';
       person.textContent = 'Tymótheo Trisch';
-      person.addEventListener('click', () => { selected = true; menu.replaceChildren(); });
+      person.addEventListener('click', () => { selected = true; editor.value = '@' + person.textContent; menu.replaceChildren(); });
       menu.append(person);
     });
     const result = await automateLicenseMentions(editor, dom.document, editor.closest('section'));
@@ -80,13 +80,13 @@ test('a new technician opens the mention picker with @ before updating its searc
       const person = dom.document.createElement('button');
       person.className = 'person-item';
       person.textContent = 'Tymotheo Oliveira';
-      person.addEventListener('click', () => { selected = true; menu.replaceChildren(); });
+      person.addEventListener('click', () => { selected = true; editor.value = '@' + person.textContent; menu.replaceChildren(); });
       menu.append(person);
     });
     const result = await automateLicenseMentions(editor, dom.document, editor.closest('section'));
     assert.equal(result.success, true, result.message);
     assert.equal(selected, true);
-    assert.equal(editor.value.trim(), '@tymotheo');
+    assert.equal(editor.value.trim(), '@Tymotheo Oliveira');
   } finally { storage.restore(); dom.restore(); }
 });
 
@@ -107,14 +107,14 @@ test('license automation uses the saved enabled targets and skips disabled targe
       menu.replaceChildren();
       const person = dom.document.createElement('button');
       person.className = 'person-item'; person.textContent = 'Ana Técnica';
-      person.addEventListener('click', () => { selected.push(person.textContent); menu.replaceChildren(); });
+      person.addEventListener('click', () => { selected.push(person.textContent); editor.value = '@' + person.textContent; menu.replaceChildren(); });
       menu.append(person);
     });
     editor.focus();
     const result = await automateLicenseMentions(editor, dom.document, editor.closest('section'));
     assert.equal(result.success, true, result.message);
     assert.deepEqual(selected, ['Ana Técnica']);
-    assert.ok(editor.value.includes('@ana'));
+    assert.ok(editor.value.includes('@Ana Técnica'));
     assert.ok(!editor.value.includes('@roberto'));
   } finally { storage.restore(); dom.restore(); }
 });

@@ -9,6 +9,7 @@ import { rawStorageGet, rawStorageSet } from './templateStorage';
 import type { MentionTarget } from '@/types/template';
 
 export const MENTION_TARGETS_STORAGE_KEY = 'octablaster_mention_targets';
+const MENTION_WAIT_MS = 15_000;
 
 export const DEFAULT_MENTION_TARGETS: MentionTarget[] = [
   {
@@ -310,13 +311,49 @@ export async function waitForInternalNoteEditor(
  * Aguarda e seleciona uma pessoa no popover de menção do Octadesk
  * (<div class="popover-content note-children-container">...<span class="ng-binding">Nome</span>...)
  */
+function matchesMentionName(text: string, pattern: RegExp, accentInsensitivePattern?: RegExp): boolean {
+  return pattern.test(text) || !!accentInsensitivePattern?.test(text.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+}
+
+function hasMentionMarker(editor: HTMLElement, pattern: RegExp, query: string, accentInsensitivePattern?: RegExp): boolean {
+  const markers = editor.querySelectorAll<HTMLElement>(
+    '[contenteditable="false"], [data-mention], [data-mention-id], [data-user-id], [data-person-id], .mention, .atwho-inserted, .note-hint-token, .label, .badge',
+  );
+  return Array.from(markers).some(marker => {
+    if (!isElementVisible(marker)) return false;
+    const text = (marker.innerText || marker.textContent || marker.getAttribute('aria-label') || '').trim();
+    return matchesMentionName(text, pattern, accentInsensitivePattern) || text.toLocaleLowerCase('pt-BR') === query.toLocaleLowerCase('pt-BR');
+  });
+}
+
+async function waitForMentionConfirmation(
+  editor: HTMLElement,
+  pattern: RegExp,
+  query: string,
+  deadline: number,
+  isCurrent: () => boolean,
+  accentInsensitivePattern?: RegExp,
+): Promise<boolean> {
+  const input = editor.matches('input, textarea') ? editor as HTMLInputElement | HTMLTextAreaElement : null;
+  const before = input?.value;
+  while (Date.now() < deadline) {
+    if (!isCurrent() || !isElementVisible(editor)) return false;
+    if (hasMentionMarker(editor, pattern, query, accentInsensitivePattern)) return true;
+    // Editores simples confirmam a escolha substituindo a busca pelo nome.
+    if (input && input.value !== before && matchesMentionName(input.value, pattern, accentInsensitivePattern)) return true;
+    await sleep(75);
+  }
+  return false;
+}
+
 async function selectPersonFromPopover(
   namePattern: RegExp,
   doc: Document = document,
-  maxWaitMs: number = 2800,
+  maxWaitMs: number = MENTION_WAIT_MS,
   editor?: HTMLElement,
   isCurrent: () => boolean = () => true,
   accentInsensitivePattern?: RegExp,
+  query = '',
 ): Promise<boolean> {
   const startTime = Date.now();
 
@@ -362,8 +399,9 @@ async function selectPersonFromPopover(
         if (!isElementVisible(targetItem, 10, 10)) continue;
 
         const text = (targetItem.innerText || targetItem.textContent || '').trim();
-        const normalizedText = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (namePattern.test(text) || accentInsensitivePattern?.test(normalizedText)) {
+        if (matchesMentionName(text, namePattern, accentInsensitivePattern)) {
+          if (!editor) return false;
+          const confirmation = waitForMentionConfirmation(editor, namePattern, query, startTime + maxWaitMs, isCurrent, accentInsensitivePattern);
           targetItem.dispatchEvent(
             new MouseEvent('mouseenter', { bubbles: true }),
           );
@@ -377,7 +415,7 @@ async function selectPersonFromPopover(
             new MouseEvent('mouseup', { bubbles: true, cancelable: true }),
           );
           targetItem.click();
-          return true;
+          return confirmation;
         }
       }
     }
@@ -408,23 +446,6 @@ export async function insertMentionForTarget(
     targetEditor.focus();
   }
 
-  const prefix = isFirst ? '' : ' ';
-  const mentionQuery = target.query.startsWith('@')
-    ? target.query
-    : `@${target.query}`;
-  if (prefix && !insertTextIntoElement(targetEditor, prefix, undefined, true)) return false;
-  const KeyEvent = targetDoc.defaultView?.KeyboardEvent || KeyboardEvent;
-  // O editor precisa receber o acionamento de @ antes de atualizar a busca.
-  for (const character of mentionQuery) {
-    if (!isCurrent() || targetDoc.activeElement !== targetEditor || !isElementVisible(targetEditor)) return false;
-    const keyCode = character === '@' ? 50 : character.toUpperCase().charCodeAt(0);
-    const options = { key: character, keyCode, which: keyCode, shiftKey: character === '@', bubbles: true, cancelable: true };
-    targetEditor.dispatchEvent(new KeyEvent('keydown', options));
-    if (!insertTextIntoElement(targetEditor, character, undefined, true)) return false;
-    targetEditor.dispatchEvent(new KeyEvent('keyup', options));
-    await sleep(35);
-  }
-
   let pattern: RegExp;
   try {
     pattern = new RegExp(target.pattern, 'i');
@@ -435,15 +456,34 @@ export async function insertMentionForTarget(
     );
   }
 
+  const accentPattern = pattern.source.toLowerCase() === mentionNamePattern(target.name).toLowerCase()
+    ? new RegExp(mentionNamePattern(target.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')), 'i')
+    : undefined;
+  const query = target.query.startsWith('@') ? target.query : `@${target.query}`;
+  if (hasMentionMarker(targetEditor, pattern, query, accentPattern)) return true;
+
+  const prefix = isFirst ? '' : ' ';
+  if (prefix && !insertTextIntoElement(targetEditor, prefix, undefined, true)) return false;
+  const KeyEvent = targetDoc.defaultView?.KeyboardEvent || KeyboardEvent;
+  // O editor precisa receber o acionamento de @ antes de atualizar a busca.
+  for (const character of query) {
+    if (!isCurrent() || targetDoc.activeElement !== targetEditor || !isElementVisible(targetEditor)) return false;
+    const keyCode = character === '@' ? 50 : character.toUpperCase().charCodeAt(0);
+    const options = { key: character, keyCode, which: keyCode, shiftKey: character === '@', bubbles: true, cancelable: true };
+    targetEditor.dispatchEvent(new KeyEvent('keydown', options));
+    if (!insertTextIntoElement(targetEditor, character, undefined, true)) return false;
+    targetEditor.dispatchEvent(new KeyEvent('keyup', options));
+    await sleep(35);
+  }
+
   const selected = await selectPersonFromPopover(
     pattern,
     targetDoc,
-    2800,
+    MENTION_WAIT_MS,
     targetEditor,
     isCurrent,
-    pattern.source.toLowerCase() === mentionNamePattern(target.name).toLowerCase()
-      ? new RegExp(mentionNamePattern(target.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')), 'i')
-      : undefined,
+    accentPattern,
+    query,
   );
 
   await sleep(160);
@@ -565,7 +605,7 @@ export async function automateLicenseMentions(
         } else {
           return {
             success: false,
-            message: `Não foi possível selecionar o técnico "${target.name}" na busca "${target.query}". Confira o nome exibido nas sugestões do Octadesk e revise a anotação antes de tentar novamente.`,
+            message: `Não foi possível confirmar a menção de "${target.name}" na busca "${target.query}". Confira o marcador na anotação e as sugestões do Octadesk antes de tentar novamente.`,
           };
         }
       }

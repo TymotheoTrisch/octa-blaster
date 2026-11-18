@@ -11,13 +11,14 @@ const templates = [
 ];
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-test('shortcut preview follows keyboard and mouse selection without prompting for values', async () => {
+test('every shortcut result shows its own preview below the title in saved order', async () => {
   const dom = installDom('<section ticket-id="A"><textarea></textarea></section>');
   dom.window.HTMLElement.prototype.scrollIntoView = () => {};
   const storage = installStorage({
     [STORAGE_KEY]: [
       { ...templates[0], content: 'Olá {{Assinatura}}\nProtocolo {{Protocolo}}' },
       templates[1],
+      ...Array.from({ length: 14 }, (_, index) => ({ id: `extra-${index}`, title: `Extra ${index}`, content: `Texto ${index}`, updatedAt: 1 })),
     ],
     [HAS_INITIALIZED_KEY]: true,
     [VARIABLES_KEY]: [{ name: 'Assinatura', value: 'Ana', mode: 'saved' }],
@@ -30,15 +31,18 @@ test('shortcut preview follows keyboard and mouse selection without prompting fo
     editor.focus();
     editor.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true }));
     await settle();
-    const preview = dom.document.querySelector('.octablaster-shortcut-preview');
-    assert.equal(preview.textContent, 'Olá Ana\nProtocolo {{Protocolo}}');
+    const options = dom.document.querySelectorAll('[role="option"]');
+    assert.equal(options.length, 16);
+    assert.equal(options[0].querySelector('.octa-item-title').textContent, 'Retorno');
+    assert.equal(options[0].children[1].className, 'octa-item-preview');
+    assert.equal(options[0].children[1].textContent, 'Olá {{Assinatura}} Protocolo {{Protocolo}}');
+    assert.equal(options[1].querySelector('.octa-item-preview').textContent, 'Olá!');
+    assert.equal(dom.document.querySelector('.octablaster-shortcut-preview'), null);
     assert.equal(dom.document.querySelector('dialog'), null);
     editor.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    assert.equal(preview.textContent, 'Olá!');
-    const first = dom.document.querySelector('[role="option"]');
-    first.dispatchEvent(new dom.window.MouseEvent('mouseenter'));
-    assert.equal(first.getAttribute('aria-selected'), 'true');
-    assert.equal(preview.textContent, 'Olá Ana\nProtocolo {{Protocolo}}');
+    assert.equal(options[1].getAttribute('aria-selected'), 'true');
+    options[0].dispatchEvent(new dom.window.MouseEvent('mouseenter'));
+    assert.equal(options[0].getAttribute('aria-selected'), 'true');
     assert.equal(editor.value, '\\');
   } finally { storage.restore(); dom.restore(); }
 });
@@ -70,7 +74,7 @@ for (const tag of ['textarea', 'input', 'div']) {
     try {
       editor.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true }));
       await settle();
-      assert.equal(dom.document.querySelector('[role="option"]').textContent, 'Retorno');
+      assert.equal(dom.document.querySelector('[role="option"] .octa-item-title').textContent, 'Retorno');
       const enter = new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
       editor.dispatchEvent(enter);
       assert.equal(enter.defaultPrevented, true);
@@ -114,7 +118,7 @@ test('arrow navigation selects the next response and mouse selection uses the sa
     editor.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true }));
     await settle();
     editor.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    assert.equal(dom.document.querySelector('[aria-selected="true"]').textContent, 'Saudação');
+    assert.equal(dom.document.querySelector('[aria-selected="true"] .octa-item-title').textContent, 'Saudação');
     editor.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await settle();
     assert.equal(editor.value, 'Olá!');
@@ -141,7 +145,7 @@ for (const html of ['<p>Antes</p><p>\\ret</p>', 'Antes<br>\\ret']) {
     try {
       editor.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true }));
       await settle();
-      assert.equal(dom.document.querySelector('[role="option"]')?.textContent, 'Retorno');
+      assert.equal(dom.document.querySelector('[role="option"] .octa-item-title')?.textContent, 'Retorno');
       editor.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       await settle();
       assert.ok(editor.textContent.includes('Antes'));

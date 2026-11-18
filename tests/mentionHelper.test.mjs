@@ -95,6 +95,7 @@ test('note activation waits for asynchronous selection and editor rendering befo
           person.textContent = 'Pessoa';
           person.addEventListener('click', () => {
             internalEditor.dataset.marked = 'true';
+            internalEditor.value = '@Pessoa';
           });
           scope.append(person);
         });
