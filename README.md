@@ -105,7 +105,30 @@ Projetada especificamente para equipes de atendimento e suporte que utilizam o *
 
 ---
 
+## Cadastros, atalhos e resumos de licenças
+
+A contribuição com versão proposta **0.9.1** amplia a base 0.7.0 com:
+
+- Telas de **Variáveis**, **Tags** e **Atalhos**, incluindo cadastro dos técnicos de licenças, edição e navegação que preserva o rascunho.
+- Variáveis com valor salvo ou preenchimento ao usar, inseridas na posição do cursor. Tags com seleção múltipla e filtro ao lado da busca.
+- Menu por `\` ou `/` no editor, usando a mesma lista do botão **Respostas**, com prévia abaixo do título, teclado e seleção pelo mouse.
+- Menções sequenciais confirmadas pelo marcador nativo do Octadesk, com os técnicos na mesma linha. Os formulários de contratação, troca e cancelamento geram o resumo com banco, quantidade/isenção, códigos e motivo da troca, conforme a operação.
+- Backup completo de mensagens, tags, variáveis, técnicos e atalho, compatível com arquivos antigos. Edições simultâneas preservam mudanças independentes e avisam sobre conflitos.
+- Roteamento ao editor/frame registrado e isolamento por ticket, migrações que preservam exclusões e erro de salvamento quando principal e fallback falham.
+
+As mensagens e anotações ficam como rascunho para revisão. A versão proposta não representa uma release oficial já publicada.
+
+Documentação:
+
+- [Guia de uso e roteiro de teste manual](docs/FUNCIONALIDADES.md)
+- [Arquitetura, dados e pontos de extensão](docs/ARQUITETURA.md)
+- [Como contribuir e validar o projeto](CONTRIBUTING.md)
+- [Resumo da contribuição e validação](docs/PLANO-DE-EVOLUCAO.md)
+- [Histórico de versões propostas](CHANGELOG.md)
+
 ## 🛠️ Comandos de Desenvolvimento (`pnpm`)
+
+Para executar os testes, use pnpm 10 e Node.js compatível com jsdom (linha 22 a partir de 22.22.2, linha 24 a partir de 24.15, ou linha 26). Execute `pnpm test` além da checagem de tipos e dos builds abaixo. O CI verifica os quatro comandos em cada PR para `main`.
 
 ### 1. Instalar dependências
 ```bash

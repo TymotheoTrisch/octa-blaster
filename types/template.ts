@@ -3,6 +3,7 @@ export interface QuickReplyTemplate {
   title: string;
   content: string;
   category?: string;
+  tags?: string[];
   updatedAt: number;
 }
 
@@ -17,6 +18,7 @@ export interface MentionTarget {
 export interface InsertMessageRequest {
   action: 'INSERT_REPLY' | 'AUTOMATE_LICENSE_MENTIONS' | 'CHECK_LICENSE_TICKET';
   content?: string;
+  editorToken?: string;
   requestId?: string;
   force?: boolean;
   targets?: MentionTarget[];

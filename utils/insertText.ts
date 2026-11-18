@@ -34,25 +34,26 @@ export function insertTextIntoElement(
     target.focus();
 
     // Caso 1: textarea ou input padrão
-    if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
-      const start = target.selectionStart ?? target.value.length;
-      const end = target.selectionEnd ?? target.value.length;
+    if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
+      const input = target as HTMLTextAreaElement | HTMLInputElement;
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? input.value.length;
 
-      if (typeof target.setRangeText === 'function') {
-        target.setRangeText(text, start, end, 'end');
+      if (typeof input.setRangeText === 'function') {
+        input.setRangeText(text, start, end, 'end');
       } else {
-        const current = target.value;
-        target.value = current.substring(0, start) + text + current.substring(end);
+        const current = input.value;
+        input.value = current.substring(0, start) + text + current.substring(end);
         const newPos = start + text.length;
-        target.setSelectionRange?.(newPos, newPos);
+        input.setSelectionRange?.(newPos, newPos);
       }
 
       // Notifica frameworks reativos (Vue, React, Angular, Svelte)
-      target.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-      target.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
 
       try {
-        target.dispatchEvent(
+        input.dispatchEvent(
           new InputEvent('input', {
             bubbles: true,
             composed: true,

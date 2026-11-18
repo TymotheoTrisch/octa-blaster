@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template';
 import type { LicenseTicketInfo } from '@/utils/licenseDetector';
-import { resolveVariables } from '@/utils/templateResolver';
-import {
-  loadStoredTemplates,
-  saveStoredTemplates,
-  resetToDefaultTemplates,
-  exportTemplatesToJson,
-  parseTemplatesFromJson,
-  mergeImportedTemplates,
-} from '@/utils/templateStorage';
+import { prepareTemplate, loadVariables } from '@/utils/templateVariables';
+import { type TemplateVariable } from '@/utils/settingsSchema';
+import { loadSettings } from '@/utils/settingsStorage';
+import packageInfo from '../../package.json';
+import { loadTags } from '@/utils/templateTags';
+import { getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/utils/templateTagSchema';
+import VariablesView from './VariablesView.vue';
+import TagsView from './TagsView.vue';
+import ShortcutsView from './ShortcutsView.vue';
+import { loadStoredTemplates, saveStoredTemplates, resetToDefaultTemplates, exportTemplatesToJson, parseTemplateBackup, mergeImportedTemplates } from '@/utils/templateStorage';
 import {
   MoreHorizontal,
   Plus,
@@ -37,6 +38,9 @@ import {
   Github,
   MessageSquarePlus,
   ChevronRight,
+  Braces,
+  Tags,
+  Keyboard,
 } from 'lucide-vue-next';
 import { checkGithubRelease, type UpdateInfo } from '@/utils/updateChecker';
 import { useTemplateReorder } from '@/utils/useTemplateReorder';
@@ -45,12 +49,59 @@ const detectedLicense = ref<LicenseTicketInfo | null>(null);
 const isAutomatingLicense = ref(false);
 
 const templates = ref<QuickReplyTemplate[]>([]);
+let templatesBase: QuickReplyTemplate[] = [];
+function rememberTemplatesBase() { templatesBase = JSON.parse(JSON.stringify(templates.value)); }
 const searchQuery = ref('');
 const showForm = ref(false);
 const editingId = ref<string | null>(null);
 
 const formTitle = ref('');
-const formCategory = ref('');
+const formTags = ref<string[]>([]);
+const tags = ref<TemplateTag[]>([]);
+const variables = ref<TemplateVariable[]>([]);
+const selectedTagId = ref('');
+type View = 'templates' | 'variables' | 'tags' | 'shortcuts';
+const currentView = ref<View>('templates');
+const viewHistory: View[] = [];
+const tagPicker = ref<HTMLDetailsElement | null>(null);
+const contentTextarea = ref<HTMLTextAreaElement | null>(null);
+let contentSelection = { start: 0, end: 0 };
+const variableTokens = computed(() => {
+  const names = ['Saudacao', 'Data', 'Hora', ...variables.value.map(variable => variable.name)];
+  return names.map(name => ({ name, token: '{{' + name + '}}' }));
+});
+async function refreshCatalogs() {
+  try {
+    tags.value = await loadTags();
+    variables.value = await loadVariables();
+    formTags.value = formTags.value.filter(id => tags.value.some(tag => tag.id === id));
+    if (!tags.value.some(tag => tag.id === selectedTagId.value)) selectedTagId.value = '';
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : 'Falha ao carregar configurações.', 'error');
+  }
+}
+async function refreshTagsAndTemplates() {
+  await refreshCatalogs();
+  await loadTemplates();
+}
+function openView(view: View) {
+  closeMenu();
+  closeCardMenu();
+  if (tagPicker.value) tagPicker.value.open = false;
+  statusMessage.value = '';
+  if (currentView.value !== view) viewHistory.push(currentView.value);
+  currentView.value = view;
+}
+function returnToPreviousView() {
+  currentView.value = viewHistory.pop() || 'templates';
+  void refreshCatalogs();
+}
+function rememberContentSelection() {
+  const textarea = contentTextarea.value;
+  if (textarea) {
+    contentSelection = { start: textarea.selectionStart, end: textarea.selectionEnd };
+  }
+}
 const formContent = ref('');
 
 const isSending = ref(false);
@@ -63,7 +114,7 @@ const menuRef = ref<HTMLElement | null>(null);
 const expandedIds = ref<Set<string>>(new Set());
 const openCardMenuId = ref<string | null>(null);
 const showConfirmResetModal = ref(false);
-const appVersion = ref('0.7.0');
+const appVersion = ref(packageInfo.version);
 
 const GITHUB_REPO_URL = 'https://github.com/luizGDpulz/octa-blaster';
 const GITHUB_DISCUSSIONS_URL = 'https://github.com/luizGDpulz/octa-blaster/discussions';
@@ -134,6 +185,7 @@ function setStatus(msg: string, type: 'success' | 'error' | 'info' = 'info') {
 async function loadTemplates() {
   try {
     templates.value = await loadStoredTemplates();
+    rememberTemplatesBase();
   } catch (err) {
     console.error('Erro ao carregar modelos:', err);
     setStatus('Falha ao carregar modelos salvos', 'error');
@@ -142,9 +194,11 @@ async function loadTemplates() {
 
 async function saveTemplates() {
   try {
-    templates.value = await saveStoredTemplates(templates.value);
+    templates.value = await saveStoredTemplates(templates.value, templatesBase);
+    rememberTemplatesBase();
   } catch (err: any) {
     console.error('Erro ao persistir modelos:', err);
+    await loadTemplates();
     setStatus(err?.message || 'Erro ao salvar no armazenamento', 'error');
     throw err;
   }
@@ -161,7 +215,8 @@ function cancelResetDefaults() {
 async function confirmResetDefaults() {
   showConfirmResetModal.value = false;
   try {
-    templates.value = await resetToDefaultTemplates(templates.value);
+    templates.value = await resetToDefaultTemplates(templates.value, templatesBase);
+    rememberTemplatesBase();
     setStatus('Modelos padrão restaurados! Seus modelos manuais foram mantidos.', 'success');
   } catch (err) {
     console.error('Erro ao restaurar padrões:', err);
@@ -171,10 +226,10 @@ async function confirmResetDefaults() {
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
-function exportTemplates() {
+async function exportTemplates() {
   try {
-    exportTemplatesToJson(templates.value);
-    setStatus('Modelos exportados com sucesso!', 'success');
+    await exportTemplatesToJson();
+    setStatus('Backup completo exportado com sucesso!', 'success');
   } catch (err: any) {
     console.error('Erro ao exportar modelos:', err);
     setStatus(err?.message || 'Falha ao exportar modelos.', 'error');
@@ -191,11 +246,14 @@ async function handleFileImport(e: Event) {
   if (!file) return;
 
   try {
+    const settingsBase = await loadSettings();
     const text = await file.text();
-    const importedItems = parseTemplatesFromJson(text);
-    const { count, merged } = await mergeImportedTemplates(templates.value, importedItems);
+    const imported = parseTemplateBackup(text);
+    const { count, merged } = await mergeImportedTemplates(templates.value, imported.templates, templatesBase, imported.tags, imported.settings, settingsBase);
     templates.value = merged;
-    setStatus(`${count} modelo(s) importado(s) com sucesso!`, 'success');
+    rememberTemplatesBase();
+    await refreshCatalogs();
+    setStatus(imported.settings ? `Backup restaurado: ${count} mensagem(ns) e configurações.` : `${count} modelo(s) importado(s) com sucesso!`, 'success');
   } catch (err: any) {
     console.error('Erro ao importar modelos:', err);
     setStatus(err?.message || 'Erro ao processar arquivo JSON.', 'error');
@@ -207,7 +265,8 @@ async function handleFileImport(e: Event) {
 function startCreate() {
   editingId.value = null;
   formTitle.value = '';
-  formCategory.value = '';
+  formTags.value = [];
+  contentSelection = { start: 0, end: 0 };
   formContent.value = '';
   showForm.value = true;
 }
@@ -215,7 +274,8 @@ function startCreate() {
 function startEdit(template: QuickReplyTemplate) {
   editingId.value = template.id;
   formTitle.value = template.title;
-  formCategory.value = template.category || '';
+  formTags.value = getTemplateTagIds(template, tags.value);
+  contentSelection = { start: template.content.length, end: template.content.length };
   formContent.value = template.content;
   showForm.value = true;
 }
@@ -228,7 +288,7 @@ function cancelForm() {
 async function submitForm() {
   const title = formTitle.value.trim();
   const content = formContent.value.trim();
-  const category = formCategory.value.trim();
+  const selectedTags = formTags.value.filter(id => tags.value.some(tag => tag.id === id));
 
   if (!title || !content) {
     setStatus('Preencha o título e a mensagem.', 'error');
@@ -246,9 +306,7 @@ async function submitForm() {
           content,
           updatedAt: Date.now(),
         };
-        if (category) {
-          updatedItem.category = category;
-        }
+        updatedItem.tags = [...selectedTags];
         templates.value[idx] = updatedItem;
       }
     } else {
@@ -260,9 +318,7 @@ async function submitForm() {
         content,
         updatedAt: Date.now(),
       };
-      if (category) {
-        newTemplate.category = category;
-      }
+      newTemplate.tags = [...selectedTags];
       templates.value.unshift(newTemplate);
     }
 
@@ -289,7 +345,6 @@ async function insertIntoTicket(template: QuickReplyTemplate) {
   if (isSending.value) return;
   isSending.value = true;
 
-  const processedContent = resolveVariables(template.content);
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   try {
@@ -299,11 +354,15 @@ async function insertIntoTicket(template: QuickReplyTemplate) {
       return;
     }
 
-    const res = (await browser.tabs.sendMessage(tab.id, {
+    const target = await browser.runtime.sendMessage({ action: 'CAPTURE_EDITOR', tabId: tab.id });
+    if (!target?.success) { setStatus('Clique primeiro no campo de resposta do ticket.', 'error'); return; }
+    const processedContent = await prepareTemplate(template.content);
+    if (processedContent === null) return;
+    const res = (await browser.runtime.sendMessage({ action: 'ROUTE_TICKET_ACTION', tabId: tab.id, expectedToken: target.editorToken, request: {
       action: 'INSERT_REPLY',
       requestId,
       content: processedContent,
-    })) as InsertMessageResponse | undefined;
+    } })) as InsertMessageResponse | undefined;
 
     if (res?.success) {
       setStatus('Texto inserido com sucesso!', 'success');
@@ -321,8 +380,9 @@ async function insertIntoTicket(template: QuickReplyTemplate) {
 }
 
 async function copyToClipboard(template: QuickReplyTemplate) {
-  const processedContent = resolveVariables(template.content);
   try {
+    const processedContent = await prepareTemplate(template.content);
+    if (processedContent === null) return;
     await navigator.clipboard.writeText(processedContent);
     setStatus('Copiado para a área de transferência!', 'success');
   } catch {
@@ -330,23 +390,30 @@ async function copyToClipboard(template: QuickReplyTemplate) {
   }
 }
 
-function insertVariable(tag: string) {
-  formContent.value += tag;
+async function insertVariable(token: string) {
+  const textarea = contentTextarea.value;
+  if (textarea && document.activeElement === textarea) rememberContentSelection();
+  const start = Math.min(contentSelection.start, formContent.value.length);
+  const end = Math.min(contentSelection.end, formContent.value.length);
+  formContent.value = formContent.value.slice(0, start) + token + formContent.value.slice(end);
+  const caret = start + token.length;
+  contentSelection = { start: caret, end: caret };
+  await nextTick();
+  textarea?.focus();
+  textarea?.setSelectionRange(caret, caret);
 }
 
 const filteredTemplates = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return templates.value;
-  return templates.value.filter(
-    (t) =>
-      t.title.toLowerCase().includes(q) ||
-      t.content.toLowerCase().includes(q) ||
-      (t.category && t.category.toLowerCase().includes(q)),
-  );
+  const query = searchQuery.value.trim().toLowerCase();
+  return templates.value.filter(template => {
+    const matchesTag = !selectedTagId.value || getTemplateTagIds(template, tags.value).includes(selectedTagId.value);
+    const searchable = [template.title, template.content, ...getTemplateTagNames(template, tags.value)].join(' ').toLowerCase();
+    return matchesTag && (!query || searchable.includes(query));
+  });
 });
 
 const templatesListRef = ref<HTMLElement | null>(null);
-const canReorder = computed(() => !searchQuery.value.trim());
+const canReorder = computed(() => !searchQuery.value.trim() && !selectedTagId.value);
 
 const {
   draggingId,
@@ -366,9 +433,9 @@ async function checkLicenseStatus() {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (tab?.id) {
-      const res = (await browser.tabs.sendMessage(tab.id, {
+      const res = (await browser.runtime.sendMessage({ action: 'ROUTE_TICKET_ACTION', tabId: tab.id, request: {
         action: 'CHECK_LICENSE_TICKET',
-      })) as InsertMessageResponse | undefined;
+      } })) as InsertMessageResponse | undefined;
       if (res?.success && res.data && res.data.isLicenseTicket) {
         detectedLicense.value = res.data;
       }
@@ -386,10 +453,10 @@ async function triggerLicenseMentions() {
       return;
     }
 
-    const res = (await browser.tabs.sendMessage(tab.id, {
+    const res = (await browser.runtime.sendMessage({ action: 'ROUTE_TICKET_ACTION', tabId: tab.id, request: {
       action: 'AUTOMATE_LICENSE_MENTIONS',
-      force: !!detectedLicense.value,
-    })) as InsertMessageResponse | undefined;
+      force: false,
+    } })) as InsertMessageResponse | undefined;
 
     if (res?.success) {
       setStatus('Responsáveis de licenças marcados em Anotação Interna!', 'success');
@@ -491,6 +558,9 @@ function handleMenuAction(action: () => void | Promise<void>) {
 
 function handleClickOutside(event: MouseEvent) {
   const target = event.target as HTMLElement | null;
+  if (tagPicker.value && (!target || !tagPicker.value.contains(target))) {
+    tagPicker.value.open = false;
+  }
   if (menuRef.value && (!target || !menuRef.value.contains(target))) {
     closeMenu();
   }
@@ -501,6 +571,7 @@ function handleClickOutside(event: MouseEvent) {
 
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    if (tagPicker.value) tagPicker.value.open = false;
     if (isMenuOpen.value) {
       closeMenu();
     }
@@ -524,7 +595,7 @@ onMounted(() => {
     }
   } catch {}
 
-  loadTemplates();
+  void loadTemplates().then(refreshCatalogs);
   checkLicenseStatus();
   checkSidebarSupport();
 
@@ -550,7 +621,7 @@ onUnmounted(() => {
       </div>
       <div class="header-actions">
         <button
-          v-if="!showForm"
+          v-if="currentView === 'templates' && !showForm"
           type="button"
           class="btn-primary-icon"
           title="Novo modelo de resposta"
@@ -589,13 +660,28 @@ onUnmounted(() => {
               <div v-if="canOpenSidebar" class="menu-divider"></div>
 
               <div class="menu-section">
+                <button type="button" class="menu-item" @click="openView('variables')">
+                  <Braces :size="14" class="menu-item-icon" />
+                  <span class="menu-item-text">Variáveis</span>
+                </button>
+                <button type="button" class="menu-item" @click="openView('tags')">
+                  <Tags :size="14" class="menu-item-icon" />
+                  <span class="menu-item-text">Tags</span>
+                </button>
+                <button type="button" class="menu-item" @click="openView('shortcuts')">
+                  <Keyboard :size="14" class="menu-item-icon" />
+                  <span class="menu-item-text">Atalhos</span>
+                </button>
+              </div>
+              <div class="menu-divider"></div>
+              <div class="menu-section">
                 <button
                   type="button"
                   class="menu-item"
                   @click="handleMenuAction(exportTemplates)"
                 >
                   <Download :size="14" class="menu-item-icon" />
-                  <span class="menu-item-text">Exportar modelos (JSON)</span>
+                  <span class="menu-item-text">Exportar backup completo (JSON)</span>
                 </button>
                 <button
                   type="button"
@@ -603,7 +689,7 @@ onUnmounted(() => {
                   @click="handleMenuAction(triggerImport)"
                 >
                   <Upload :size="14" class="menu-item-icon" />
-                  <span class="menu-item-text">Importar modelos (JSON)</span>
+                  <span class="menu-item-text">Importar backup ou modelos (JSON)</span>
                 </button>
               </div>
 
@@ -655,6 +741,7 @@ onUnmounted(() => {
       </div>
     </header>
 
+
     <!-- Status Message Alert -->
     <transition name="fade">
       <div v-if="statusMessage" :class="['status-banner', `status-${statusType}`]">
@@ -667,19 +754,12 @@ onUnmounted(() => {
       </div>
     </transition>
 
-    <!-- Banner de Licença Detectada -->
+    <VariablesView v-if="currentView === 'variables'" @back="returnToPreviousView" @changed="refreshCatalogs" />
+    <TagsView v-else-if="currentView === 'tags'" @back="returnToPreviousView" @changed="refreshTagsAndTemplates" />
+    <ShortcutsView v-else-if="currentView === 'shortcuts'" @back="returnToPreviousView" @changed="refreshCatalogs" />
+    <template v-else>
+    <!-- Ação rápida de licenças -->
     <div v-if="detectedLicense" class="license-banner">
-      <div class="license-banner-content">
-        <span class="license-pill">
-          <svg viewBox="0 0 498.69 498.69" width="13" height="13" fill="#ffc600" aria-hidden="true" style="display:inline-block; vertical-align:middle; margin-right:4px;">
-            <path d="M6.14,102C11.14,49.59,49.47,10.93,101.89,6,137.18,2.69,185.36,0,249.34,0s114.33,2.76,149.83,6.18c51.07,4.92,88.41,42.26,93.34,93.34,3.42,35.5,6.18,84.39,6.18,149.83s-2.76,114.32-6.18,149.82c-4.93,51.08-42.27,88.42-93.34,93.34-35.5,3.42-84.4,6.18-149.83,6.18s-112.16-2.63-147.45-6c-52.42-4.93-90.73-43.59-95.75-96C2.74,361.07,0,312.69,0,249.3S2.72,137.57,6.14,102m392.8,209.12c-3.01-11.83-15.03-18.98-26.86-16-6.28,1.42-12.77,1.74-19.16,.93-15.58-1.65-36-16.44-39.76-37.9-1.09-12.34,4.58-21.56,11.24-31.43,9-13.28,17.33-29.82,17.33-51.11,0-47.74-43.63-90.33-92.34-90.33s-93.78,39.72-93.78,90.28c0,21.29,9.82,37.83,18.82,51.11,6.66,9.88,12.33,19.08,11.24,31.43-1.08,17.13-24.21,36.25-39.76,37.9-6.39,.81-12.88,.49-19.16-.93-11.84-3.01-23.88,4.15-26.89,15.99h0c-1.43,5.69-.54,11.71,2.47,16.73,3.02,5.03,7.92,8.66,13.61,10.08,7.41,1.82,15.02,2.72,22.65,2.68,4.01,0,8.02-.22,12-.65,9.92-.9,19.58-3.65,28.48-8.11,5.4-1.37,10.41-3.95,14.65-7.55,2.42-1.88,4-3.09,5.28-2.21,3,2,2.76,4.6,1.58,7.5-.26,.58-.53,1.16-.81,1.73-.92,1.67-1.92,3.29-3,4.85-.63,.94-1.23,1.84-1.73,2.65-2.89,4.73-.49,1.07,4-5.91-1.8,3.46-3.85,6.79-6.14,9.95-9,12.35-16.76,21.68-23.8,28.54-6.41,6.23-8.42,15.71-5.08,24,4.62,11.35,17.56,16.81,28.92,12.19,2.64-1.07,5.04-2.64,7.08-4.62,8.85-8.63,18.26-19.8,28.7-34.2,8.75-12.12,15.27-25.7,19.26-40.11,.64-.84,1.51-1.47,2.51-1.8,3.95,15.06,10.65,29.27,19.75,41.91,10.48,14.4,19.86,25.57,28.71,34.2,8.71,8.55,22.71,8.41,31.26-.3s8.41-22.71-.31-31.25c-7-6.86-14.82-16.19-23.8-28.54-4.56-6.33-8.18-13.29-10.74-20.66,.44-.77,1.06-1.43,1.81-1.91,1.33-.86,2.87,.35,5.27,2.22,3.96,3.36,8.58,5.84,13.57,7.29,8.7,5.2,19.1,8.8,32.23,10.19,3.99,.43,7.99,.65,12,.65,7.63,.04,15.24-.86,22.65-2.68,8.69-2.16,15.22-9.36,16.52-18.22,.42-2.88,.26-5.81-.47-8.62v.05Zm-141.94-122c0,14.66,7.93,18.34,17.72,18.34s17.69-3.69,17.69-18.34-8-21.44-17.82-21.44-17.59,6.74-17.59,21.4v.04Zm-52.67,0c0,14.53,7.85,18.11,17.54,18.11s17.53-3.59,17.53-18.11-7.92-21.2-17.66-21.2-17.41,6.64-17.41,21.16v.04Z" />
-          </svg>
-          Ticket de Licença Detectado
-        </span>
-        <span class="license-sub">
-          {{ detectedLicense.type }} • {{ detectedLicense.databaseNumber ? `BD ${detectedLicense.databaseNumber}` : detectedLicense.licenseType }}
-        </span>
-      </div>
       <button
         class="btn-license-quick"
         :disabled="isAutomatingLicense"
@@ -710,49 +790,52 @@ onUnmounted(() => {
         />
       </div>
 
-      <div class="form-group">
-        <label>Categoria (Opcional)</label>
-        <input
-          v-model="formCategory"
-          type="text"
-          placeholder="Ex: Inatividade, Suporte, Geral"
-          maxlength="30"
-        />
-      </div>
+      <fieldset class="message-tags-field">
+        <legend>Tags</legend>
+        <details ref="tagPicker" class="message-tag-picker">
+          <summary aria-label="Selecionar tags da mensagem">
+            <span>{{ tags.filter(tag => formTags.includes(tag.id)).map(tag => tag.name).join(', ') || 'Selecionar tags' }}</span>
+            <ChevronRight :size="14" class="tag-picker-chevron" />
+          </summary>
+          <div class="message-tag-menu">
+            <label v-for="tag in tags" :key="tag.id" class="message-tag-option">
+              <input v-model="formTags" type="checkbox" :value="tag.id" />
+              {{ tag.name }}
+            </label>
+            <p v-if="!tags.length" class="tag-hint">Cadastre tags para organizar suas mensagens.</p>
+            <button type="button" class="tag-picker-manage" @click="openView('tags')">Gerenciar tags</button>
+          </div>
+        </details>
+      </fieldset>
 
       <div class="form-group">
         <div class="label-with-tags">
           <label>Mensagem da Resposta</label>
           <div class="quick-tags">
-            <span class="tag-hint">Inserir tag:</span>
+            <span class="tag-hint">Inserir variável</span>
             <button
-              type="button"
-              class="tag-btn tag-btn-highlight"
-              @click="insertVariable('{{Saudacao}}')"
-              title="Alterna automaticamente entre 'Bom dia!' ou 'Boa tarde!' conforme o horário"
-            >
-              <span v-pre>{{Saudacao}}</span>
-            </button>
-            <button
+              v-for="variable in variableTokens"
+              :key="variable.name"
               type="button"
               class="tag-btn"
-              @click="insertVariable('{{Data}}')"
-              title="Data atual formatada"
+              :class="{ 'tag-btn-highlight': variable.name === 'Saudacao' }"
+              :aria-label="'Inserir ' + variable.token"
+              @mousedown.prevent
+              @click="insertVariable(variable.token)"
             >
-              <span v-pre>{{Data}}</span>
-            </button>
-            <button
-              type="button"
-              class="tag-btn"
-              @click="insertVariable('{{Hora}}')"
-              title="Hora atual formatada"
-            >
-              <span v-pre>{{Hora}}</span>
+              {{ variable.token }}
             </button>
           </div>
         </div>
         <textarea
+          ref="contentTextarea"
           v-model="formContent"
+          aria-label="Mensagem da Resposta"
+          @select="rememberContentSelection"
+          @keyup="rememberContentSelection"
+          @click="rememberContentSelection"
+          @input="rememberContentSelection"
+          @blur="rememberContentSelection"
           rows="6"
           placeholder="Escreva a resposta pronta aqui... Use {{Saudacao}} para Bom dia / Boa tarde automático!"
         ></textarea>
@@ -780,13 +863,19 @@ onUnmounted(() => {
             placeholder="Buscar por título ou conteúdo..."
           />
         </div>
+        <div class="tag-filter">
+          <label for="tag-filter" class="sr-only">Filtrar por tag</label>
+          <select id="tag-filter" v-model="selectedTagId" aria-label="Filtrar por tag">
+            <option value="">Todas as tags</option>
+            <option v-for="tag in tags" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
+          </select>
+        </div>
       </div>
-
       <div ref="templatesListRef" class="templates-scroll">
         <span class="sr-only" aria-live="polite">{{ liveAnnouncement }}</span>
 
         <div v-if="filteredTemplates.length === 0" class="empty-state">
-          <p v-if="searchQuery">Nenhum modelo encontrado para "{{ searchQuery }}".</p>
+          <p v-if="searchQuery || selectedTagId">Nenhum modelo corresponde aos filtros.</p>
           <p v-else>Nenhum modelo cadastrado. Clique em "Novo" ou abra as opções para restaurar os padrões.</p>
         </div>
 
@@ -821,14 +910,12 @@ onUnmounted(() => {
               type="button"
               class="card-expand-trigger"
               :aria-expanded="isExpanded(tpl.id)"
-              :title="isExpanded(tpl.id) ? 'Recolher modelo' : `${tpl.title}${tpl.category ? ` (${tpl.category})` : ''}`"
+              :title="isExpanded(tpl.id) ? 'Recolher modelo' : tpl.title"
               @click="toggleExpand(tpl.id)"
             >
               <ChevronRight :size="14" :stroke-width="2" class="card-chevron" :class="{ expanded: isExpanded(tpl.id) }" />
               <span class="card-title">{{ tpl.title }}</span>
-              <span v-if="tpl.category && !isExpanded(tpl.id)" class="card-badge card-badge-compact">
-                {{ tpl.category }}
-              </span>
+              <span v-if="getTemplateTagNames(tpl, tags).length && !isExpanded(tpl.id)" class="card-badge card-badge-compact">{{ getTemplateTagNames(tpl, tags).join(', ') }}</span>
             </button>
 
             <div class="card-menu">
@@ -896,8 +983,8 @@ onUnmounted(() => {
           </p>
 
           <div v-if="isExpanded(tpl.id)" class="card-body">
-            <div v-if="tpl.category" class="card-meta">
-              <span class="card-badge">{{ tpl.category }}</span>
+            <div v-if="getTemplateTagNames(tpl, tags).length" class="card-meta">
+              <span v-for="tagName in getTemplateTagNames(tpl, tags)" :key="tagName" class="card-badge">{{ tagName }}</span>
             </div>
 
             <p class="card-preview-expanded">{{ tpl.content }}</p>
@@ -929,6 +1016,7 @@ onUnmounted(() => {
       </div>
     </div>
 
+    </template>
     <!-- Rodapé Minimalista -->
     <footer class="footer">
       <a
@@ -1006,6 +1094,98 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.message-tags-field {
+  border: 0;
+  min-width: 0;
+  padding: 0;
+}
+.message-tags-field legend {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+}
+.message-tag-picker {
+  position: relative;
+}
+.message-tag-picker summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.message-tag-picker summary::-webkit-details-marker { display: none; }
+.message-tag-picker summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-picker-chevron { transform: rotate(90deg); flex-shrink: 0; }
+.message-tag-picker[open] .tag-picker-chevron { transform: rotate(-90deg); }
+.message-tag-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  box-shadow: 0 4px 14px #0002;
+}
+.message-tag-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.message-tag-option:hover { background: var(--bg-tertiary); }
+.message-tag-option input {
+  accent-color: var(--accent);
+}
+.tag-picker-manage {
+  display: block;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tag-filter {
+  flex: 0 1 125px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.tag-filter select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.card-meta { display: flex; flex-wrap: wrap; gap: 5px; }
 .popup-container {
   display: flex;
   flex-direction: column;
@@ -1229,25 +1409,6 @@ onUnmounted(() => {
   border-bottom: 1px solid rgba(255, 198, 0, 0.35);
 }
 
-.license-banner-content {
-  display: flex;
-  flex-direction: column;
-}
-
-.license-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #6f5600;
-}
-
-.license-sub {
-  font-size: 10px;
-  color: #5b5f63;
-}
-
 .btn-license-quick {
   background: #ffc600;
   color: #1c1b1c;
@@ -1337,6 +1498,7 @@ onUnmounted(() => {
 
 .quick-tags {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
@@ -1446,7 +1608,10 @@ textarea {
 }
 
 .search-box {
-  padding: 10px 14px 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 6px;
   background: var(--bg-primary);
 }
 
@@ -1454,6 +1619,8 @@ textarea {
   position: relative;
   display: flex;
   align-items: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .search-input-icon {

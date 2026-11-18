@@ -1,0 +1,90 @@
+# Arquitetura e pontos de extensão
+
+O projeto mantém WXT, Vue 3 e TypeScript, sem backend adicional. A estrutura segue os diretórios já usados pelo projeto: pontos de entrada em `entrypoints`, serviços e regras em `utils`, contratos em `types` e documentação em `docs`.
+
+## Responsabilidades
+
+| Camada | Arquivos | Responsabilidade |
+| --- | --- | --- |
+| Interface | `entrypoints/popup/App.vue`, `VariablesView.vue`, `TagsView.vue`, `ShortcutsView.vue` | Formulários, navegação, filtros, seleção e mensagens de resultado. O painel lateral reutiliza o mesmo aplicativo Vue. |
+| Integração com o Octadesk | `entrypoints/content.ts` | Registro dos editores, widget, tratamento de comandos e validação do destino. |
+| Coordenação | `entrypoints/background.ts` | Roteamento por aba/frame e fila compartilhada de operações de armazenamento. |
+| Modelos e validação | `settingsSchema.ts`, `templateTagSchema.ts`, `types/template.ts` | Contratos, valores padrão, normalização e validação sem acessar DOM ou armazenamento. |
+| Persistência | `storage.ts`, `templateStorage.ts`, `templateTags.ts`, `settingsStorage.ts` | Adaptação das APIs, migrações, mesclagem de alterações, conflitos e backup. |
+| Respostas | `templateResolver.ts`, `templateVariables.ts`, `replyList.ts`, `replyShortcut.ts` | Resolução de variáveis, formulário de valores pendentes, lista compartilhada e navegação pelo teclado. |
+| Automação | `licenseDetector.ts`, `licenseRequest.ts`, `mentionHelper.ts`, `insertText.ts` | Escopo do ticket, interpretação do e-mail, menções e escrita no rascunho. |
+
+Os nomes de arquivo sem diretório na tabela pertencem a `utils/`. Os consumidores importam modelos e validadores diretamente dos esquemas e as operações de gravação dos respectivos serviços. Cada símbolo tem uma única exportação, evitando conflitos com a descoberta automática de imports do WXT.
+
+## Direção das dependências
+
+Validações não dependem das telas nem dos serviços de persistência. O adaptador `storage.ts` não importa regras de mensagens ou automação. `settingsStorage.ts` depende apenas do adaptador e do esquema de configurações. `templateStorage.ts` utiliza os esquemas de tags e o serviço de configurações; `templateTags.ts` utiliza a persistência de mensagens para atualizar associações. Essa separação evita os ciclos entre configurações e menções e entre mensagens e catálogo de tags.
+
+```mermaid
+flowchart TD
+    UI[Popup e painel lateral] --> BG[Background: fila e roteamento]
+    UI --> Rules[Serviços de respostas e variáveis]
+    BG --> Templates[Persistência de mensagens e backup]
+    BG --> Tags[Serviço de tags]
+    BG --> Settings[Persistência de configurações]
+    Tags --> Templates
+    Templates --> Settings
+    Templates --> Schemas[Esquemas e validações]
+    Settings --> Schemas
+    Templates --> Adapter[Adaptador de armazenamento]
+    Settings --> Adapter
+    BG --> Content[Content script do frame registrado]
+    Content --> Automation[Detecção, menções e inserção]
+    Automation --> Settings
+```
+
+## Roteamento e contexto
+
+O editor registra seu token e frame no background. As ações do popup e painel capturam o token antes de iniciar um preenchimento assíncrono e o conferem ao encaminhar a resposta. O background envia a ação somente ao frame registrado; o content script valida o editor e o ticket novamente. Mensagens arbitrárias de `window.postMessage` não inserem texto.
+
+Widgets e atalhos capturam o editor, a identidade do ticket e o rascunho antes de solicitar variáveis. Cancelamento, mudança de ticket ou edição do rascunho durante o preenchimento interrompem a inserção. Iframes acessíveis de mesma origem podem herdar o escopo do ticket que os contém. Iframes sem acesso não são atravessados; não se usa o texto global da página como substituto.
+
+| Mensagem | Uso |
+| --- | --- |
+| `REGISTER_EDITOR`, `CAPTURE_EDITOR`, `ROUTE_TICKET_ACTION` | Registro, captura e encaminhamento ao editor. |
+| `INSERT_REPLY`, `CHECK_LICENSE_TICKET`, `AUTOMATE_LICENSE_MENTIONS` | Ações executadas pelo content script. |
+| `TEMPLATE_STORAGE` | Leitura, gravação, importação e exportação de mensagens/backup. |
+| `TAG_CATALOG` | Leitura e gravação do catálogo de tags. |
+| `SETTINGS_STORAGE` | Leitura e gravação de variáveis, técnicos e atalho. |
+
+## Persistência e compatibilidade
+
+| Chave | Conteúdo |
+| --- | --- |
+| `octablaster_quick_replies_v2` | Mensagens, ordem e associações com tags. |
+| `octablaster_initialized_v2` | Inicialização da instalação. |
+| `octablaster_defaults_state` | Versão da migração e IDs dos padrões já apresentados. |
+| `octablaster_tags` | Catálogo de tags com ID e nome. |
+| `octablaster_variables` | Nome, valor e modo de cada variável. |
+| `octablaster_mention_targets` | ID, nome, busca, padrão de identificação e estado dos técnicos. |
+| `octablaster_shortcut` | `\\`, `/` ou string vazia. |
+
+O background serializa leituras e gravações das três famílias de dados. As funções com sufixo `Local` executam dentro desse contexto e não enviam uma nova mensagem ao próprio background. A interface usa as funções públicas que encaminham as operações.
+
+Os formulários enviam a proposta junto com a cópia carregada anteriormente. A comparação entre base, proposta e estado atual preserva alterações em itens independentes. Alterações incompatíveis no mesmo item rejeitam a gravação. Variáveis usam o nome sem distinção de maiúsculas como chave; técnicos e tags usam IDs. Renomear variável altera sua chave e exige atualizar os tokens das mensagens. O estado de migração evita recriar padrões que o usuário excluiu intencionalmente.
+
+`storage.ts` suporta Promises e callbacks do Chrome, verifica `runtime.lastError` e mantém o fallback em `localStorage` quando disponível. Se o principal e o fallback falharem, a operação rejeita. O fallback só conta como sucesso se concluir todas as chaves. Não há transação entre chaves do `localStorage`: falhas intermediárias podem deixar uma gravação parcial, sempre acompanhada de erro. O service worker do Chrome não possui esse fallback.
+
+O backup no formato 2 contém `format`, `version`, `templates`, `tags` e `settings` (`variables`, `targets`, `trigger`). A exportação lê o estado persistido dentro da fila. Na importação, os dados e conflitos são avaliados antes da gravação conjunta; mensagens e tags são mescladas e configurações são restauradas com proteção contra alterações concorrentes. Listas antigas e backups no formato 1 não modificam as configurações atuais. O arquivo inclui os valores salvos das variáveis em texto legível.
+
+## Licenças e dependência do DOM
+
+`licenseRequest.ts` lê o formulário em `.content-comment-interaction` no ticket atual. O último formulário reconhecido na ordem do DOM prevalece; seus campos não são completados com valores de outro comentário. Citações e editores são excluídos. Banco, quantidade, isenção e códigos vêm dos campos identificados, sem extrair números do título ou CNPJ. A troca exige o motivo.
+
+`mentionHelper.ts` ativa a Anotação Interna e aguarda cada seleção ser confirmada antes da próxima busca, com limite de 15 segundos por técnico entre sugestões e confirmação. No HTML nativo fornecido, a confirmação usa `<person personid="…" class="mentioned">`; a etiqueta precisa ter identificador preenchido. Os técnicos continuam no mesmo parágrafo. O resumo é acrescentado depois e a anotação não é enviada automaticamente. Há reconhecimento de marcadores já presentes e de resumo idêntico em uma nova tentativa.
+
+Sem formulário reconhecido, permanece a marcação de técnicos. Formulário reconhecido com campos obrigatórios inválidos interrompe a preparação antes de alterar o editor. Se o Octadesk mudar a estrutura dos popovers, marcadores ou formulário, confira o HTML real e adapte os seletores com uma fixture de regressão. A ordem do DOM e a representação de citações são limitações conhecidas da extração.
+
+## Como adicionar funcionalidades
+
+- **Nova regra de variável:** altere a validação em `settingsSchema.ts` ou a resolução em `templateVariables.ts`; mantenha valores substituídos literais e preserve o cancelamento.
+- **Novo cadastro:** defina contratos e validação, implemente persistência na fila do background, use uma base para detectar conflitos e só então conecte o formulário Vue. Atualize o backup quando o dado precisar ser transportável.
+- **Novo canal de respostas:** reutilize `replyList.ts` e `prepareTemplate`; valide novamente o editor após qualquer espera e escreva apenas no rascunho.
+- **Novo formulário de licença:** acrescente a leitura em `licenseRequest.ts` com HTML anonimizado e casos de campo ausente, ambiguidade e outro ticket. Preserve os tokens nativos durante a inserção.
+
+Não são necessárias novas dependências, serviços externos ou um framework de arquitetura para essas extensões. Os testes, tipos e builds descritos em [CONTRIBUTING.md](../CONTRIBUTING.md) verificam os contratos entre os módulos.

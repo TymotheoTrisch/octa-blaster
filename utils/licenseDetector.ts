@@ -20,46 +20,72 @@ function extractCleanText(root: HTMLElement | null | undefined): string {
   if (!root) return '';
   if (root.classList && root.classList.contains('octablaster-floating-widget')) return '';
 
-  const widgets =
-    typeof root.querySelectorAll === 'function'
-      ? root.querySelectorAll<HTMLElement>('.octablaster-floating-widget')
-      : null;
-
-  if (!widgets || widgets.length === 0) {
-    return root.innerText || root.textContent || '';
-  }
-
-  const originalDisplays: string[] = [];
-  widgets.forEach((w, i) => {
-    originalDisplays[i] = w.style.display;
-    w.style.display = 'none';
-  });
-
-  const text = root.innerText || root.textContent || '';
-
-  widgets.forEach((w, i) => {
-    w.style.display = originalDisplays[i] ?? '';
-  });
-
-  return text;
+  const clone = root.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('.octablaster-floating-widget, .octablaster-shortcut-menu, .octablaster-variable-dialog, script, style').forEach(element => element.remove());
+  clone.querySelectorAll('br').forEach(el => el.replaceWith('\n'));
+  clone.querySelectorAll('div, p, li, section, header, h1, h2, h3, tr').forEach(el => el.append('\n'));
+  const subjectValues = Array.from(root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+    'input[name="subject"], input[name="title"], input[ng-model*=".subject"], input[ng-model*=".title"], textarea[name="subject"]',
+  )).map(input => input.value);
+  return [...subjectValues, clone.textContent || ''].join('\n');
 }
 
 /**
  * Obtém o contêiner isolado do ticket específico a partir de qualquer elemento interno.
  * Garante que a busca fique restrita a este ticket, sem vazar dados de outros tickets.
  */
-export function getScopedTicketContainer(el: HTMLElement): HTMLElement {
-  if (!el) return document.body;
-  if (typeof el.closest === 'function') {
-    const explicitContainer = el.closest<HTMLElement>(
-      '.tab-pane, [role="tabpanel"], .ticket-container, .ticket-view, .ticket-page, form, .main--container_X1D7w, [ticket-id]'
-    );
-    if (explicitContainer && el.ownerDocument && explicitContainer !== el.ownerDocument.body) {
-      return explicitContainer;
-    }
-  }
+const TICKET_ROOT_SELECTOR = '[ticket-id], [data-ticket-id], [data-cy="ticket_content"], .ticket-container, .ticket-view, .ticket-page';
+const TICKET_PANEL_SELECTOR = '[ticket], [role="tabpanel"], .tab-pane';
+export const TICKET_SELECTOR = `${TICKET_ROOT_SELECTOR}, ${TICKET_PANEL_SELECTOR}`;
 
-  return el.ownerDocument?.body || el;
+export function getScopedTicketContainer(el: HTMLElement): HTMLElement | null {
+  // A barra de comentários também recebe [ticket] e pode conter uma .tab-pane.
+  // O cabeçalho e a navegação pertencem ao contêiner externo do chamado.
+  let local: HTMLElement | null = null;
+  for (let ancestor: HTMLElement | null = el; ancestor; ancestor = ancestor.parentElement) {
+    if (ancestor.matches('body, html')) break;
+    if (ancestor.matches(TICKET_ROOT_SELECTOR)) return ancestor;
+    const isCommentBar = ancestor.matches('.space-x-md, [comment-type-selected]');
+    if (ancestor.hasAttribute('ticket') && !isCommentBar) return ancestor;
+    if (!local && ancestor.matches(TICKET_PANEL_SELECTOR)) local = ancestor;
+  }
+  try {
+    const frame = el.ownerDocument.defaultView?.frameElement;
+    if (frame && frame.nodeType === 1) {
+      const parentScope = getScopedTicketContainer(frame as HTMLElement);
+      if (parentScope) return parentScope;
+    }
+  } catch { /* Frames de outra origem exigem um contêiner próprio. */ }
+  return local;
+}
+
+export function isInTicketScope(el: HTMLElement, scope: HTMLElement): boolean {
+  if (scope.contains(el)) return true;
+  try {
+    const frame = el.ownerDocument.defaultView?.frameElement;
+    return !!frame && isInTicketScope(frame as HTMLElement, scope);
+  } catch { return false; }
+}
+
+export function isTicketElementVisible(el: HTMLElement): boolean {
+  let current: HTMLElement | null = el;
+  while (current) {
+    if (!current.isConnected || current.getBoundingClientRect().width <= 0 || current.getBoundingClientRect().height <= 0) return false;
+    const win = current.ownerDocument.defaultView;
+    for (let ancestor: HTMLElement | null = current; ancestor; ancestor = ancestor.parentElement) {
+      const style = win?.getComputedStyle(ancestor);
+      if (ancestor.hidden || ancestor.getAttribute('aria-hidden') === 'true' ||
+        style?.display === 'none' || style?.visibility === 'hidden' || style?.opacity === '0') return false;
+    }
+    try {
+      current = win?.frameElement as HTMLElement | null;
+    } catch { return false; }
+  }
+  return true;
+}
+
+export function getTicketIdentity(scope: HTMLElement): string {
+  return `${scope.ownerDocument.URL}|${scope.getAttribute('ticket-id')}|${scope.getAttribute('ticket')}|${scope.getAttribute('data-ticket-id')}|${scope.id}`;
 }
 
 /**
@@ -71,25 +97,15 @@ export function detectLicenseTicket(scope: Document | HTMLElement | unknown = do
   try {
     if (!scope) return null;
 
-    let targetDoc: Document | null = null;
     let targetRoot: HTMLElement | null = null;
-
     if (isDOMElement(scope)) {
-      targetDoc = scope.ownerDocument;
       targetRoot = getScopedTicketContainer(scope);
     } else if (scope && typeof scope === 'object' && 'nodeType' in scope && (scope as Node).nodeType === 9) {
-      targetDoc = scope as Document;
-      targetRoot = (targetDoc.body || targetDoc.documentElement) as HTMLElement | null;
-    } else {
-      targetDoc = document;
-      targetRoot = (document.body || document.documentElement) as HTMLElement | null;
+      const roots = (scope as Document).querySelectorAll<HTMLElement>(TICKET_SELECTOR);
+      if (roots.length === 1) targetRoot = roots[0] || null;
     }
-
     if (!targetRoot) return null;
-
-    const docTitle = targetDoc?.title || '';
-    const cleanText = extractCleanText(targetRoot);
-    const fullText = `${docTitle}\n${cleanText}`;
+    const fullText = extractCleanText(targetRoot);
 
     // 1. Validação essencial:
     // Precisa conter termo de licença E operação de licença
@@ -153,7 +169,7 @@ export function detectLicenseTicket(scope: Document | HTMLElement | unknown = do
       databaseNumber,
       clientName: clientMatch && clientMatch[1] ? clientMatch[1].trim() : undefined,
       resellerName: resellerMatch && resellerMatch[1] ? resellerMatch[1].trim() : undefined,
-      rawTitle: titleLine || (docTitle && /licen[cç]a/i.test(docTitle) ? docTitle : undefined),
+      rawTitle: titleLine,
     };
   } catch (error) {
     console.warn('[OctaBlaster] Erro na detecção de ticket de licença:', error);
