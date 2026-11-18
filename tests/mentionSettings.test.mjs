@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
-import { loadMentionTargets, saveMentionTargets, automateLicenseMentions } from '../services/octadesk/mentionHelper.ts';
+import { loadMentionTargets, saveMentionTargets, resetMentionTargets, automateLicenseMentions } from '../services/octadesk/mentionHelper.ts';
 
 const targets = [
   { id: 'ana', name: 'Ana Técnica', query: '@ana', pattern: 'ana\\s+t[eé]cnica', enabled: true },
@@ -117,4 +117,16 @@ test('license automation uses the saved enabled targets and skips disabled targe
     assert.ok(editor.value.includes('@Ana Técnica'));
     assert.ok(!editor.value.includes('@roberto'));
   } finally { storage.restore(); dom.restore(); }
+});
+
+test('resetMentionTargets restores default technicians cleanly', async () => {
+  const storage = installStorage();
+  try {
+    await saveMentionTargets([]);
+    assert.deepEqual(await loadMentionTargets(), []);
+    const restored = await resetMentionTargets([]);
+    assert.equal(restored.length, 2);
+    assert.equal(restored[0].id, 'jorge_tigre');
+    assert.equal(restored[1].id, 'roberto_renck');
+  } finally { storage.restore(); }
 });

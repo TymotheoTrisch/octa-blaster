@@ -1,4 +1,4 @@
-import { mentionNamePattern } from '../storage/settingsSchema';
+import { DEFAULT_MENTION_TARGETS, mentionNamePattern } from '../storage/settingsSchema';
 import {
   getScopedTicketContainer,
   getTicketIdentity,
@@ -16,8 +16,12 @@ export async function loadMentionTargets(): Promise<MentionTarget[]> {
   return (await loadSettings()).targets;
 }
 
-export async function saveMentionTargets(targets: MentionTarget[], base?: MentionTarget[]): Promise<void> {
-  await saveSettings({ targets }, base ? { targets: base } : undefined);
+export async function saveMentionTargets(targets: MentionTarget[], base?: MentionTarget[]): Promise<MentionTarget[]> {
+  return (await saveSettings({ targets }, base ? { targets: base } : undefined)).targets;
+}
+
+export async function resetMentionTargets(base?: MentionTarget[]): Promise<MentionTarget[]> {
+  return saveMentionTargets(DEFAULT_MENTION_TARGETS.map(target => ({ ...target })), base);
 }
 
 function sleep(ms: number) {
@@ -683,7 +687,12 @@ export async function automateLicenseMentions(
         }
       }
     } else if (isCurrentTicket() && isElementVisible(targetEditor)) {
-      insertTextIntoElement(targetEditor, ' ', undefined, true);
+      const currentText = targetEditor.matches('input, textarea')
+        ? (targetEditor as HTMLInputElement).value
+        : targetEditor.textContent || '';
+      if (currentText && !/[\s\u00a0]$/.test(currentText)) {
+        insertTextIntoElement(targetEditor, ' ', undefined, true);
+      }
     }
 
     return {
