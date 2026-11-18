@@ -225,3 +225,9 @@ O OctaBlaster é mantido e evoluído de forma contínua para facilitar a rotina 
 
 - 🛠️ **Rastreamento Técnico (Issues):**
   Para quem preferir abrir um ticket técnico detalhado de desenvolvimento ou acompanhar correções de código, a aba de [**Issues**](https://github.com/luizGDpulz/octa-blaster/issues) continua ativa e integrada ao fluxo de desenvolvimento.
+
+---
+
+## 🤝 Contribuindo com o Código
+
+Quer enviar uma correção ou nova funcionalidade via Pull Request? Consulte o nosso [**Guia de Contribuição (CONTRIBUTING.md)**](CONTRIBUTING.md) para ver os pré-requisitos (`pnpm`, Node.js 22), comandos de validação, padrões de commits e diretrizes de segurança/isolamento no Octadesk.
