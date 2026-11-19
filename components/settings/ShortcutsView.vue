@@ -38,45 +38,53 @@ async function saveTrigger() {
 </script>
 
 <template>
-  <section class="management-page" aria-label="Atalhos">
-    <div class="management-heading">
+  <section class="management-shell" aria-label="Atalhos">
+    <div class="management-subbar">
       <button
         type="button"
-        class="management-icon"
+        class="management-back-btn"
         aria-label="Voltar para a tela anterior"
         @click="emit('back')"
       >
-        <ArrowLeft :size="16" />
+        <ArrowLeft :size="15" />
       </button>
       <h2>Atalhos no Editor</h2>
+      <span
+        class="card-badge"
+        :class="{ 'card-badge-accent': Boolean(trigger) }"
+      >
+        {{ trigger ? `Ativo (${trigger})` : 'Desativado' }}
+      </span>
     </div>
 
-    <form class="management-form management-card" @submit.prevent="saveTrigger">
-      <label>
-        Gatilho para abrir respostas rápidas
-        <select v-model="trigger">
-          <option value="\">Barra invertida (\)</option>
-          <option value="/">Barra (/)</option>
-          <option value="">Desativado</option>
-        </select>
-      </label>
+    <div class="management-scroll">
+      <form class="template-card is-expanded" @submit.prevent="saveTrigger">
+        <div class="management-form-group">
+          <label>Gatilho para abrir respostas rápidas</label>
+          <select v-model="trigger">
+            <option value="\">Barra invertida (\)</option>
+            <option value="/">Barra (/)</option>
+            <option value="">Desativado</option>
+          </select>
+        </div>
 
-      <p class="management-help">
-        <template v-if="trigger">
-          Digite <strong>{{ trigger }}</strong> no início da linha ou após um espaço no editor do Octadesk para buscar e inserir respostas com o teclado.
-        </template>
-        <template v-else>
-          O menu rápido por teclado está desativado. Você ainda pode inserir respostas pelo botão <strong>Respostas</strong> do widget ou pelo painel.
-        </template>
-      </p>
+        <p class="management-help" style="margin-top: 8px">
+          <template v-if="trigger">
+            Digite <strong>{{ trigger }}</strong> no início da linha ou após um espaço no editor do Octadesk para buscar e inserir respostas com o teclado.
+          </template>
+          <template v-else>
+            O menu rápido por teclado está desativado. Você ainda pode inserir respostas pelo botão <strong>Respostas</strong> do widget ou pelo painel.
+          </template>
+        </p>
 
-      <div class="management-actions">
-        <button type="submit" class="management-primary" :disabled="busy">
-          Salvar atalho
-        </button>
-      </div>
-    </form>
+        <div class="management-form-actions">
+          <button type="submit" class="btn-primary" :disabled="busy">
+            Salvar atalho
+          </button>
+        </div>
+      </form>
+    </div>
 
-    <p v-if="status" class="management-status" role="status">{{ status }}</p>
+    <p v-if="status" class="management-status-inline" role="status">{{ status }}</p>
   </section>
 </template>
