@@ -10,7 +10,6 @@ const props = withDefaults(
     allowClear?: boolean;
     clearLabel?: string;
     disabled?: boolean;
-    showApplyButton?: boolean;
     fallbackPickerColor?: string;
     placeholder?: string;
     ariaLabel?: string;
@@ -19,7 +18,6 @@ const props = withDefaults(
     allowClear: false,
     clearLabel: 'Padrão',
     disabled: false,
-    showApplyButton: false,
     fallbackPickerColor: '#1971c2',
     placeholder: '',
     ariaLabel: 'Selecionar cor',
@@ -44,9 +42,6 @@ watch(
 const normalizedCurrent = computed(() => normalizeHexColor(props.modelValue) ?? '');
 const pickerValue = computed(() => normalizedCurrent.value || props.fallbackPickerColor);
 const normalizedTyped = computed(() => normalizeHexColor(hexInput.value));
-const canApplyTyped = computed(
-  () => Boolean(normalizedTyped.value) && normalizedTyped.value !== normalizedCurrent.value,
-);
 
 function selectPreset(color: string) {
   const normalized = normalizeHexColor(color) ?? color;
@@ -89,9 +84,9 @@ function handleHexTyping(event: Event) {
   }
 }
 
-function applyTypedHex() {
+function commitTypedHex() {
   if (props.allowClear && !hexInput.value.trim()) {
-    clearColor();
+    if (normalizedCurrent.value) clearColor();
     return;
   }
   if (!normalizedTyped.value) {
@@ -99,6 +94,7 @@ function applyTypedHex() {
     return;
   }
   hexInput.value = normalizedTyped.value;
+  if (normalizedTyped.value === normalizedCurrent.value) return;
   emit('update:modelValue', normalizedTyped.value);
   emit('commit', normalizedTyped.value);
 }
@@ -164,18 +160,9 @@ function applyTypedHex() {
         :placeholder="placeholder || (allowClear ? 'Padrão (opcional)' : '#ffc600')"
         aria-label="Código hexadecimal da cor"
         @input="handleHexTyping"
-        @keydown.enter.prevent="applyTypedHex"
+        @blur="commitTypedHex"
+        @keydown.enter.prevent="commitTypedHex"
       />
-
-      <button
-        v-if="showApplyButton"
-        type="button"
-        class="btn-secondary btn-apply-hex"
-        :disabled="disabled || !canApplyTyped"
-        @click="applyTypedHex"
-      >
-        Aplicar
-      </button>
     </div>
   </div>
 </template>
@@ -282,16 +269,5 @@ function applyTypedHex() {
   min-width: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   text-transform: lowercase;
-}
-
-.btn-apply-hex {
-  padding: 6px 10px;
-  font-size: 11.5px;
-  flex-shrink: 0;
-}
-
-.btn-apply-hex:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 </style>
