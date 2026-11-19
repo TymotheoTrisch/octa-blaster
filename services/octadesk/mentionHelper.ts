@@ -8,6 +8,7 @@ import {
 import { insertTextIntoElement } from './insertText';
 import { loadSettings, saveSettings } from '../storage/settingsStorage';
 import { readTicketLicenseRequest, formatLicenseRequest } from './licenseRequest';
+import { showMissingLicenseFieldsModal } from './licenseAlertModal';
 import type { MentionTarget } from '@/types/template';
 
 const MENTION_WAIT_MS = 15_000;
@@ -606,6 +607,8 @@ export async function automateLicenseMentions(
     const licenseRequest = readTicketLicenseRequest(targetScope);
     if (licenseRequest.status === 'invalid') return { success: false, message: licenseRequest.message };
     const summary = licenseRequest.status === 'ready' ? formatLicenseRequest(licenseRequest.request) : '';
+    const missingFields =
+      licenseRequest.status === 'ready' ? (licenseRequest.request.missingFields ?? []) : [];
     const ticketIdentity = getTicketIdentity(targetScope);
     const isCurrentTicket = () =>
       targetScope.isConnected &&
@@ -744,6 +747,14 @@ export async function automateLicenseMentions(
       if (currentText && !/[\s\u00a0]$/.test(currentText)) {
         insertTextIntoElement(targetEditor, ' ', undefined, true);
       }
+    }
+
+    if (missingFields.length > 0) {
+      showMissingLicenseFieldsModal(editorDoc, missingFields, targetEditor);
+      return {
+        success: true,
+        message: `Responsáveis marcados! Preencha manualmente: ${missingFields.join(', ')}.`,
+      };
     }
 
     return {
