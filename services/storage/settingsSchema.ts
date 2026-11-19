@@ -2,6 +2,65 @@ import type { MentionTarget } from '@/types/template';
 
 export const VARIABLES_KEY = 'octablaster_variables';
 export const SHORTCUT_KEY = 'octablaster_shortcut';
+export const APPEARANCE_KEY = 'octablaster_appearance';
+
+export type ThemeMode = 'system' | 'light' | 'dark';
+
+export interface AppearanceSettings {
+  theme: ThemeMode;
+  brandColor: string;
+}
+
+export const DEFAULT_BRAND_COLOR = '#ffc600';
+
+export const DEFAULT_APPEARANCE: AppearanceSettings = {
+  theme: 'system',
+  brandColor: DEFAULT_BRAND_COLOR,
+};
+
+export const BRAND_COLOR_PRESETS: ReadonlyArray<{ name: string; color: string }> = [
+  { name: 'Amarelo Secullum', color: '#ffc600' },
+  { name: 'Âmbar', color: '#f59e0b' },
+  { name: 'Esmeralda', color: '#10b981' },
+  { name: 'Azul', color: '#1971c2' },
+  { name: 'Ciano', color: '#0891b2' },
+  { name: 'Coral', color: '#ef4444' },
+  { name: 'Violeta', color: '#7c3aed' },
+  { name: 'Grafite', color: '#3c3f43' },
+];
+
+export function normalizeHexColor(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim().replace(/^#/, '');
+  if (/^[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const expanded = trimmed
+      .split('')
+      .map(ch => ch + ch)
+      .join('')
+      .toLowerCase();
+    return `#${expanded}`;
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return `#${trimmed.toLowerCase()}`;
+  }
+  return null;
+}
+
+export function validateAppearance(raw: unknown): AppearanceSettings {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Configuração de aparência inválida.');
+  }
+  const value = raw as Record<string, unknown>;
+  const theme = value.theme;
+  if (theme !== 'system' && theme !== 'light' && theme !== 'dark') {
+    throw new Error('Tema de aparência inválido.');
+  }
+  const brandColor = normalizeHexColor(value.brandColor);
+  if (!brandColor) {
+    throw new Error('Cor da marca inválida. Use um código hexadecimal (#RRGGBB).');
+  }
+  return { theme, brandColor };
+}
 export interface TemplateVariable {
   name: string;
   value: string;
@@ -82,6 +141,7 @@ export function validateMentionTargets(raw: unknown): MentionTarget[] {
 
 export interface SettingsSnapshot extends ReplySettings {
   targets: MentionTarget[];
+  appearance?: AppearanceSettings;
 }
 
 export function validateSettingsPatch(raw: unknown): Partial<SettingsSnapshot> {
@@ -96,6 +156,9 @@ export function validateSettingsPatch(raw: unknown): Partial<SettingsSnapshot> {
   if (Object.hasOwn(value, 'trigger')) {
     if (value.trigger !== '\\' && value.trigger !== '/' && value.trigger !== '') throw new Error('Atalho inválido.');
     clean.trigger = value.trigger;
+  }
+  if (Object.hasOwn(value, 'appearance') && value.appearance !== undefined) {
+    clean.appearance = validateAppearance(value.appearance);
   }
   return clean;
 }
