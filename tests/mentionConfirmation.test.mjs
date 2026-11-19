@@ -283,3 +283,119 @@ test('a person placeholder with no personid does not confirm a mention', async (
     assert.equal(await insertMentionForTarget(editor, dom.document, tymotheo, true, () => current), false);
   } finally { clearTimeout(timer); dom.restore(); }
 });
+
+test('popover with avatar and similar names selects exclusively the exact compound name', async () => {
+  const { dom, editor, menu } = installEditor();
+  const luizPulz = { id: 'luiz', name: 'Luiz Pulz', query: '@Luiz', pattern: '', enabled: true };
+  const clicked = [];
+  editor.addEventListener('input', () => {
+    if (!editor.textContent.includes('@Luiz') || menu.childElementCount) return;
+    for (const [initial, fullName] of [
+      ['s', 'Luiz Eduardo'],
+      ['s', 'Luiz Pulz'],
+      ['m', 'Maria Luiza Fernandes'],
+    ]) {
+      const item = dom.document.createElement('div');
+      item.className = 'person-item';
+      item.innerHTML = `<span class="avatar">${initial}</span><span class="ng-binding">${fullName}</span>`;
+      item.addEventListener('click', () => {
+        clicked.push(fullName);
+        editor.innerHTML = `<p><person personid="id-${fullName}" class="mentioned">@${fullName}</person></p>`;
+        menu.replaceChildren();
+      });
+      menu.append(item);
+    }
+  });
+  try {
+    const ok = await insertMentionForTarget(editor, dom.document, luizPulz, true);
+    assert.equal(ok, true);
+    assert.deepEqual(clicked, ['Luiz Pulz']);
+  } finally { dom.restore(); }
+});
+
+test('default technicians reject extended lookalike names and accept only exact matches', async () => {
+  const { dom, editor, menu } = installEditor();
+  const jorge = { id: 'jorge_tigre', name: 'Jorge Tigre', query: '@Jorge', pattern: '^jorge\\s+tigre$', enabled: true };
+  const clicked = [];
+  editor.addEventListener('input', () => {
+    if (!editor.textContent.includes('@Jorge') || menu.childElementCount) return;
+    for (const fullName of ['Jorge Tigre Filho', 'João Jorge Tigre', 'Jorge Tigre']) {
+      const item = dom.document.createElement('div');
+      item.className = 'person-item';
+      item.innerHTML = `<span class="avatar">j</span><span class="ng-binding">${fullName}</span>`;
+      item.addEventListener('click', () => {
+        clicked.push(fullName);
+        editor.innerHTML = `<p><person personid="jorge-id" class="mentioned">@${fullName}</person></p>`;
+        menu.replaceChildren();
+      });
+      menu.append(item);
+    }
+  });
+  try {
+    const ok = await insertMentionForTarget(editor, dom.document, jorge, true);
+    assert.equal(ok, true);
+    assert.deepEqual(clicked, ['Jorge Tigre']);
+  } finally { dom.restore(); }
+});
+
+test('inline highlight tags inside ng-binding do not cause false positive for single-word target', async () => {
+  const { dom, editor, menu } = installEditor();
+  const luizOnly = { id: 'luiz1', name: 'Luiz', query: '@Luiz', pattern: 'luiz', enabled: true };
+  const clicked = [];
+  editor.addEventListener('input', () => {
+    if (!editor.textContent.includes('@Luiz') || menu.childElementCount) return;
+    for (const html of [
+      '<span class="ng-binding"><b>Luiz</b> Eduardo</span>',
+      '<span class="ng-binding"><b>Luiz</b></span>',
+    ]) {
+      const item = dom.document.createElement('div');
+      item.className = 'person-item';
+      item.innerHTML = html;
+      item.addEventListener('click', () => {
+        const label = item.textContent.trim();
+        clicked.push(label);
+        editor.innerHTML = `<p><person personid="id-${label}" class="mentioned">@${label}</person></p>`;
+        menu.replaceChildren();
+      });
+      menu.append(item);
+    }
+  });
+  try {
+    const ok = await insertMentionForTarget(editor, dom.document, luizOnly, true);
+    assert.equal(ok, true);
+    assert.deepEqual(clicked, ['Luiz']);
+  } finally { dom.restore(); }
+});
+
+test('pre-existing marker for Luiz Eduardo does not block or falsely confirm Luiz Pulz', async () => {
+  const { dom, editor, menu } = installEditor();
+  const luizPulz = { id: 'luiz', name: 'Luiz Pulz', query: '@Luiz', pattern: 'luiz\\s+pulz', enabled: true };
+  editor.innerHTML = '<p><person personid="other" class="mentioned">@Luiz Eduardo</person>&nbsp;</p>';
+  const range = dom.document.createRange();
+  range.selectNodeContents(editor.querySelector('p'));
+  range.collapse(false);
+  dom.document.getSelection().removeAllRanges();
+  dom.document.getSelection().addRange(range);
+  const clicked = [];
+  editor.addEventListener('input', () => {
+    if (!editor.textContent.includes('@Luiz') || menu.childElementCount) return;
+    const item = dom.document.createElement('div');
+    item.className = 'person-item';
+    item.innerHTML = '<span class="avatar">s</span><span class="ng-binding">Luiz Pulz</span>';
+    item.addEventListener('click', () => {
+      clicked.push('Luiz Pulz');
+      const p = dom.document.createElement('person');
+      p.setAttribute('personid', 'luiz-pulz-id');
+      p.className = 'mentioned';
+      p.textContent = '@Luiz Pulz';
+      editor.querySelector('p').append(p);
+      menu.replaceChildren();
+    });
+    menu.append(item);
+  });
+  try {
+    const ok = await insertMentionForTarget(editor, dom.document, luizPulz, false);
+    assert.equal(ok, true);
+    assert.deepEqual(clicked, ['Luiz Pulz']);
+  } finally { dom.restore(); }
+});

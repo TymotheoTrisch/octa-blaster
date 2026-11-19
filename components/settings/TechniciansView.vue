@@ -158,7 +158,8 @@ async function saveTarget() {
   busy.value = true;
   try {
     const original = targets.value.find((target) => target.id === editingId.value);
-    const pattern = original && original.name.trim() === name.value.trim()
+    const hasAnchoredPattern = Boolean(original?.pattern?.startsWith('^') && original?.pattern?.endsWith('$'));
+    const pattern = original && original.name.trim() === name.value.trim() && hasAnchoredPattern
       ? original.pattern
       : '';
     const updated: MentionTarget = {
@@ -279,7 +280,7 @@ async function restoreDefaults() {
         />
       </div>
       <p class="management-help">
-        O nome completo identifica o item certo na lista de menções do Octadesk; a busca é o texto digitado após o @.
+        O nome completo exige <strong>correspondência exata</strong> na lista de menções do Octadesk (ex.: <em>Luiz Pulz</em> não marcará <em>Luiz Eduardo</em>); a busca é o texto digitado após o @.
       </p>
       <label class="management-checkbox-row">
         <input v-model="enabled" type="checkbox" />

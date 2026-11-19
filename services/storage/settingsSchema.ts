@@ -37,20 +37,24 @@ export const DEFAULT_MENTION_TARGETS: MentionTarget[] = [
     id: 'jorge_tigre',
     name: 'Jorge Tigre',
     query: '@Jorge',
-    pattern: 'jorge\\s+tigre',
+    pattern: '^jorge\\s+tigre$',
     enabled: true,
   },
   {
     id: 'roberto_renck',
     name: 'Roberto Renck',
     query: '@roberto',
-    pattern: 'roberto\\s+renck',
+    pattern: '^roberto\\s+renck$',
     enabled: true,
   },
 ];
 
 export function mentionNamePattern(name: string): string {
   return name.split(/\s+/).map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+}
+
+export function mentionExactNamePattern(name: string): string {
+  return `^${mentionNamePattern(name)}$`;
 }
 
 export function validateMentionTargets(raw: unknown): MentionTarget[] {
@@ -65,7 +69,7 @@ export function validateMentionTargets(raw: unknown): MentionTarget[] {
     ids.add(id);
     if (!query) query = name;
     if (!query.startsWith('@')) query = `@${query}`;
-    const derivedPattern = mentionNamePattern(name);
+    const derivedPattern = mentionExactNamePattern(name);
     const pattern = typeof item.pattern === 'string' && item.pattern.trim() ? item.pattern : derivedPattern;
     try {
       new RegExp(pattern, 'i');

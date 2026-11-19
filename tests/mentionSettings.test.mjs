@@ -141,3 +141,14 @@ test('reordering mention targets with base persists the new order', async () => 
     assert.deepEqual((await loadMentionTargets()).map(t => t.id), ['roberto_renck', 'jorge_tigre']);
   } finally { storage.restore(); }
 });
+
+test('default and newly created technicians enforce exact anchored patterns', async () => {
+  const storage = installStorage();
+  try {
+    const defaults = await loadMentionTargets();
+    assert.equal(defaults[0].pattern, '^jorge\\s+tigre$');
+    assert.equal(defaults[1].pattern, '^roberto\\s+renck$');
+    const saved = await saveMentionTargets([{ id: 'luiz', name: 'Luiz Pulz', query: '@Luiz', pattern: '', enabled: true }]);
+    assert.equal(saved[0].pattern, '^Luiz\\s+Pulz$');
+  } finally { storage.restore(); }
+});
