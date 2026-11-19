@@ -407,11 +407,14 @@ export async function mergeImportedTemplatesLocal(
   for (const tag of validateTags(incomingTags)) {
     const existing = catalog.find(item => item.name.toLocaleLowerCase('pt-BR') === tag.name.toLocaleLowerCase('pt-BR'));
     if (existing) {
+      if (!existing.color && tag.color) {
+        existing.color = tag.color;
+      }
       importedIds.set(tag.id, existing.id);
       continue;
     }
     const id = catalog.some(item => item.id === tag.id) ? crypto.randomUUID() : tag.id;
-    catalog.push({ id, name: tag.name });
+    catalog.push({ id, name: tag.name, ...(tag.color ? { color: tag.color } : {}) });
     importedIds.set(tag.id, id);
   }
   const map = new Map<string, QuickReplyTemplate>();

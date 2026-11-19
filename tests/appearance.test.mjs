@@ -32,6 +32,8 @@ import {
   STORAGE_KEY,
   HAS_INITIALIZED_KEY,
 } from '../services/storage/templateStorage.ts';
+import { TAGS_KEY } from '../services/storage/templateTagSchema.ts';
+import { loadTags } from '../services/storage/templateTags.ts';
 
 async function withBackground(initial, run) {
   const storage = installStorage(initial);
@@ -166,9 +168,10 @@ test('v2 backups preserve appearance when present and stay backward compatible w
   try {
     await withBackground(
       {
-        [STORAGE_KEY]: [],
+        [STORAGE_KEY]: [{ id: 'r1', title: 'Saudação', content: 'Olá', tags: ['vip'], category: 'VIP', updatedAt: 1 }],
         [HAS_INITIALIZED_KEY]: true,
-        [APPEARANCE_KEY]: { theme: 'dark', brandColor: '#7c3aed' },
+        [TAGS_KEY]: [{ id: 'vip', name: 'VIP', color: '#c2255c' }],
+        [APPEARANCE_KEY]: { theme: 'dark', brandColor: '#7c3aed', logoInnerColor: '#f4f4f5' },
       },
       async storage => {
         let download;
@@ -179,11 +182,23 @@ test('v2 backups preserve appearance when present and stay backward compatible w
         await exportTemplatesToJson();
         const json = decodeURIComponent(download.slice(download.indexOf(',') + 1));
         const backup = parseTemplateBackup(json);
-        assert.deepEqual(backup.settings.appearance, { theme: 'dark', brandColor: '#7c3aed' });
+        assert.deepEqual(backup.settings.appearance, {
+          theme: 'dark',
+          brandColor: '#7c3aed',
+          logoInnerColor: '#f4f4f5',
+        });
+        assert.deepEqual(backup.tags, [{ id: 'vip', name: 'VIP', color: '#c2255c' }]);
 
+        storage.data[STORAGE_KEY] = [];
+        storage.data[TAGS_KEY] = [];
         storage.data[APPEARANCE_KEY] = { theme: 'light', brandColor: '#ffc600' };
         await mergeImportedTemplates([], backup.templates, [], backup.tags, backup.settings, await loadSettings());
-        assert.deepEqual(await loadAppearance(), { theme: 'dark', brandColor: '#7c3aed' });
+        assert.deepEqual(await loadAppearance(), {
+          theme: 'dark',
+          brandColor: '#7c3aed',
+          logoInnerColor: '#f4f4f5',
+        });
+        assert.deepEqual(await loadTags(), [{ id: 'vip', name: 'VIP', color: '#c2255c' }]);
       },
     );
   } finally {
