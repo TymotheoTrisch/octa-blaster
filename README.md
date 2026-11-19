@@ -46,6 +46,10 @@ Projetada especificamente para equipes de atendimento e suporte que utilizam o *
 
 ## ✨ Recursos Principais
 
+### Assistente de IA local (em desenvolvimento)
+
+Geração de rascunhos revisáveis, resumo da última mensagem, resumo da conversa carregada e chat de perguntas sobre o ticket. A integração utiliza um auxiliar executado no computador, com login oficial, credenciais protegidas pelo Windows e pareamento com a extensão. Consulte [IA local: instalação, contexto, chat e arquitetura](docs/IA-LOCAL.md). O envio permanece manual.
+
 ### 1. 🏷️ Automação Inteligente de Licenças com Isolamento por Ticket
 - **Detecção Ampla de Operações**: Reconhece chamados de **Contratação**, **Troca**, **Cancelamento** e **Renovação** de forma isolada dentro do contêiner do chamado atual, sem interferir nem vazar para outros tickets abertos em abas vizinhas.
 - **Validação Sob Demanda no Clique**: Elimina rotinas contínuas de varredura do DOM (zero overhead em segundo plano). A verificação é disparada sob demanda quando o usuário aciona a ação. Caso o chamado não contenha indícios de licença, exibe um diálogo preventivo de confirmação antes de prosseguir.

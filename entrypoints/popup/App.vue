@@ -28,6 +28,7 @@ import VariablesView from '@/components/settings/VariablesView.vue';
 import TagsView from '@/components/settings/TagsView.vue';
 import ShortcutsView from '@/components/settings/ShortcutsView.vue';
 import TechniciansView from '@/components/settings/TechniciansView.vue';
+import AiSettingsView from '@/components/settings/AiSettingsView.vue';
 
 const GITHUB_REPO_URL = 'https://github.com/luizGDpulz/octa-blaster';
 const GITHUB_DISCUSSIONS_URL = 'https://github.com/luizGDpulz/octa-blaster/discussions';
@@ -509,6 +510,8 @@ onUnmounted(() => {
       @back="returnToPreviousView"
       @changed="refreshCatalogs"
     />
+
+    <AiSettingsView v-else-if="currentView === 'ai'" @back="returnToPreviousView" />
 
     <template v-else>
       <div v-if="detectedLicense" class="license-banner">

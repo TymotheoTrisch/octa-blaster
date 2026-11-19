@@ -10,6 +10,7 @@ import { installReplyShortcut } from './replyShortcut';
 import type { InsertMessageRequest, InsertMessageResponse } from '@/types/template';
 
 export interface EditorContext {
+  activateEditor: (el: HTMLElement) => void;
   isUsableEditor: (el: HTMLElement) => boolean;
   isCurrentContext: (el: HTMLElement) => boolean;
   findEditorForWidget: (container: HTMLElement) => HTMLElement | null;
@@ -206,5 +207,5 @@ export function initEditorContext(doc: Document = document): EditorContext {
     },
   );
 
-  return { isUsableEditor, isCurrentContext, findEditorForWidget };
+  return { activateEditor: recordFocus, isUsableEditor, isCurrentContext, findEditorForWidget };
 }

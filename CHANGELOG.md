@@ -7,6 +7,11 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ## [Não lançado]
 
+### Adicionado
+- Assistente de IA local com pareamento, login ChatGPT, proteção DPAPI no Windows, renovação de sessão e geração de rascunhos para revisão. Versão proposta: 0.10.0, sujeita à avaliação dos mantenedores.
+- Resumo da última mensagem, resumo da conversa carregada e chat de perguntas com continuidade, atualização explícita do contexto, histórico efêmero e cancelamento.
+- Indicação de cobertura das mensagens e truncamento; resumos usam o contexto disponível no ticket selecionado, sem envio automático ou alteração direta do rascunho.
+
 ---
 
 ## [0.9.0] - 2026-11-19

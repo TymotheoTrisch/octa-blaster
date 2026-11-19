@@ -1,6 +1,8 @@
 # Arquitetura e pontos de extensão
 
-O projeto mantém WXT, Vue 3 e TypeScript, sem backend adicional. A estrutura é organizada por domínio: pontos de entrada enxutos em `entrypoints/`, componentes Vue modulares em `components/`, composables em `composables/`, serviços e regras em `services/`, contratos em `types/` e documentação em `docs/`.
+O projeto mantém WXT, Vue 3 e TypeScript. As funções de respostas e licenças executam na extensão; a integração opcional de IA utiliza um auxiliar local em `apps/local-helper/`, sem hospedagem. A estrutura é organizada por domínio: pontos de entrada enxutos em `entrypoints/`, componentes Vue modulares em `components/`, composables em `composables/`, serviços e regras em `services/`, contratos em `types/` e documentação em `docs/`.
+
+O assistente de IA separa extração do contexto (`aiTicketContext.ts`), rascunho/revisão (`aiComposer.ts`), chat e resumos (`aiTicketChat.ts`), comunicação no background (`aiRouter.ts`) e autenticação/inferência no auxiliar. Veja os limites de contexto, segurança e instalação em [IA local](IA-LOCAL.md).
 
 ## Responsabilidades
 

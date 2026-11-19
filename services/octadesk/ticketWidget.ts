@@ -8,6 +8,7 @@ import { automateLicenseMentions } from './mentionHelper';
 import type { EditorContext } from './editorContext';
 import { createReplyListItem, loadReplyList } from '@/services/templates/replyList';
 import { prepareTemplate } from '@/services/templates/templateVariables';
+import { openAiComposer } from './aiComposer';
 
 const WIDGET_STYLE_ID = 'octablaster-inpage-styles';
 
@@ -326,6 +327,7 @@ function createWidgetElement(
           <span>Respostas</span>
         </button>
 
+        <button type="button" class="octa-action-btn octa-btn-ai" title="Gerar resposta com IA"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg><span>Gerar resposta com IA</span></button>
         <button type="button" class="octa-min-btn octa-btn-minimize" title="Recolher">${ICONS.x}</button>
       </div>
 
@@ -341,6 +343,7 @@ function createWidgetElement(
   const btnToggle = widget.querySelector('.octa-btn-toggle') as HTMLElement;
   const btnLicense = widget.querySelector('.octa-btn-license') as HTMLButtonElement;
   const btnReplies = widget.querySelector('.octa-btn-replies') as HTMLElement;
+  const btnAi = widget.querySelector('.octa-btn-ai') as HTMLButtonElement;
   const btnMinimize = widget.querySelector('.octa-btn-minimize') as HTMLElement;
   const dropdownMenu = widget.querySelector('.octa-dropdown-menu') as HTMLElement;
   const dropdownList = widget.querySelector('.octa-dropdown-list') as HTMLElement;
@@ -367,7 +370,7 @@ function createWidgetElement(
     }
   }
 
-  for (const btn of [btnToggle, btnMinimize, btnLicense, btnReplies]) {
+  for (const btn of [btnToggle, btnMinimize, btnLicense, btnReplies, btnAi]) {
     btn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -432,6 +435,19 @@ function createWidgetElement(
       btnLicense.disabled = false;
       setTimeout(resetLicenseBtn, 2500);
     }
+  });
+
+  btnAi.addEventListener('click', async event => {
+    event.preventDefault(); event.stopPropagation();
+    if (btnAi.disabled) return;
+    try {
+      const editor = editorContext.findEditorForWidget(container);
+      if (!editor) throw new Error('Clique no campo de resposta deste ticket antes de gerar.');
+      editorContext.activateEditor(editor);
+      btnAi.disabled = true;
+      await openAiComposer(editor, () => editorContext.isCurrentContext(editor));
+    } catch (error) { licenseFeedback.textContent = error instanceof Error ? error.message : 'Não foi possível abrir a geração de IA.'; licenseFeedback.hidden = false; }
+    finally { btnAi.disabled = false; }
   });
 
   btnReplies.addEventListener('click', async (e) => {

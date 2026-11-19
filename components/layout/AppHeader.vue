@@ -8,6 +8,7 @@ import {
   Tags,
   Keyboard,
   Users,
+  Sparkles,
   Download,
   Upload,
   RotateCcw,
@@ -16,7 +17,7 @@ import {
   MessageSquarePlus,
 } from 'lucide-vue-next';
 
-export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians';
+export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians' | 'ai';
 
 defineProps<{
   isSidebar: boolean;
@@ -145,6 +146,7 @@ defineExpose({ closeMenu });
                 <Users :size="14" class="menu-item-icon" />
                 <span class="menu-item-text">Técnicos (Licenças)</span>
               </button>
+              <button type="button" class="menu-item" @click="trigger(() => emit('navigate', 'ai'))"><Sparkles :size="14" class="menu-item-icon" /><span class="menu-item-text">Inteligência artificial</span></button>
             </div>
 
             <div class="menu-divider"></div>
