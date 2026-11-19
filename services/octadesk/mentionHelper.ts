@@ -292,7 +292,7 @@ function extractPopoverNameCandidates(item: HTMLElement): string[] {
 
   const clone = item.cloneNode(true) as HTMLElement;
   clone
-    .querySelectorAll('img, svg, [class*="avatar"], [class*="initial"], [class*="photo"], [class*="icon"], [aria-hidden="true"]')
+    .querySelectorAll('img, svg, bexs-thumb, .disc, [class*="avatar"], [class*="initial"], [class*="photo"], [class*="icon"], [aria-hidden="true"]')
     .forEach(el => el.remove());
   add(clone.textContent);
 

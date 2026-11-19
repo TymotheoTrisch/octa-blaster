@@ -399,3 +399,25 @@ test('pre-existing marker for Luiz Eduardo does not block or falsely confirm Lui
     assert.deepEqual(clicked, ['Luiz Pulz']);
   } finally { dom.restore(); }
 });
+
+test('Octadesk bexs-thumb popover HTML selects exact full-name query match', async () => {
+  const { dom, editor, menu } = installEditor();
+  const roberto = { id: 'roberto_renck', name: 'Roberto Renck', query: '@Roberto Renck', pattern: '^roberto\\s+renck$', enabled: true };
+  const clicked = [];
+  editor.addEventListener('input', () => {
+    if (!editor.textContent.includes('@Roberto Renck') || menu.childElementCount) return;
+    menu.className = 'popover-content note-children-container';
+    menu.innerHTML = `<div class="note-hint-group note-hint-group-0"><div class="note-hint-item"><div class="person-item ng-scope"><bexs-thumb class="space-right-xs ng-isolate-scope" person="person" size="small"><div class="disc disc-color-7" title="\n              Suporte ">\n              <p>\n                S\n              </p>\n            </div></bexs-thumb><span class="ng-binding">Roberto Renck</span></div></div></div>`;
+    const hintItem = menu.querySelector('.note-hint-item');
+    hintItem.addEventListener('click', () => {
+      clicked.push('Roberto Renck');
+      editor.innerHTML = '<p><person personid="roberto-id" class="mentioned">@Roberto Renck</person></p>';
+      menu.replaceChildren();
+    });
+  });
+  try {
+    const ok = await insertMentionForTarget(editor, dom.document, roberto, true);
+    assert.equal(ok, true);
+    assert.deepEqual(clicked, ['Roberto Renck']);
+  } finally { dom.restore(); }
+});

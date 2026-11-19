@@ -36,14 +36,14 @@ export const DEFAULT_MENTION_TARGETS: MentionTarget[] = [
   {
     id: 'jorge_tigre',
     name: 'Jorge Tigre',
-    query: '@Jorge',
+    query: '@Jorge Tigre',
     pattern: '^jorge\\s+tigre$',
     enabled: true,
   },
   {
     id: 'roberto_renck',
     name: 'Roberto Renck',
-    query: '@roberto',
+    query: '@Roberto Renck',
     pattern: '^roberto\\s+renck$',
     enabled: true,
   },

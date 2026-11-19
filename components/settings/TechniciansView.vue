@@ -138,8 +138,8 @@ function startEdit(target?: MentionTarget) {
 
 function onNameInput() {
   if (editingId.value || queryEditedManually.value) return;
-  const firstWord = name.value.trim().split(/\s+/)[0] || '';
-  query.value = firstWord ? `@${firstWord}` : '';
+  const fullName = name.value.trim().replace(/\s+/g, ' ');
+  query.value = fullName ? `@${fullName}` : '';
 }
 
 function onQueryInput() {
@@ -275,7 +275,7 @@ async function restoreDefaults() {
           v-model="query"
           type="text"
           required
-          placeholder="Ex: @Jorge"
+          placeholder="Ex: @Jorge Tigre"
           @input="onQueryInput"
         />
       </div>

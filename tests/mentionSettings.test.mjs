@@ -127,7 +127,9 @@ test('resetMentionTargets restores default technicians cleanly', async () => {
     const restored = await resetMentionTargets([]);
     assert.equal(restored.length, 2);
     assert.equal(restored[0].id, 'jorge_tigre');
+    assert.equal(restored[0].query, '@Jorge Tigre');
     assert.equal(restored[1].id, 'roberto_renck');
+    assert.equal(restored[1].query, '@Roberto Renck');
   } finally { storage.restore(); }
 });
 
