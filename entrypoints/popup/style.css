@@ -43,7 +43,7 @@
   --accent: #ffc600;
   --accent-hover: #f0ba00;
   --accent-border: #e0af00;
-  --accent-text: #1c1b1c;
+  --accent-text: #ffffff;
   --accent-ring: rgba(255, 198, 0, 0.25);
   --accent-soft: rgba(255, 198, 0, 0.14);
   --accent-soft-hover: rgba(255, 198, 0, 0.24);
@@ -131,6 +131,7 @@
 
   --scrollbar-thumb: #3f3f46;
   --scrollbar-thumb-hover: #52525b;
+  --accent-text: #18181b;
   --logo-inner: #18181b;
 }
 

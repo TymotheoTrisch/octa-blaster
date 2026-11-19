@@ -76,18 +76,18 @@ test('normalizeHexColor and validateAppearance sanitize valid colors and reject 
   assert.throws(() => validateAppearance({ theme: 'light', brandColor: '#ffc600', logoInnerColor: 'xyz' }), /Cor interna/);
 });
 
-test('computeBrandPalette guarantees accessible foreground and soft-text contrast across light and dark modes', () => {
+test('computeBrandPalette guarantees accessible soft-text contrast and syncs secondary foreground with theme or override', () => {
   const yellowLight = computeBrandPalette(DEFAULT_BRAND_COLOR, 'light');
   assert.equal(yellowLight.accent, '#ffc600');
-  assert.equal(yellowLight.accentText, '#1c1b1c');
+  assert.equal(yellowLight.accentText, '#ffffff');
   assert.ok(contrastRatio(yellowLight.accentSoftText, '#ffffff') >= 4.5);
 
   const blueDark = computeBrandPalette('#1971c2', 'dark');
-  assert.equal(blueDark.accentText, '#ffffff');
+  assert.equal(blueDark.accentText, '#18181b');
   assert.ok(contrastRatio(blueDark.accentSoftText, '#1e1e21') >= 4.5);
 
-  const charcoalDark = computeBrandPalette('#1c1b1c', 'dark');
-  assert.equal(charcoalDark.accentText, '#ffffff');
+  const charcoalDark = computeBrandPalette('#1c1b1c', 'dark', '#f4f4f5');
+  assert.equal(charcoalDark.accentText, '#f4f4f5');
   assert.notEqual(charcoalDark.accentHover, '#1c1b1c');
   assert.ok(contrastRatio(charcoalDark.accentSoftText, '#1e1e21') >= 4.5);
 
@@ -116,7 +116,7 @@ test('resolveThemeMode and applyAppearanceToRoot apply data-theme and CSS custom
     assert.equal(dom.document.documentElement.dataset.themePreference, 'system');
     assert.equal(dom.document.documentElement.dataset.brandColor, '#1971c2');
     assert.equal(dom.document.documentElement.style.getPropertyValue('--accent'), '#1971c2');
-    assert.equal(dom.document.documentElement.style.getPropertyValue('--accent-text'), '#ffffff');
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--accent-text'), '#18181b');
     assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#18181b');
 
     applyAppearanceToRoot(
@@ -124,6 +124,7 @@ test('resolveThemeMode and applyAppearanceToRoot apply data-theme and CSS custom
       { theme: 'light', brandColor: '#ffc600' },
       true,
     );
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--accent-text'), '#ffffff');
     assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#ffffff');
 
     applyAppearanceToRoot(
@@ -131,6 +132,7 @@ test('resolveThemeMode and applyAppearanceToRoot apply data-theme and CSS custom
       { theme: 'light', brandColor: '#ffc600', logoInnerColor: '#1971c2' },
       false,
     );
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--accent-text'), '#1971c2');
     assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#1971c2');
   } finally {
     dom.restore();

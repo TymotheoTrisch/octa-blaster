@@ -42,7 +42,7 @@ export function ensureInpageThemeTokens(doc: Document): void {
       --accent: #ffc600;
       --accent-hover: #f0ba00;
       --accent-border: #e0af00;
-      --accent-text: #1c1b1c;
+      --accent-text: #ffffff;
       --accent-ring: rgba(255, 198, 0, 0.28);
       --accent-soft: rgba(255, 198, 0, 0.22);
       --accent-soft-hover: rgba(255, 198, 0, 0.3);
@@ -71,6 +71,7 @@ export function ensureInpageThemeTokens(doc: Document): void {
       --octa-shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.25);
       --octa-shadow-modal: 0 14px 36px rgba(0, 0, 0, 0.55);
       --octa-backdrop: rgba(0, 0, 0, 0.65);
+      --accent-text: #18181b;
       --logo-inner: #18181b;
     }
   `;

@@ -253,8 +253,8 @@ function resetDefaults() {
 
       <div class="template-card is-expanded appearance-card">
         <div class="appearance-section-head">
-          <span class="appearance-label">Cor interna do logo</span>
-          <span class="appearance-hint">Padrão segue o tema (branco/escuro)</span>
+          <span class="appearance-label">Cor secundária</span>
+          <span class="appearance-hint">Interior do logo e texto/ícones dos botões</span>
         </div>
 
         <ColorSwatchPicker
@@ -265,7 +265,7 @@ function resetDefaults() {
           :disabled="busy"
           fallback-picker-color="#ffffff"
           placeholder="Automático (tema)"
-          aria-label="Cores sugeridas para o interior do logo"
+          aria-label="Cores sugeridas para a cor secundária"
           @update:model-value="handleLogoInnerPreview"
           @commit="handleLogoInnerCommit"
           @invalid-hex="handleInvalidHex"

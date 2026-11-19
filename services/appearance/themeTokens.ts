@@ -20,7 +20,7 @@ export interface BrandPalette {
   accent: string;
   accentHover: string;
   accentBorder: string;
-  accentText: '#1c1b1c' | '#ffffff';
+  accentText: string;
   accentRing: string;
   accentSoft: string;
   accentSoftHover: string;
@@ -99,6 +99,7 @@ function ensureMinimumContrast(
 export function computeBrandPalette(
   rawColor: string,
   resolvedTheme: ResolvedTheme,
+  rawSecondaryColor?: string,
 ): BrandPalette {
   const accent = normalizeHexColor(rawColor) ?? DEFAULT_BRAND_COLOR;
   const rgb = hexToRgb(accent);
@@ -117,13 +118,16 @@ export function computeBrandPalette(
     ? ensureMinimumContrast(accent, '#1e1e21', { r: 244, g: 244, b: 245 }, 4.5)
     : ensureMinimumContrast(accent, '#ffffff', { r: 28, g: 27, b: 28 }, 4.5);
 
+  const secondaryColor = normalizeHexColor(rawSecondaryColor)
+    ?? (resolvedTheme === 'dark' ? '#18181b' : '#ffffff');
+
   const rgba = (alpha: number) => `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
 
   return {
     accent,
     accentHover: rgbToHex(hoverRgb),
     accentBorder: rgbToHex(borderRgb),
-    accentText: pickContrastForeground(accent),
+    accentText: secondaryColor,
     accentRing: rgba(0.25),
     accentSoft: rgba(resolvedTheme === 'dark' ? 0.2 : 0.14),
     accentSoftHover: rgba(resolvedTheme === 'dark' ? 0.28 : 0.22),
@@ -189,8 +193,8 @@ export function applyAppearanceToRoot(
   const resolved = resolveThemeMode(safe.theme, prefersDark);
   if (!target) return resolved;
 
-  const palette = computeBrandPalette(safe.brandColor, resolved);
   const logoInner = resolveLogoInnerColor(safe, prefersDark);
+  const palette = computeBrandPalette(safe.brandColor, resolved, logoInner);
   target.dataset.theme = resolved;
   target.dataset.themePreference = safe.theme;
   target.dataset.brandColor = palette.accent;
