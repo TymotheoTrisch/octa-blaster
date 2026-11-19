@@ -16,6 +16,10 @@ import {
   contrastRatio,
   resolveThemeMode,
 } from '../services/appearance/themeTokens.ts';
+import {
+  applyBrowserBrandIcon,
+  renderBrandIconImageData,
+} from '../services/appearance/browserIcon.ts';
 import { loadAppearance, saveAppearance } from '../services/appearance/appearanceStorage.ts';
 import {
   exportTemplatesToJson,
@@ -152,5 +156,74 @@ test('v2 backups preserve appearance when present and stay backward compatible w
     );
   } finally {
     dom.restore();
+  }
+});
+
+test('browserIcon restores static PNG paths for default brand color and renders ImageData for custom colors', async () => {
+  const previousPath2D = globalThis.Path2D;
+  const previousOffscreen = globalThis.OffscreenCanvas;
+  const previousBrowser = globalThis.browser;
+
+  const calls = [];
+  const drawnColors = [];
+
+  globalThis.Path2D = class MockPath2D {
+    constructor(d) {
+      this.d = d;
+    }
+  };
+  globalThis.OffscreenCanvas = class MockOffscreenCanvas {
+    constructor(width, height) {
+      this.width = width;
+      this.height = height;
+    }
+    getContext() {
+      return {
+        clearRect() {},
+        save() {},
+        scale() {},
+        fillStyle: '',
+        fill() {
+          drawnColors.push(this.fillStyle);
+        },
+        restore() {},
+        getImageData: (x, y, w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }),
+      };
+    }
+  };
+  globalThis.browser = {
+    action: {
+      async setIcon(payload) {
+        calls.push(['action', payload]);
+      },
+    },
+    sidebarAction: {
+      async setIcon(payload) {
+        calls.push(['sidebar', payload]);
+      },
+    },
+  };
+
+  try {
+    const okDefault = await applyBrowserBrandIcon(DEFAULT_BRAND_COLOR);
+    assert.equal(okDefault, true);
+    assert.deepEqual(calls[0][1].path, { 16: 'icon/16.png', 32: 'icon/32.png', 48: 'icon/48.png' });
+    assert.deepEqual(calls[1][1].path, { 16: 'icon/16.png', 32: 'icon/32.png' });
+
+    const rendered = renderBrandIconImageData('#1971c2', [16, 32]);
+    assert.ok(rendered[16] && rendered[32]);
+    assert.deepEqual(drawnColors, ['#1971c2', '#1971c2']);
+
+    const okCustom = await applyBrowserBrandIcon('#1971c2');
+    assert.equal(okCustom, true);
+    assert.ok(calls[2][1].imageData[16] && calls[2][1].imageData[32] && calls[2][1].imageData[48]);
+    assert.ok(calls[3][1].imageData[16] && calls[3][1].imageData[32]);
+  } finally {
+    if (previousPath2D === undefined) delete globalThis.Path2D;
+    else globalThis.Path2D = previousPath2D;
+    if (previousOffscreen === undefined) delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas = previousOffscreen;
+    if (previousBrowser === undefined) delete globalThis.browser;
+    else globalThis.browser = previousBrowser;
   }
 });
