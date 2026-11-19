@@ -5,7 +5,15 @@ import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template
 import type { LicenseTicketInfo } from '@/services/octadesk/licenseDetector';
 import { prepareTemplate, loadVariables } from '@/services/templates/templateVariables';
 import type { TemplateVariable } from '@/services/storage/settingsSchema';
+import type { AppearanceSettings, ThemeMode } from '@/services/storage/settingsSchema';
 import { loadSettings } from '@/services/storage/settingsStorage';
+import { loadAppearance, saveAppearance } from '@/services/appearance/appearanceStorage';
+import {
+  applyAppearanceToRoot,
+  getSystemPrefersDark,
+  readCachedAppearance,
+  watchAppearanceChanges,
+} from '@/services/appearance/themeTokens';
 import { loadTags } from '@/services/storage/templateTags';
 import { getTemplateTagIds, type TemplateTag } from '@/services/storage/templateTagSchema';
 import {
@@ -28,7 +36,7 @@ import VariablesView from '@/components/settings/VariablesView.vue';
 import TagsView from '@/components/settings/TagsView.vue';
 import ShortcutsView from '@/components/settings/ShortcutsView.vue';
 import TechniciansView from '@/components/settings/TechniciansView.vue';
-import AiSettingsView from '@/components/settings/AiSettingsView.vue';
+import AppearanceView from '@/components/settings/AppearanceView.vue';
 
 const GITHUB_REPO_URL = 'https://github.com/luizGDpulz/octa-blaster';
 const GITHUB_DISCUSSIONS_URL = 'https://github.com/luizGDpulz/octa-blaster/discussions';
@@ -44,6 +52,9 @@ function rememberTemplatesBase() {
 
 const tags = ref<TemplateTag[]>([]);
 const variables = ref<TemplateVariable[]>([]);
+const appearance = ref<AppearanceSettings>(readCachedAppearance());
+let appearanceBase: AppearanceSettings = { ...appearance.value };
+let stopWatchingAppearance: (() => void) | null = null;
 const searchQuery = ref('');
 const selectedTagId = ref('');
 
@@ -94,12 +105,52 @@ function openExternalUrl(url: string) {
   }
 }
 
+function applyAppearance(next: AppearanceSettings) {
+  appearance.value = next;
+  if (typeof document !== 'undefined') {
+    applyAppearanceToRoot(document.documentElement, next);
+  }
+  try {
+    void browser?.runtime?.sendMessage?.({
+      action: 'SYNC_BROWSER_ICON',
+      prefersDark: getSystemPrefersDark(),
+    })?.catch?.(() => {});
+  } catch {}
+}
+
+function handleAppearanceSaved(next: AppearanceSettings) {
+  appearanceBase = { ...next };
+  applyAppearance(next);
+}
+
+async function syncAppearance() {
+  try {
+    const loaded = await loadAppearance();
+    appearanceBase = { ...loaded };
+    applyAppearance(loaded);
+  } catch {}
+}
+
+async function switchThemeQuick(nextTheme: ThemeMode) {
+  const next: AppearanceSettings = { ...appearance.value, theme: nextTheme };
+  applyAppearance(next);
+  try {
+    const saved = await saveAppearance(next, appearanceBase);
+    appearanceBase = { ...saved };
+    applyAppearance(saved);
+  } catch (error) {
+    await syncAppearance();
+    setStatus(error instanceof Error ? error.message : 'Falha ao alterar tema.', 'error');
+  }
+}
+
 async function refreshCatalogs() {
   try {
     tags.value = await loadTags();
     variables.value = await loadVariables();
     formTags.value = formTags.value.filter((id) => tags.value.some((tag) => tag.id === id));
     if (!tags.value.some((tag) => tag.id === selectedTagId.value)) selectedTagId.value = '';
+    await syncAppearance();
   } catch (error) {
     setStatus(error instanceof Error ? error.message : 'Falha ao carregar configurações.', 'error');
   }
@@ -404,6 +455,10 @@ async function triggerLicenseMentions() {
 }
 
 async function checkSidebarSupport() {
+  if (isSidebar.value) {
+    canOpenSidebar.value = false;
+    return;
+  }
   try {
     const b = browser as any;
     const c = (globalThis as any).chrome;
@@ -449,6 +504,15 @@ onMounted(() => {
     if (manifest?.version) appVersion.value = manifest.version;
   } catch {}
 
+  applyAppearance(appearance.value);
+  stopWatchingAppearance = watchAppearanceChanges((nextAppearance) => {
+    if (nextAppearance) {
+      appearance.value = nextAppearance;
+      appearanceBase = { ...nextAppearance };
+    }
+    applyAppearanceToRoot(document.documentElement, appearance.value);
+  });
+
   void loadTemplates().then(refreshCatalogs);
   void checkLicenseStatus();
   void checkSidebarSupport();
@@ -456,6 +520,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  stopWatchingAppearance?.();
+  stopWatchingAppearance = null;
   document.removeEventListener('keydown', handleEscape);
 });
 </script>
@@ -468,9 +534,11 @@ onUnmounted(() => {
       :show-new-button="currentView === 'templates' && !showForm"
       :can-open-sidebar="canOpenSidebar"
       :is-checking-update="isCheckingUpdate"
+      :theme="appearance.theme"
       @create="startCreate"
       @open-sidebar="openSidebarPanel"
       @navigate="openView"
+      @change-theme="switchThemeQuick"
       @export-backup="exportTemplates"
       @import-backup="footerRef?.triggerFilePicker()"
       @reset-defaults="showConfirmResetModal = true"
@@ -510,8 +578,13 @@ onUnmounted(() => {
       @back="returnToPreviousView"
       @changed="refreshCatalogs"
     />
-
-    <AiSettingsView v-else-if="currentView === 'ai'" @back="returnToPreviousView" />
+    <AppearanceView
+      v-else-if="currentView === 'appearance'"
+      :current-appearance="appearance"
+      @back="returnToPreviousView"
+      @preview="applyAppearance"
+      @changed="handleAppearanceSaved"
+    />
 
     <template v-else>
       <div v-if="detectedLicense" class="license-banner">
@@ -601,21 +674,21 @@ onUnmounted(() => {
 }
 
 .status-success {
-  background: #ecfdf5;
-  color: #065f46;
-  border-color: #a7f3d0;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border-color: var(--success-border);
 }
 
 .status-error {
-  background: #fef2f2;
-  color: #ba1a1a;
-  border-color: #fecaca;
+  background: var(--error-bg);
+  color: var(--error-text);
+  border-color: var(--error-border);
 }
 
 .status-info {
-  background: #f7f8f9;
-  color: #3c3f43;
-  border-color: #dee0e4;
+  background: var(--info-bg);
+  color: var(--info-text);
+  border-color: var(--info-border);
 }
 
 .status-icon {
@@ -630,14 +703,14 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 198, 0, 0.12);
-  border-bottom: 1px solid rgba(255, 198, 0, 0.35);
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-soft-border);
 }
 
 .btn-license-quick {
-  background: #ffc600;
-  color: #1c1b1c;
-  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-border);
   border-radius: 4px;
   padding: 5px 10px;
   font-size: 11px;
@@ -651,9 +724,9 @@ onUnmounted(() => {
 }
 
 .btn-license-quick:hover:not(:disabled) {
-  background: #f0ba00;
+  background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(255, 198, 0, 0.4);
+  box-shadow: 0 2px 6px var(--accent-glow);
 }
 
 .btn-license-quick:disabled {

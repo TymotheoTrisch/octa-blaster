@@ -45,7 +45,7 @@
 }
 
 .management-back-btn:hover {
-  background: #eceef0;
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -56,18 +56,18 @@
   width: 26px;
   height: 26px;
   border-radius: 5px;
-  background: #ffc600;
-  color: #1c1b1c;
-  border: 1px solid #e0af00;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-border);
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .management-add-btn:hover {
-  background: #f0ba00;
+  background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(255, 198, 0, 0.35);
+  box-shadow: 0 2px 6px var(--accent-glow);
 }
 
 .management-add-btn:active {
@@ -95,7 +95,7 @@
 .management-search-icon {
   position: absolute;
   left: 9px;
-  color: #8a8f96;
+  color: var(--text-subtle);
   pointer-events: none;
 }
 
@@ -116,14 +116,14 @@
   padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 5px;
-  background: #ffffff;
+  background: var(--bg-input);
   color: var(--text-primary);
   font-size: 12px;
 }
 
 .management-filter select:focus {
-  border-color: #ffc600;
-  box-shadow: 0 0 0 2px rgba(255, 198, 0, 0.25);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
   outline: none;
 }
 
@@ -146,7 +146,7 @@
   top: var(--drop-y);
   width: var(--drop-w);
   height: var(--drop-h, 2px);
-  background: #ffc600;
+  background: var(--accent);
   border-radius: 999px;
   pointer-events: none;
   z-index: 50;
@@ -161,8 +161,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ffffff;
-  border: 2px solid #e0af00;
+  background: var(--bg-surface);
+  border: 2px solid var(--accent-border);
   pointer-events: none;
   z-index: 51;
   transform: translateY(-50%);
@@ -173,8 +173,8 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 7px 9px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
   scroll-margin: 12px;
   transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
@@ -184,7 +184,7 @@
 }
 
 .management-shell .template-card.is-inactive {
-  background: #fafbfc;
+  background: var(--bg-surface-inactive);
   opacity: 0.78;
 }
 
@@ -194,12 +194,12 @@
 }
 
 .management-shell .template-card:hover {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
-  border-color: #cbd5e1;
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-hover);
 }
 
 .management-shell .template-card:has(.drag-handle:focus-visible) {
-  outline: 2px solid #ffc600;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -207,15 +207,15 @@
   position: relative;
   z-index: 20;
   transform: scale(1.015);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
-  border-color: #e0af00;
+  box-shadow: var(--shadow-drag);
+  border-color: var(--accent-border);
   pointer-events: none;
   transition: none;
 }
 
 .management-shell .template-card.is-keyboard-grabbed {
-  border-color: #e0af00;
-  box-shadow: 0 6px 16px rgba(255, 198, 0, 0.25);
+  border-color: var(--accent-border);
+  box-shadow: 0 6px 16px var(--accent-soft);
 }
 
 .management-shell .card-header {
@@ -241,7 +241,7 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #5b5f63;
+  color: var(--text-muted);
   opacity: 0.45;
   cursor: grab;
   touch-action: none;
@@ -251,22 +251,22 @@
 
 .management-shell .drag-handle:is(:hover, :focus-visible) {
   opacity: 1;
-  color: #1c1b1c;
-  background: #f1f5f9;
+  color: var(--text-primary);
+  background: var(--bg-hover);
   outline: none;
 }
 
 .management-shell .drag-handle[aria-pressed='true'] {
   opacity: 1;
-  color: #1c1b1c;
-  background: rgba(255, 198, 0, 0.28);
+  color: var(--accent-soft-text);
+  background: var(--accent-soft);
 }
 
 .management-shell .reorder-key-hint {
   margin: 4px 0;
   font-size: 10px;
   font-weight: 500;
-  color: #7c6200;
+  color: var(--accent-soft-text);
 }
 
 .management-shell .card-expand-trigger {
@@ -295,13 +295,13 @@
 
 .management-shell .card-chevron {
   flex-shrink: 0;
-  color: #8a8f96;
+  color: var(--text-subtle);
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
 .management-shell .card-chevron.expanded {
   transform: rotate(90deg);
-  color: #1c1b1c;
+  color: var(--text-primary);
 }
 
 .management-shell .card-title {
@@ -318,19 +318,19 @@
 .management-shell .card-badge {
   font-size: 9.5px;
   padding: 1px 7px;
-  background: rgba(60, 63, 67, 0.08);
-  color: #3c3f43;
+  background: var(--bg-badge);
+  color: var(--text-secondary);
   border-radius: 12px;
-  border: 1px solid #dee0e4;
+  border: 1px solid var(--border);
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .management-shell .card-badge-accent {
-  background: rgba(255, 198, 0, 0.22);
-  border-color: rgba(224, 175, 0, 0.55);
-  color: #6f5600;
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+  color: var(--accent-soft-text);
   font-weight: 600;
 }
 
@@ -361,7 +361,7 @@
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
-  color: #5b5f63;
+  color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -370,8 +370,8 @@
 
 .management-shell .btn-icon:hover,
 .management-shell .btn-icon.active {
-  color: #1c1b1c;
-  background: #f1f5f9;
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .management-shell .card-dropdown-menu {
@@ -379,10 +379,10 @@
   top: calc(100% + 4px);
   right: 0;
   width: 132px;
-  background: #ffffff;
-  border: 1px solid #dee0e4;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 7px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-popover);
   padding: 4px;
   z-index: 40;
   transform-origin: top right;
@@ -401,19 +401,19 @@
   border: none;
   border-radius: 5px;
   font-size: 12px;
-  color: #1c1b1c;
+  color: var(--text-primary);
   cursor: pointer;
   text-align: left;
   transition: background 0.12s ease;
 }
 
 .management-shell .menu-item:hover {
-  background: #f1f2f4;
+  background: var(--bg-hover);
 }
 
 .management-shell .menu-item-icon {
   flex-shrink: 0;
-  color: #5b5f63;
+  color: var(--text-muted);
 }
 
 .management-shell .menu-item-text {
@@ -423,20 +423,20 @@
 }
 
 .management-shell .menu-item-danger {
-  color: #ba1a1a;
+  color: var(--danger);
 }
 
 .management-shell .menu-item-danger .menu-item-icon {
-  color: #ba1a1a;
+  color: var(--danger);
 }
 
 .management-shell .menu-item-danger:hover {
-  background: #fee2e2;
+  background: var(--danger-soft);
 }
 
 .management-shell .card-body {
   padding-top: 6px;
-  border-top: 1px solid #f0f1f3;
+  border-top: 1px solid var(--border-divider);
   font-size: 12px;
   color: var(--text-secondary);
   white-space: pre-wrap;
@@ -448,7 +448,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: #8a8f96;
+  color: var(--text-subtle);
   margin-top: 6px;
   padding: 0 2px;
 }
@@ -470,8 +470,8 @@
   padding: 6px 14px;
   font-size: 11.5px;
   font-weight: 500;
-  background: #f7f8f9;
-  color: #3c3f43;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -504,14 +504,14 @@
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--bg-input);
   color: var(--text-primary);
   font-size: 12px;
 }
 
 .management-form-group select:focus {
-  border-color: #ffc600;
-  box-shadow: 0 0 0 2px rgba(255, 198, 0, 0.25);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
   outline: none;
 }
 

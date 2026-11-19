@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Search } from 'lucide-vue-next';
 import type { QuickReplyTemplate } from '@/types/template';
-import { getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/services/storage/templateTagSchema';
+import { getTemplateTagIds, getTemplateTagNames, getTemplateTags, type TemplateTag } from '@/services/storage/templateTagSchema';
 import { useTemplateReorder } from '@/composables/useTemplateReorder';
 import TemplateCard from './TemplateCard.vue';
 
@@ -152,7 +152,7 @@ defineExpose({ closeCardMenu });
         v-for="tpl in filteredTemplates"
         :key="tpl.id"
         :template="tpl"
-        :tag-names="getTemplateTagNames(tpl, tags)"
+        :template-tags="getTemplateTags(tpl, tags)"
         :can-reorder="canReorder"
         :expanded="isExpanded(tpl.id)"
         :is-dragging="draggingId === tpl.id"
@@ -201,7 +201,7 @@ defineExpose({ closeCardMenu });
 .search-input-icon {
   position: absolute;
   left: 9px;
-  color: #8a8f96;
+  color: var(--text-subtle);
   pointer-events: none;
 }
 
@@ -222,7 +222,7 @@ defineExpose({ closeCardMenu });
   padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--bg-input);
   color: var(--text-primary);
   font-size: 12px;
 }
@@ -244,7 +244,7 @@ defineExpose({ closeCardMenu });
   top: var(--drop-y);
   width: var(--drop-w);
   height: var(--drop-h, 2px);
-  background: #ffc600;
+  background: var(--accent);
   border-radius: 999px;
   pointer-events: none;
   z-index: 50;
@@ -259,8 +259,8 @@ defineExpose({ closeCardMenu });
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ffffff;
-  border: 2px solid #e0af00;
+  background: var(--bg-surface);
+  border: 2px solid var(--accent-border);
   pointer-events: none;
   z-index: 51;
   transform: translateY(-50%);

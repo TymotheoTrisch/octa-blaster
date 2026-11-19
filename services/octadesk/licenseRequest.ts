@@ -1,5 +1,7 @@
 import { getScopedTicketContainer, isTicketElementVisible } from './licenseDetector';
 
+export const MISSING_FIELD_PLACEHOLDER = '[Falta Informar]';
+
 export interface LicenseRequest {
   operation: 'Contratação' | 'Troca' | 'Cancelamento';
   database: string;
@@ -7,6 +9,7 @@ export interface LicenseRequest {
   firstLicenseExempt?: boolean;
   swapReason?: string;
   licenses: string[];
+  missingFields?: string[];
 }
 
 export type LicenseRequestResult =
@@ -35,30 +38,74 @@ export function parseLicenseRequestText(text: string): LicenseRequestResult {
     fields.push({ label: normalize(match[1]!), value });
   });
   const values = (labels: string[]) => [...new Set(fields.filter(field => labels.includes(field.label)).map(field => field.value.trim()))];
-  const database = values(['numero do banco de dados', 'banco de dados', 'numero do banco', 'banco', 'bd']);
-  if (database.length !== 1 || !/^\d+$/.test(database[0]!)) return invalid('número do banco ausente, inválido ou divergente no e-mail.');
-  const request: LicenseRequest = { operation, database: database[0]!, licenses: [] };
+  const missingFields: string[] = [];
+
+  const databaseRaw = values(['numero do banco de dados', 'banco de dados', 'numero do banco', 'banco', 'bd', 'id do banco']);
+  const databaseMatch = databaseRaw.length === 1 ? databaseRaw[0]!.match(/\d+/)?.[0] : undefined;
+  const database = databaseMatch ?? MISSING_FIELD_PLACEHOLDER;
+  if (!databaseMatch) missingFields.push('Número do Banco de Dados');
+
+  const request: LicenseRequest = { operation, database, licenses: [] };
+  const baseLicenseLabels = [
+    'numero da licenca', 'numero de licenca', 'numero das licencas', 'numero de licencas',
+    'numeros das licencas', 'numeros de licencas', 'codigo da licenca', 'codigos das licencas',
+    'licenca', 'licencas', 'licenca a ser trocada', 'licenca para troca',
+    'numero da licenca a ser trocada', 'id da licenca',
+  ];
+
   if (operation === 'Contratação') {
-    const quantity = values(['numero de licencas', 'quantidade de licencas', 'quantidade']);
-    const exempt = values(['isencao da primeira licenca', 'isenta', 'isencao']).map(normalize);
-    if (quantity.length !== 1 || !/^[1-9]\d*$/.test(quantity[0]!) || !Number.isSafeInteger(Number(quantity[0]))) return invalid('quantidade de licenças ausente ou inválida no e-mail.');
-    if (exempt.length !== 1 || !['sim', 'nao'].includes(exempt[0]!)) return invalid('isenção da primeira licença ausente ou inválida no e-mail.');
-    request.quantity = Number(quantity[0]);
-    request.firstLicenseExempt = exempt[0] === 'sim';
-  } else {
-    const licenses = values([
-      'numero da licenca', 'numero das licencas', 'numeros das licencas', 'codigo da licenca', 'codigos das licencas',
-      'licenca', 'licencas', 'licenca a ser trocada', 'licenca para troca', 'numero da licenca a ser trocada',
-      'licencas para cancelamento', 'licencas a serem canceladas', 'numero das licencas a serem canceladas',
-    ]);
-    if (!licenses.length || licenses.some(value => !/^(?:Lic_)?\d+(?:\s*[,;\s]\s*(?:Lic_)?\d+)*$/i.test(value))) return invalid('código das licenças ausente ou inválido no e-mail.');
-    request.licenses = [...new Set(licenses.flatMap(value => value.split(/[,;\s]+/).map(code => code.replace(/^Lic_/i, ''))))];
-    if (operation === 'Troca' && request.licenses.length !== 1) return invalid('há mais de uma licença indicada para troca no e-mail.');
-    if (operation === 'Troca') {
-      const reason = values(['motivo da troca de licenca', 'motivo da troca']);
-      if (reason.length !== 1 || !reason[0]) return invalid('motivo da troca ausente ou divergente no e-mail.');
-      request.swapReason = reason[0];
+    const quantityRaw = values(['numero de licencas', 'numero da licenca', 'quantidade de licencas', 'quantidade', 'qtd de licencas', 'qtd']);
+    const quantityMatch = quantityRaw.length === 1 ? quantityRaw[0]!.match(/\d+/)?.[0] : undefined;
+    const quantityNum = quantityMatch ? Number(quantityMatch) : NaN;
+    if (Number.isSafeInteger(quantityNum) && quantityNum >= 1) {
+      request.quantity = quantityNum;
+    } else {
+      missingFields.push('Quantidade de Licenças');
     }
+
+    const exemptRaw = values(['isencao da primeira licenca', 'isenta', 'isencao']).map(normalize);
+    const exemptTokens = exemptRaw.length === 1 ? [...new Set(exemptRaw[0]!.match(/\b(?:sim|nao)\b/g) ?? [])] : [];
+    if (exemptTokens.length === 1) {
+      request.firstLicenseExempt = exemptTokens[0] === 'sim';
+    } else {
+      missingFields.push('Isenção da Primeira Licença');
+    }
+  } else if (operation === 'Troca') {
+    const licenseRaw = values(baseLicenseLabels);
+    const firstLicense = licenseRaw.length === 1 ? licenseRaw[0]!.match(/\d+/)?.[0] : undefined;
+    if (firstLicense) {
+      request.licenses = [firstLicense];
+    } else {
+      request.licenses = [MISSING_FIELD_PLACEHOLDER];
+      missingFields.push('Número da Licença');
+    }
+
+    const reason = values(['motivo da troca de licenca', 'motivo da troca', 'motivo']);
+    if (reason.length === 1 && reason[0]) {
+      request.swapReason = reason[0];
+    } else {
+      request.swapReason = MISSING_FIELD_PLACEHOLDER;
+      missingFields.push('Motivo da Troca');
+    }
+  } else {
+    const licenseRaw = values([
+      ...baseLicenseLabels,
+      'licencas para cancelamento',
+      'licencas a serem canceladas',
+      'numero das licencas a serem canceladas',
+      'id das licencas',
+    ]);
+    const extracted = [...new Set(licenseRaw.flatMap(value => value.match(/\d+/g) ?? []))];
+    if (extracted.length > 0) {
+      request.licenses = extracted;
+    } else {
+      request.licenses = [MISSING_FIELD_PLACEHOLDER];
+      missingFields.push('Números das Licenças');
+    }
+  }
+
+  if (missingFields.length > 0) {
+    request.missingFields = missingFields;
   }
   return { status: 'ready', request };
 }
@@ -82,8 +129,22 @@ export function readTicketLicenseRequest(scope: HTMLElement): LicenseRequestResu
 export function formatLicenseRequest(request: LicenseRequest): string {
   let description: string;
   if (request.operation === 'Contratação') {
-    description = `Contratação ${request.quantity} ${request.quantity === 1 ? 'lic' : 'lics'} (${request.firstLicenseExempt ? 'com isenção da primeira licença' : 'sem isenção'})`;
-  } else if (request.operation === 'Troca') description = `Troca lic ${request.licenses[0]}\nMotivo: ${request.swapReason}`;
-  else description = `Cancelamento lics: ${request.licenses.join(', ')}`;
-  return `${description}\n\nBanco: ${request.database}`;
+    const qtyPart =
+      request.quantity !== undefined
+        ? `${request.quantity} ${request.quantity === 1 ? 'lic' : 'lics'}`
+        : `${MISSING_FIELD_PLACEHOLDER} lics`;
+    const exemptPart =
+      request.firstLicenseExempt !== undefined
+        ? request.firstLicenseExempt
+          ? 'com isenção da primeira licença'
+          : 'sem isenção'
+        : MISSING_FIELD_PLACEHOLDER;
+    description = `Contratação ${qtyPart} (${exemptPart})`;
+  } else if (request.operation === 'Troca') {
+    description = `Troca lic ${request.licenses[0] || MISSING_FIELD_PLACEHOLDER}\nMotivo: ${request.swapReason || MISSING_FIELD_PLACEHOLDER}`;
+  } else {
+    const list = request.licenses.length ? request.licenses.join(', ') : MISSING_FIELD_PLACEHOLDER;
+    description = `Cancelamento lics: ${list}`;
+  }
+  return `${description}\nBanco: ${request.database || MISSING_FIELD_PLACEHOLDER}`;
 }

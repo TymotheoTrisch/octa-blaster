@@ -1,3 +1,5 @@
+import { bindInpageAppearance } from '@/services/appearance/inpageTheme';
+
 const VARIABLE_DIALOG_STYLE_ID = 'octablaster-variable-dialog-styles';
 
 const BRACES_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>`;
@@ -13,11 +15,11 @@ function ensureVariableDialogStyles(doc: Document): void {
       padding: 0 !important;
       width: min(400px, calc(100vw - 32px)) !important;
       max-width: 400px !important;
-      border: 1px solid #3c3f43 !important;
+      border: 1px solid var(--octa-border-strong, #3c3f43) !important;
       border-radius: 10px !important;
-      background: #ffffff !important;
-      color: #1c1b1c !important;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+      background: var(--octa-bg, #ffffff) !important;
+      color: var(--octa-text, #1c1b1c) !important;
+      box-shadow: var(--octa-shadow-modal, 0 12px 32px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.08)) !important;
       overflow: hidden !important;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
       font-size: 13px !important;
@@ -25,7 +27,7 @@ function ensureVariableDialogStyles(doc: Document): void {
       z-index: 2147483647 !important;
     }
     dialog.octablaster-variable-dialog::backdrop {
-      background: rgba(15, 15, 15, 0.45) !important;
+      background: var(--octa-backdrop, rgba(15, 15, 15, 0.45)) !important;
       backdrop-filter: blur(2px) !important;
     }
     .octa-var-header {
@@ -33,8 +35,8 @@ function ensureVariableDialogStyles(doc: Document): void {
       align-items: center !important;
       gap: 9px !important;
       padding: 12px 16px !important;
-      background: #f7f8f9 !important;
-      border-bottom: 1px solid #dee0e4 !important;
+      background: var(--octa-bg-secondary, #f7f8f9) !important;
+      border-bottom: 1px solid var(--octa-border, #dee0e4) !important;
     }
     .octa-var-icon-badge {
       display: inline-flex !important;
@@ -43,8 +45,8 @@ function ensureVariableDialogStyles(doc: Document): void {
       width: 26px !important;
       height: 26px !important;
       border-radius: 6px !important;
-      background: rgba(255, 198, 0, 0.22) !important;
-      color: #6f5600 !important;
+      background: var(--accent-soft, rgba(255, 198, 0, 0.22)) !important;
+      color: var(--accent-soft-text, #6f5600) !important;
       flex-shrink: 0 !important;
     }
     .octa-var-title {
@@ -52,7 +54,7 @@ function ensureVariableDialogStyles(doc: Document): void {
       margin: 0 !important;
       font-size: 13px !important;
       font-weight: 600 !important;
-      color: #1c1b1c !important;
+      color: var(--octa-text, #1c1b1c) !important;
     }
     .octa-var-close {
       display: inline-flex !important;
@@ -64,13 +66,13 @@ function ensureVariableDialogStyles(doc: Document): void {
       border: none !important;
       border-radius: 5px !important;
       background: transparent !important;
-      color: #5b5f63 !important;
+      color: var(--octa-text-muted, #5b5f63) !important;
       cursor: pointer !important;
       transition: background 0.15s ease, color 0.15s ease !important;
     }
     .octa-var-close:hover {
-      background: #eceef0 !important;
-      color: #1c1b1c !important;
+      background: var(--octa-bg-hover-strong, #eceef0) !important;
+      color: var(--octa-text, #1c1b1c) !important;
     }
     .octa-var-form {
       display: flex !important;
@@ -78,12 +80,12 @@ function ensureVariableDialogStyles(doc: Document): void {
       gap: 12px !important;
       padding: 16px !important;
       margin: 0 !important;
-      background: #ffffff !important;
+      background: var(--octa-bg, #ffffff) !important;
     }
     .octa-var-subtitle {
       margin: 0 !important;
       font-size: 12px !important;
-      color: #5b5f63 !important;
+      color: var(--octa-text-muted, #5b5f63) !important;
     }
     .octa-var-field {
       display: flex !important;
@@ -92,7 +94,7 @@ function ensureVariableDialogStyles(doc: Document): void {
       margin: 0 !important;
       font-size: 12px !important;
       font-weight: 600 !important;
-      color: #3c3f43 !important;
+      color: var(--octa-text-secondary, #3c3f43) !important;
     }
     .octa-var-field-token {
       display: inline-flex !important;
@@ -104,18 +106,18 @@ function ensureVariableDialogStyles(doc: Document): void {
       width: 100% !important;
       box-sizing: border-box !important;
       padding: 8px 10px !important;
-      border: 1px solid #dee0e4 !important;
+      border: 1px solid var(--octa-border, #dee0e4) !important;
       border-radius: 6px !important;
-      background: #ffffff !important;
-      color: #1c1b1c !important;
+      background: var(--octa-bg-input, #ffffff) !important;
+      color: var(--octa-text, #1c1b1c) !important;
       font: inherit !important;
       font-size: 13px !important;
       outline: none !important;
       transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
     }
     .octa-var-input:focus {
-      border-color: #ffc600 !important;
-      box-shadow: 0 0 0 2px rgba(255, 198, 0, 0.28) !important;
+      border-color: var(--accent, #ffc600) !important;
+      box-shadow: 0 0 0 2px var(--accent-ring, rgba(255, 198, 0, 0.28)) !important;
     }
     .octa-var-actions {
       display: flex !important;
@@ -126,10 +128,10 @@ function ensureVariableDialogStyles(doc: Document): void {
     }
     .octa-var-btn-secondary {
       padding: 7px 14px !important;
-      border: 1px solid #dee0e4 !important;
+      border: 1px solid var(--octa-border, #dee0e4) !important;
       border-radius: 5px !important;
-      background: #f7f8f9 !important;
-      color: #3c3f43 !important;
+      background: var(--octa-bg-secondary, #f7f8f9) !important;
+      color: var(--octa-text-secondary, #3c3f43) !important;
       font: inherit !important;
       font-size: 12px !important;
       font-weight: 500 !important;
@@ -137,14 +139,14 @@ function ensureVariableDialogStyles(doc: Document): void {
       transition: background 0.15s ease !important;
     }
     .octa-var-btn-secondary:hover {
-      background: #eceef0 !important;
+      background: var(--octa-bg-hover-strong, #eceef0) !important;
     }
     .octa-var-btn-primary {
       padding: 7px 14px !important;
-      border: 1px solid #e0af00 !important;
+      border: 1px solid var(--accent-border, #e0af00) !important;
       border-radius: 5px !important;
-      background: #ffc600 !important;
-      color: #1c1b1c !important;
+      background: var(--accent, #ffc600) !important;
+      color: var(--accent-text, #1c1b1c) !important;
       font: inherit !important;
       font-size: 12px !important;
       font-weight: 700 !important;
@@ -152,13 +154,13 @@ function ensureVariableDialogStyles(doc: Document): void {
       transition: background 0.15s ease, box-shadow 0.15s ease !important;
     }
     .octa-var-btn-primary:hover {
-      background: #f0ba00 !important;
-      box-shadow: 0 2px 6px rgba(255, 198, 0, 0.35) !important;
+      background: var(--accent-hover, #f0ba00) !important;
+      box-shadow: 0 2px 6px var(--accent-glow, rgba(255, 198, 0, 0.35)) !important;
     }
     .octa-var-btn-secondary:focus-visible,
     .octa-var-btn-primary:focus-visible,
     .octa-var-close:focus-visible {
-      outline: 2px solid #ffc600 !important;
+      outline: 2px solid var(--accent, #ffc600) !important;
       outline-offset: 2px !important;
     }
   `;
@@ -242,8 +244,10 @@ export function promptForVariableValues(
     form.append(actions);
     dialog.append(header, form);
     doc.body.append(dialog);
+    const stopAppearance = bindInpageAppearance(dialog);
 
     const finish = (value: Record<string, string> | null) => {
+      stopAppearance();
       dialog.remove();
       resolve(value);
     };

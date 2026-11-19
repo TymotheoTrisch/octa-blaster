@@ -45,16 +45,16 @@ const emit = defineEmits<{
 
 <style scoped>
 .modal-icon-update {
-  background: rgba(255, 198, 0, 0.25);
-  color: #1c1b1c;
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
 }
 
 .modal-notes-preview {
   font-size: 11px;
   line-height: 1.4;
-  color: #5b5f63;
-  background: #f7f8f9;
-  border: 1px solid #dee0e4;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 8px;
   max-height: 80px;

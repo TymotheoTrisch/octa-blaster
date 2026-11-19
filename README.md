@@ -36,7 +36,7 @@ Projetada especificamente para equipes de atendimento e suporte que utilizam o *
 - **UI**: [Vue 3](https://vuejs.org/) (Composition API, `<script setup>`)
 - **Ícones**: [Lucide Icons](https://lucide.dev/) (SVG vetorial integrado)
 - **Linguagem**: [TypeScript](https://www.typescriptlang.org/)
-- **Design System**: Paleta corporativa inspirada no **Secullum VMS** (Cinza Corporativo `#1c1b1c` / `#3c3f43` e Amarelo Destaque `#ffc600`) com tema claro integrado ao ticket (`#f7f8f9` / `#ffffff`)
+- **Design System**: Paleta corporativa inspirada no **Secullum VMS** (padrão `#ffc600`) com suporte nativo a **Tema Claro, Escuro e Sistema**, **Cor da marca** e **Cor secundária** personalizáveis e **Tags coloridas** de alto contraste
 - **Gerenciador de Pacotes**: **pnpm**
 - **Armazenamento**: `browser.storage.local` (assíncrono, sanitizado e persistente com fallback)
 - **Painel Lateral Firefox**: Suporte nativo a `sidebar_action`
@@ -109,15 +109,18 @@ Geração de rascunhos revisáveis, resumo da última mensagem, resumo da conver
 
 ---
 
-## Cadastros, atalhos e resumos de licenças
+## Evolução da v1.0.0: temas, personalização e cadastros
 
-A partir da versão **0.8.0**, o OctaBlaster inclui:
+A partir da versão **1.0.0**, além de toda a base introduzida na **0.8.0** e **0.9.0**, o OctaBlaster inclui:
 
-- Telas de **Variáveis**, **Tags** e **Atalhos**, incluindo cadastro dos técnicos de licenças, edição e navegação que preserva o rascunho.
+- **Temas Claro, Escuro e Sistema** com seletor rápido no topo do menu `...` e na tela **Aparência**, aplicados em tempo real no popup, painel lateral e elementos injetados no Octadesk.
+- **Cor da marca e Cor secundária personalizáveis**, atualizando botões, destaques, SVG interno e o ícone da extensão na barra/painel lateral do navegador.
+- **Tags com cores personalizadas** em pílulas pastéis de alto contraste nos cards, formulário, menu rápido e widget do Octadesk.
+- Telas de **Variáveis**, **Tags**, **Atalhos**, **Técnicos (Licenças)** e **Aparência**, incluindo navegação que preserva o rascunho.
 - Variáveis com valor salvo ou preenchimento ao usar, inseridas na posição do cursor. Tags com seleção múltipla e filtro ao lado da busca.
 - Menu por `\` ou `/` no editor, usando a mesma lista do botão **Respostas**, com prévia abaixo do título, teclado e seleção pelo mouse.
 - Menções sequenciais confirmadas pelo marcador nativo do Octadesk, com os técnicos na mesma linha. Os formulários de contratação, troca e cancelamento geram o resumo com banco, quantidade/isenção, códigos e motivo da troca, conforme a operação.
-- Backup completo de mensagens, tags, variáveis, técnicos e atalho, compatível com arquivos antigos. Edições simultâneas preservam mudanças independentes e avisam sobre conflitos.
+- Backup completo de mensagens, tags (com cores), variáveis, técnicos, atalho e aparência, compatível com arquivos antigos. Edições simultâneas preservam mudanças independentes e avisam sobre conflitos.
 - Roteamento ao editor/frame registrado e isolamento por ticket, migrações que preservam exclusões e erro de salvamento quando principal e fallback falham.
 
 As mensagens e anotações ficam como rascunho para revisão.

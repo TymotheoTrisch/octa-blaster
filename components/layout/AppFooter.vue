@@ -54,7 +54,7 @@ defineExpose({ triggerFilePicker });
 .build-version-link {
   font-size: 11px;
   font-weight: 500;
-  color: #8a8f96;
+  color: var(--text-subtle);
   letter-spacing: 0.02em;
   text-decoration: none;
   padding: 2px 6px;
@@ -63,13 +63,13 @@ defineExpose({ triggerFilePicker });
 }
 
 .build-version-link:hover {
-  color: #3c3f43;
-  background-color: rgba(60, 63, 67, 0.06);
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
 }
 
 .build-version-link:focus-visible {
-  outline: 2px solid #ffc600;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
-  color: #1c1b1c;
+  color: var(--text-primary);
 }
 </style>
