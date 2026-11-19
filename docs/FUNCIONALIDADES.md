@@ -12,9 +12,17 @@ Cancelar o preenchimento mantém o rascunho. Trocar de ticket ou alterar o rascu
 
 ## Tags e navegação
 
-Em **Mais opções → Tags**, cadastre, renomeie ou exclua tags. Categorias legadas são expostas como tags para preservar as mensagens existentes. Uma mensagem pode ter várias tags, selecionadas pelo menu do formulário. A lista de mensagens permite combinar a busca com o filtro de tag ao lado dela.
+Em **Mais opções → Tags**, cadastre, renomeie, defina uma **cor opcional** (via presets, seletor visual, código hexadecimal ou padrão sem cor) ou exclua tags. Categorias legadas são expostas como tags para preservar as mensagens existentes. Uma mensagem pode ter várias tags, selecionadas pelo menu do formulário. A lista de mensagens permite combinar a busca com o filtro de tag ao lado dela.
 
 Renomear tag atualiza sua apresentação nas mensagens. Excluir tag remove a associação e preserva o texto da mensagem. A seta do formulário de cadastro volta para sua lista; a seta da lista volta para a tela visitada anteriormente. Navegar para cadastros durante uma edição mantém o rascunho da mensagem.
+
+## Aparência, temas e cores da marca
+
+No topo do menu **Mais opções (`...`)**, é possível alternar rapidamente entre os modos **Sistema**, **Claro** e **Escuro**. Em **Mais opções → Aparência**, você personaliza:
+
+- **Tema (`Sistema / Claro / Escuro`):** aplicado em tempo real no popup, no painel lateral e na UI injetada no Octadesk (widget flutuante, menu rápido `/` / `\` e modal de variáveis). No modo claro, o cabeçalho usa superfície clara alinhada ao Design System.
+- **Cor da marca:** define a cor principal dos botões, destaques, bordas de foco, logo interno e do ícone da extensão na barra/painel lateral do navegador (`action.setIcon` / `browserAction.setIcon` / `sidebarAction.setIcon`).
+- **Cor secundária:** define o preenchimento interno do logo e o texto/ícones dos botões da marca. No modo **Automático (tema)**, acompanha `#ffffff` no tema claro e `#18181b` no escuro, aceitando também qualquer cor personalizada.
 
 ## Atalhos e respostas
 
@@ -32,9 +40,7 @@ Contratação:
 
 ```text
 @Jorge Tigre  @Roberto Renck
-
 Contratação 2 lics (com isenção da primeira licença)
-
 Banco: 135558
 ```
 
@@ -44,10 +50,8 @@ Troca:
 
 ```text
 @Jorge Tigre  @Roberto Renck
-
 Troca lic 11822
 Motivo: Licença corrompida.
-
 Banco: 158750
 ```
 
@@ -55,13 +59,11 @@ Cancelamento:
 
 ```text
 @Jorge Tigre  @Roberto Renck
-
 Cancelamento lics: 13039, 13041, 13042
-
 Banco: 151303
 ```
 
-Os campos usados são **Número do Banco de Dados**, **Número de Licenças**, **Isenção da Primeira Licença**, **Número da licença**, **Motivo da troca de licença** e **Números das licenças**, conforme a operação. `Lic_11822` é apresentado como `11822`. Um campo obrigatório ausente ou inválido gera aviso antes de alterar a anotação. Sem formulário reconhecido, permanece a marcação dos técnicos. Não há envio automático da anotação.
+Os campos usados são **Número do Banco de Dados**, **Número de Licenças**, **Isenção da Primeira Licença**, **Número da licença**, **Motivo da troca de licença** e **Números das licenças**, conforme a operação. Valores com prefixo ou texto auxiliar (como `lic_89898`, `Lic_11822` ou `bd_135558`) têm o primeiro número da linha extraído automaticamente. Se algum campo estiver ausente ou sem valor identificável, o rascunho é preenchido com `[Falta Informar]` e um modal personalizado exibe os campos pendentes para preenchimento manual. Sem formulário reconhecido, permanece apenas a marcação dos técnicos. Não há envio automático da anotação.
 
 Repetir a ação preserva marcadores confirmados e evita duplicar um resumo idêntico. Se editar o resumo manualmente ou se o e-mail mudar, confira o rascunho antes de repetir. Não há suporte específico para cancelamento de todas as licenças sem uma lista explícita de códigos.
 

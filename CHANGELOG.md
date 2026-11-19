@@ -15,6 +15,9 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ### 🛠️ Modificado
 - **Cabeçalho claro no Modo Claro:** barra superior (`AppHeader`) adaptada para superfície clara no plano claro, mantendo o contraste e a identidade visual alinhada ao Design System (#9).
 
+### 🐛 Corrigido
+- **Extração tolerante e alerta de campos pendentes em licenças:** extrai o primeiro número presente na linha dos campos numéricos (suportando formatos como `lic_89898` e rótulos variados), preenche campos ausentes ou inválidos com `[Falta Informar]` e exibe um modal personalizado na tela listando o que precisa ser preenchido manualmente (#9).
+
 ---
 
 ## [0.9.0] - 2026-11-19
