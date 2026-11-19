@@ -48,6 +48,7 @@ export function ensureInpageThemeTokens(doc: Document): void {
       --accent-soft-hover: rgba(255, 198, 0, 0.3);
       --accent-soft-text: #6f5600;
       --accent-glow: rgba(255, 198, 0, 0.35);
+      --logo-inner: #ffffff;
     }
     [data-octa-scope="true"][data-theme="dark"] {
       --octa-bg: #202024;
@@ -70,6 +71,7 @@ export function ensureInpageThemeTokens(doc: Document): void {
       --octa-shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.25);
       --octa-shadow-modal: 0 14px 36px rgba(0, 0, 0, 0.55);
       --octa-backdrop: rgba(0, 0, 0, 0.65);
+      --logo-inner: #18181b;
     }
   `;
   (doc.head || doc.documentElement).append(style);

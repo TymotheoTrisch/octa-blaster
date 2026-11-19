@@ -66,8 +66,13 @@ test('normalizeHexColor and validateAppearance sanitize valid colors and reject 
     validateAppearance({ theme: 'dark', brandColor: '#AbC' }),
     { theme: 'dark', brandColor: '#aabbcc' },
   );
+  assert.deepEqual(
+    validateAppearance({ theme: 'light', brandColor: '#ffc600', logoInnerColor: '#FFF' }),
+    { theme: 'light', brandColor: '#ffc600', logoInnerColor: '#ffffff' },
+  );
   assert.throws(() => validateAppearance({ theme: 'neon', brandColor: '#ffc600' }), /Tema/);
-  assert.throws(() => validateAppearance({ theme: 'light', brandColor: 'not-a-color' }), /Cor/);
+  assert.throws(() => validateAppearance({ theme: 'light', brandColor: 'not-a-color' }), /Cor da marca/);
+  assert.throws(() => validateAppearance({ theme: 'light', brandColor: '#ffc600', logoInnerColor: 'xyz' }), /Cor interna/);
 });
 
 test('computeBrandPalette guarantees accessible foreground and soft-text contrast across light and dark modes', () => {
@@ -111,6 +116,21 @@ test('resolveThemeMode and applyAppearanceToRoot apply data-theme and CSS custom
     assert.equal(dom.document.documentElement.dataset.brandColor, '#1971c2');
     assert.equal(dom.document.documentElement.style.getPropertyValue('--accent'), '#1971c2');
     assert.equal(dom.document.documentElement.style.getPropertyValue('--accent-text'), '#ffffff');
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#18181b');
+
+    applyAppearanceToRoot(
+      dom.document.documentElement,
+      { theme: 'light', brandColor: '#ffc600' },
+      true,
+    );
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#ffffff');
+
+    applyAppearanceToRoot(
+      dom.document.documentElement,
+      { theme: 'light', brandColor: '#ffc600', logoInnerColor: '#1971c2' },
+      false,
+    );
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#1971c2');
   } finally {
     dom.restore();
   }
@@ -191,6 +211,11 @@ test('browserIcon restores static PNG paths for default brand color and renders 
         clearRect() {},
         save() {},
         scale() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        arcTo() {},
+        closePath() {},
         fillStyle: '',
         fill() {
           drawnColors.push(this.fillStyle);
@@ -227,6 +252,11 @@ test('browserIcon restores static PNG paths for default brand color and renders 
     assert.equal(okCustom, true);
     assert.ok(calls[2][1].imageData[16] && calls[2][1].imageData[32] && calls[2][1].imageData[48]);
     assert.ok(calls[3][1].imageData[16] && calls[3][1].imageData[32]);
+
+    drawnColors.length = 0;
+    const okInnerCustom = await applyBrowserBrandIcon(DEFAULT_BRAND_COLOR, '#ffffff');
+    assert.equal(okInnerCustom, true);
+    assert.deepEqual(drawnColors, ['#ffffff', '#ffc600', '#ffffff', '#ffc600', '#ffffff', '#ffc600']);
   } finally {
     if (previousPath2D === undefined) delete globalThis.Path2D;
     else globalThis.Path2D = previousPath2D;

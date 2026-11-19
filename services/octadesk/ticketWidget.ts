@@ -9,7 +9,11 @@ import type { EditorContext } from './editorContext';
 import { createReplyListItem, loadReplyList } from '@/services/templates/replyList';
 import { prepareTemplate } from '@/services/templates/templateVariables';
 import { bindInpageAppearance } from '@/services/appearance/inpageTheme';
-import { OCTABLASTER_ICON_PATH, OCTABLASTER_ICON_VIEWBOX } from '@/services/appearance/iconGeometry';
+import {
+  OCTABLASTER_ICON_PATH,
+  OCTABLASTER_ICON_VIEWBOX,
+  OCTABLASTER_INNER_RECT,
+} from '@/services/appearance/iconGeometry';
 
 const WIDGET_STYLE_ID = 'octablaster-inpage-styles';
 
@@ -314,7 +318,7 @@ function createWidgetElement(
     <div class="octa-bar-container">
       <button type="button" class="octa-pill-btn octa-btn-toggle" title="OctaBlaster (Clique para expandir)">
         <svg class="octa-logo-svg" viewBox="${OCTABLASTER_ICON_VIEWBOX}" width="24" height="24" fill="currentColor" aria-hidden="true">
-          <rect x="55" y="55" width="388" height="388" rx="70" fill="#1c1b1c" />
+          <rect x="${OCTABLASTER_INNER_RECT.x}" y="${OCTABLASTER_INNER_RECT.y}" width="${OCTABLASTER_INNER_RECT.width}" height="${OCTABLASTER_INNER_RECT.height}" rx="${OCTABLASTER_INNER_RECT.rx}" fill="var(--logo-inner, #ffffff)" />
           <path d="${OCTABLASTER_ICON_PATH}" />
         </svg>
       </button>

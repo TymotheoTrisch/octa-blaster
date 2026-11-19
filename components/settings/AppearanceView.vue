@@ -5,12 +5,17 @@ import {
   BRAND_COLOR_PRESETS,
   DEFAULT_APPEARANCE,
   DEFAULT_BRAND_COLOR,
+  LOGO_INNER_COLOR_PRESETS,
   normalizeHexColor,
   type AppearanceSettings,
   type ThemeMode,
 } from '@/services/storage/settingsSchema';
 import { loadAppearance, saveAppearance } from '@/services/appearance/appearanceStorage';
-import { OCTABLASTER_ICON_PATH, OCTABLASTER_ICON_VIEWBOX } from '@/services/appearance/iconGeometry';
+import {
+  OCTABLASTER_ICON_PATH,
+  OCTABLASTER_ICON_VIEWBOX,
+  OCTABLASTER_INNER_RECT,
+} from '@/services/appearance/iconGeometry';
 import ColorSwatchPicker from '@/components/common/ColorSwatchPicker.vue';
 import './management.css';
 
@@ -26,6 +31,7 @@ const emit = defineEmits<{
 
 const theme = ref<ThemeMode>(props.currentAppearance.theme);
 const brandColor = ref<string>(props.currentAppearance.brandColor);
+const logoInnerColor = ref<string>(props.currentAppearance.logoInnerColor ?? '');
 let appearanceBase: AppearanceSettings = { ...props.currentAppearance };
 
 const status = ref('');
@@ -39,7 +45,10 @@ const themeOptions: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeo
 ];
 
 const isDefaultAppearance = computed(
-  () => theme.value === DEFAULT_APPEARANCE.theme && brandColor.value === DEFAULT_BRAND_COLOR,
+  () =>
+    theme.value === DEFAULT_APPEARANCE.theme
+    && brandColor.value === DEFAULT_BRAND_COLOR
+    && !logoInnerColor.value,
 );
 
 watch(
@@ -48,6 +57,7 @@ watch(
     if (busy.value) return;
     theme.value = next.theme;
     brandColor.value = next.brandColor;
+    logoInnerColor.value = next.logoInnerColor ?? '';
     appearanceBase = { ...next };
   },
   { deep: true },
@@ -58,6 +68,7 @@ onMounted(async () => {
     const loaded = await loadAppearance();
     theme.value = loaded.theme;
     brandColor.value = loaded.brandColor;
+    logoInnerColor.value = loaded.logoInnerColor ?? '';
     appearanceBase = { ...loaded };
     emit('preview', loaded);
   } catch (error) {
@@ -66,7 +77,12 @@ onMounted(async () => {
   }
 });
 
-async function persistAppearance(nextTheme: ThemeMode, nextColor: string, message = 'Aparência salva.') {
+async function persistAppearance(
+  nextTheme: ThemeMode,
+  nextColor: string,
+  nextLogoInner = logoInnerColor.value,
+  message = 'Aparência salva.',
+) {
   const normalized = normalizeHexColor(nextColor);
   if (!normalized) {
     statusIsError.value = true;
@@ -74,9 +90,25 @@ async function persistAppearance(nextTheme: ThemeMode, nextColor: string, messag
     return;
   }
 
+  let normalizedInner: string | undefined;
+  if (nextLogoInner.trim()) {
+    const parsedInner = normalizeHexColor(nextLogoInner);
+    if (!parsedInner) {
+      statusIsError.value = true;
+      status.value = 'Informe uma cor interna válida (#RRGGBB).';
+      return;
+    }
+    normalizedInner = parsedInner;
+  }
+
   theme.value = nextTheme;
   brandColor.value = normalized;
-  const next: AppearanceSettings = { theme: nextTheme, brandColor: normalized };
+  logoInnerColor.value = normalizedInner ?? '';
+  const next: AppearanceSettings = {
+    theme: nextTheme,
+    brandColor: normalized,
+    ...(normalizedInner ? { logoInnerColor: normalizedInner } : {}),
+  };
   emit('preview', next);
 
   if (busy.value) return;
@@ -87,6 +119,7 @@ async function persistAppearance(nextTheme: ThemeMode, nextColor: string, messag
     appearanceBase = { ...saved };
     theme.value = saved.theme;
     brandColor.value = saved.brandColor;
+    logoInnerColor.value = saved.logoInnerColor ?? '';
     status.value = message;
     emit('changed', saved);
   } catch (error) {
@@ -98,18 +131,42 @@ async function persistAppearance(nextTheme: ThemeMode, nextColor: string, messag
 }
 
 function selectTheme(nextTheme: ThemeMode) {
-  void persistAppearance(nextTheme, brandColor.value);
+  void persistAppearance(nextTheme, brandColor.value, logoInnerColor.value);
 }
 
 function handleBrandPreview(color: string) {
   const normalized = normalizeHexColor(color);
   if (!normalized) return;
   brandColor.value = normalized;
-  emit('preview', { theme: theme.value, brandColor: normalized });
+  emit('preview', {
+    theme: theme.value,
+    brandColor: normalized,
+    ...(logoInnerColor.value ? { logoInnerColor: logoInnerColor.value } : {}),
+  });
 }
 
 function handleBrandCommit(color: string) {
-  void persistAppearance(theme.value, color);
+  void persistAppearance(theme.value, color, logoInnerColor.value);
+}
+
+function handleLogoInnerPreview(color: string) {
+  if (!color.trim()) {
+    logoInnerColor.value = '';
+    emit('preview', { theme: theme.value, brandColor: brandColor.value });
+    return;
+  }
+  const normalized = normalizeHexColor(color);
+  if (!normalized) return;
+  logoInnerColor.value = normalized;
+  emit('preview', {
+    theme: theme.value,
+    brandColor: brandColor.value,
+    logoInnerColor: normalized,
+  });
+}
+
+function handleLogoInnerCommit(color: string) {
+  void persistAppearance(theme.value, brandColor.value, color);
 }
 
 function handleInvalidHex() {
@@ -118,7 +175,12 @@ function handleInvalidHex() {
 }
 
 function resetDefaults() {
-  void persistAppearance(DEFAULT_APPEARANCE.theme, DEFAULT_BRAND_COLOR, 'Aparência padrão restaurada.');
+  void persistAppearance(
+    DEFAULT_APPEARANCE.theme,
+    DEFAULT_BRAND_COLOR,
+    '',
+    'Aparência padrão restaurada.',
+  );
 }
 </script>
 
@@ -190,6 +252,28 @@ function resetDefaults() {
         />
       </div>
 
+      <div class="template-card is-expanded appearance-card">
+        <div class="appearance-section-head">
+          <span class="appearance-label">Cor interna do logo</span>
+          <span class="appearance-hint">Padrão segue o tema (branco/escuro)</span>
+        </div>
+
+        <ColorSwatchPicker
+          :model-value="logoInnerColor"
+          :presets="LOGO_INNER_COLOR_PRESETS"
+          :allow-clear="true"
+          clear-label="Automático (tema)"
+          :disabled="busy"
+          :show-apply-button="true"
+          fallback-picker-color="#ffffff"
+          placeholder="Automático (tema)"
+          aria-label="Cores sugeridas para o interior do logo"
+          @update:model-value="handleLogoInnerPreview"
+          @commit="handleLogoInnerCommit"
+          @invalid-hex="handleInvalidHex"
+        />
+      </div>
+
       <div class="template-card is-expanded appearance-preview-card">
         <div class="appearance-section-head">
           <span class="appearance-label">Prévia em tempo real</span>
@@ -206,6 +290,14 @@ function resetDefaults() {
               fill="currentColor"
               aria-hidden="true"
             >
+              <rect
+                :x="OCTABLASTER_INNER_RECT.x"
+                :y="OCTABLASTER_INNER_RECT.y"
+                :width="OCTABLASTER_INNER_RECT.width"
+                :height="OCTABLASTER_INNER_RECT.height"
+                :rx="OCTABLASTER_INNER_RECT.rx"
+                fill="var(--logo-inner)"
+              />
               <path :d="OCTABLASTER_ICON_PATH" />
             </svg>
             <span class="preview-title">OctaBlaster</span>

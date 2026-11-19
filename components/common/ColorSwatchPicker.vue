@@ -21,7 +21,7 @@ const props = withDefaults(
     disabled: false,
     showApplyButton: false,
     fallbackPickerColor: '#1971c2',
-    placeholder: '#ffc600',
+    placeholder: '',
     ariaLabel: 'Selecionar cor',
   },
 );
@@ -161,7 +161,7 @@ function applyTypedHex() {
         class="hex-code-input"
         maxlength="7"
         :disabled="disabled"
-        :placeholder="allowClear ? 'Padrão (opcional)' : placeholder"
+        :placeholder="placeholder || (allowClear ? 'Padrão (opcional)' : '#ffc600')"
         aria-label="Código hexadecimal da cor"
         @input="handleHexTyping"
         @keydown.enter.prevent="applyTypedHex"

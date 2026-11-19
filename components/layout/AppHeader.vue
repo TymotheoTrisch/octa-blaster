@@ -16,7 +16,11 @@ import {
   Github,
   MessageSquarePlus,
 } from 'lucide-vue-next';
-import { OCTABLASTER_ICON_PATH, OCTABLASTER_ICON_VIEWBOX } from '@/services/appearance/iconGeometry';
+import {
+  OCTABLASTER_ICON_PATH,
+  OCTABLASTER_ICON_VIEWBOX,
+  OCTABLASTER_INNER_RECT,
+} from '@/services/appearance/iconGeometry';
 
 export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians' | 'appearance';
 
@@ -85,6 +89,14 @@ defineExpose({ closeMenu });
   <header class="header" :class="{ 'is-sidebar': isSidebar }">
     <div class="brand" :class="{ 'is-sidebar': isSidebar }">
       <svg class="brand-logo" :viewBox="OCTABLASTER_ICON_VIEWBOX" width="20" height="20" fill="currentColor" aria-label="OctaBlaster">
+        <rect
+          :x="OCTABLASTER_INNER_RECT.x"
+          :y="OCTABLASTER_INNER_RECT.y"
+          :width="OCTABLASTER_INNER_RECT.width"
+          :height="OCTABLASTER_INNER_RECT.height"
+          :rx="OCTABLASTER_INNER_RECT.rx"
+          fill="var(--logo-inner)"
+        />
         <path :d="OCTABLASTER_ICON_PATH" />
       </svg>
       <h1 v-if="!isSidebar" class="brand-title">OctaBlaster</h1>

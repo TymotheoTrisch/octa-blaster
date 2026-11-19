@@ -5,7 +5,11 @@ import {
   normalizeHexColor,
   validateAppearance,
 } from '@/services/storage/settingsSchema';
-import { OCTABLASTER_ICON_PATH, OCTABLASTER_ICON_VIEWBOX_SIZE } from './iconGeometry';
+import {
+  OCTABLASTER_ICON_PATH,
+  OCTABLASTER_ICON_VIEWBOX_SIZE,
+  OCTABLASTER_INNER_RECT,
+} from './iconGeometry';
 
 const DEFAULT_ICON_PATHS = {
   16: 'icon/16.png',
@@ -31,11 +35,40 @@ function createCanvasForSize(size: number): OffscreenCanvas | HTMLCanvasElement 
   return null;
 }
 
+function drawRoundedRect(
+  ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): void {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.closePath();
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
 export function renderBrandIconImageData(
   rawColor: string,
   sizes: number[] = [16, 32, 48],
+  rawInnerColor?: string,
 ): Record<number, ImageData> | null {
   const color = normalizeHexColor(rawColor) ?? DEFAULT_BRAND_COLOR;
+  const innerColor = normalizeHexColor(rawInnerColor);
   if (typeof Path2D !== 'function') return null;
 
   const result: Record<number, ImageData> = {};
@@ -53,6 +86,18 @@ export function renderBrandIconImageData(
     const scale = size / OCTABLASTER_ICON_VIEWBOX_SIZE;
     ctx.save();
     ctx.scale(scale, scale);
+    if (innerColor) {
+      drawRoundedRect(
+        ctx,
+        OCTABLASTER_INNER_RECT.x,
+        OCTABLASTER_INNER_RECT.y,
+        OCTABLASTER_INNER_RECT.width,
+        OCTABLASTER_INNER_RECT.height,
+        OCTABLASTER_INNER_RECT.rx,
+      );
+      ctx.fillStyle = innerColor;
+      ctx.fill();
+    }
     ctx.fillStyle = color;
     ctx.fill(iconPath);
     ctx.restore();
@@ -63,8 +108,12 @@ export function renderBrandIconImageData(
   return result;
 }
 
-export async function applyBrowserBrandIcon(rawColor: string): Promise<boolean> {
+export async function applyBrowserBrandIcon(
+  rawColor: string,
+  rawInnerColor?: string,
+): Promise<boolean> {
   const color = normalizeHexColor(rawColor) ?? DEFAULT_BRAND_COLOR;
+  const innerColor = normalizeHexColor(rawInnerColor);
   const b = (globalThis as any).browser;
   const c = (globalThis as any).chrome;
 
@@ -75,7 +124,7 @@ export async function applyBrowserBrandIcon(rawColor: string): Promise<boolean> 
     return false;
   }
 
-  if (color === DEFAULT_BRAND_COLOR) {
+  if (color === DEFAULT_BRAND_COLOR && !innerColor) {
     try {
       await actionApi?.setIcon?.({ path: DEFAULT_ICON_PATHS });
     } catch {}
@@ -85,7 +134,7 @@ export async function applyBrowserBrandIcon(rawColor: string): Promise<boolean> 
     return true;
   }
 
-  const imageData = renderBrandIconImageData(color, [16, 32, 48]);
+  const imageData = renderBrandIconImageData(color, [16, 32, 48], innerColor ?? undefined);
   if (!imageData) return false;
 
   let applied = false;
@@ -114,9 +163,12 @@ export async function applyBrowserBrandIcon(rawColor: string): Promise<boolean> 
 export async function syncBrowserBrandIconFromStorage(): Promise<void> {
   try {
     const stored = await rawStorageGet([APPEARANCE_KEY]);
-    const color = stored[APPEARANCE_KEY]
-      ? validateAppearance(stored[APPEARANCE_KEY]).brandColor
-      : DEFAULT_BRAND_COLOR;
-    await applyBrowserBrandIcon(color);
+    const appearance = stored[APPEARANCE_KEY]
+      ? validateAppearance(stored[APPEARANCE_KEY])
+      : null;
+    await applyBrowserBrandIcon(
+      appearance?.brandColor ?? DEFAULT_BRAND_COLOR,
+      appearance?.logoInnerColor,
+    );
   } catch {}
 }

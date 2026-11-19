@@ -17,9 +17,12 @@ export default defineBackground(() => {
     if (areaName !== 'local' || !Object.hasOwn(changes, APPEARANCE_KEY)) return;
     try {
       const next = changes[APPEARANCE_KEY]?.newValue
-        ? validateAppearance(changes[APPEARANCE_KEY].newValue).brandColor
-        : DEFAULT_BRAND_COLOR;
-      void applyBrowserBrandIcon(next);
+        ? validateAppearance(changes[APPEARANCE_KEY].newValue)
+        : null;
+      void applyBrowserBrandIcon(
+        next?.brandColor ?? DEFAULT_BRAND_COLOR,
+        next?.logoInnerColor,
+      );
     } catch {
       void applyBrowserBrandIcon(DEFAULT_BRAND_COLOR);
     }

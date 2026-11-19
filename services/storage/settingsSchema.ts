@@ -9,6 +9,7 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export interface AppearanceSettings {
   theme: ThemeMode;
   brandColor: string;
+  logoInnerColor?: string;
 }
 
 export const DEFAULT_BRAND_COLOR = '#ffc600';
@@ -27,6 +28,16 @@ export const BRAND_COLOR_PRESETS: ReadonlyArray<{ name: string; color: string }>
   { name: 'Coral', color: '#ef4444' },
   { name: 'Violeta', color: '#7c3aed' },
   { name: 'Grafite', color: '#3c3f43' },
+];
+
+export const LOGO_INNER_COLOR_PRESETS: ReadonlyArray<{ name: string; color: string }> = [
+  { name: 'Branco', color: '#ffffff' },
+  { name: 'Gelo', color: '#f4f4f5' },
+  { name: 'Grafite', color: '#3c3f43' },
+  { name: 'Carvão', color: '#18181b' },
+  { name: 'Preto', color: '#09090b' },
+  { name: 'Amarelo', color: '#ffc600' },
+  { name: 'Azul', color: '#1971c2' },
 ];
 
 export function normalizeHexColor(raw: unknown): string | null {
@@ -59,7 +70,19 @@ export function validateAppearance(raw: unknown): AppearanceSettings {
   if (!brandColor) {
     throw new Error('Cor da marca inválida. Use um código hexadecimal (#RRGGBB).');
   }
-  return { theme, brandColor };
+  const appearance: AppearanceSettings = { theme, brandColor };
+  if (
+    value.logoInnerColor !== undefined
+    && value.logoInnerColor !== null
+    && String(value.logoInnerColor).trim() !== ''
+  ) {
+    const logoInnerColor = normalizeHexColor(value.logoInnerColor);
+    if (!logoInnerColor) {
+      throw new Error('Cor interna do logo inválida. Use um código hexadecimal (#RRGGBB).');
+    }
+    appearance.logoInnerColor = logoInnerColor;
+  }
+  return appearance;
 }
 export interface TemplateVariable {
   name: string;

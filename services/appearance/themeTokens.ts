@@ -181,9 +181,12 @@ export function applyAppearanceToRoot(
   if (!target) return resolved;
 
   const palette = computeBrandPalette(safe.brandColor, resolved);
+  const defaultLogoInner = resolved === 'dark' ? '#18181b' : '#ffffff';
+  const logoInner = safe.logoInnerColor ?? defaultLogoInner;
   target.dataset.theme = resolved;
   target.dataset.themePreference = safe.theme;
   target.dataset.brandColor = palette.accent;
+  target.dataset.logoInnerColor = safe.logoInnerColor ?? '';
   target.style.colorScheme = resolved;
 
   const vars: Record<string, string> = {
@@ -197,6 +200,7 @@ export function applyAppearanceToRoot(
     '--accent-soft-border': palette.accentSoftBorder,
     '--accent-soft-text': palette.accentSoftText,
     '--accent-glow': palette.accentGlow,
+    '--logo-inner': logoInner,
     '--q-accent': palette.accent,
     '--q-accent-hover': palette.accentHover,
     '--border-focus': palette.accent,
