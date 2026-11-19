@@ -19,7 +19,7 @@ export function matchShortcut(
   const start = text.lastIndexOf(trigger);
   if (start < 0 || (start > 0 && !/\s/.test(text[start - 1]!))) return null;
   const query = text.slice(start + 1);
-  if (/[\r\n\\/]/.test(query)) return null;
+  if (/^\s|\s{2}|[\r\n\\/]/.test(query)) return null;
   return { query, start, end: text.length };
 }
 function isTextInput(

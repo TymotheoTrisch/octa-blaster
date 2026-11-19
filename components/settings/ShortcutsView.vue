@@ -70,7 +70,7 @@ async function saveTrigger() {
 
         <p class="management-help" style="margin-top: 8px">
           <template v-if="trigger">
-            Digite <strong>{{ trigger }}</strong> no início da linha ou após um espaço no editor do Octadesk para buscar e inserir respostas com o teclado.
+            Digite <strong>{{ trigger }}</strong> no início da linha ou após um espaço no editor do Octadesk para buscar respostas com o teclado. Para digitar <strong>{{ trigger }}</strong> como texto normal, pressione espaço logo após o gatilho, dois espaços seguidos ou <strong>Esc</strong>.
           </template>
           <template v-else>
             O menu rápido por teclado está desativado. Você ainda pode inserir respostas pelo botão <strong>Respostas</strong> do widget ou pelo painel.
