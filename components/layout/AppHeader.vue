@@ -15,12 +15,16 @@ import {
   RefreshCw,
   Github,
   MessageSquarePlus,
+  Monitor,
+  Sun,
+  Moon,
 } from 'lucide-vue-next';
 import {
   OCTABLASTER_ICON_PATH,
   OCTABLASTER_ICON_VIEWBOX,
   OCTABLASTER_INNER_RECT,
 } from '@/services/appearance/iconGeometry';
+import type { ThemeMode } from '@/services/storage/settingsSchema';
 
 export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians' | 'appearance';
 
@@ -29,12 +33,14 @@ defineProps<{
   showNewButton: boolean;
   canOpenSidebar: boolean;
   isCheckingUpdate: boolean;
+  theme: ThemeMode;
 }>();
 
 const emit = defineEmits<{
   create: [];
   openSidebar: [];
   navigate: [view: PopupView];
+  changeTheme: [theme: ThemeMode];
   exportBackup: [];
   importBackup: [];
   resetDefaults: [];
@@ -42,6 +48,12 @@ const emit = defineEmits<{
   openGithub: [];
   openDiscussions: [];
 }>();
+
+const themeQuickOptions: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof Monitor }> = [
+  { value: 'system', label: 'Sistema', icon: Monitor },
+  { value: 'light', label: 'Claro', icon: Sun },
+  { value: 'dark', label: 'Escuro', icon: Moon },
+];
 
 const isMenuOpen = ref(false);
 const menuRef = ref<HTMLElement | null>(null);
@@ -128,6 +140,22 @@ defineExpose({ closeMenu });
 
         <transition name="menu-scale">
           <div v-if="isMenuOpen" class="notion-dropdown-menu">
+            <div class="menu-theme-row" role="radiogroup" aria-label="Alternar tema rápido">
+              <button
+                v-for="option in themeQuickOptions"
+                :key="option.value"
+                type="button"
+                role="radio"
+                :aria-checked="theme === option.value"
+                class="menu-theme-btn"
+                :class="{ active: theme === option.value }"
+                @click="emit('changeTheme', option.value)"
+              >
+                <component :is="option.icon" :size="12" :stroke-width="2" />
+                <span>{{ option.label }}</span>
+              </button>
+            </div>
+            <div class="menu-divider"></div>
             <template v-if="canOpenSidebar">
               <div class="menu-section">
                 <button
@@ -377,5 +405,43 @@ defineExpose({ closeMenu });
   height: 1px;
   background: var(--border-divider);
   margin: 4px 2px;
+}
+
+.menu-theme-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+}
+
+.menu-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.menu-theme-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.menu-theme-btn.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border);
+  font-weight: 600;
+  box-shadow: var(--shadow-card);
 }
 </style>

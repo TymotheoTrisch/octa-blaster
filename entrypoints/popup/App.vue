@@ -5,9 +5,9 @@ import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template
 import type { LicenseTicketInfo } from '@/services/octadesk/licenseDetector';
 import { prepareTemplate, loadVariables } from '@/services/templates/templateVariables';
 import type { TemplateVariable } from '@/services/storage/settingsSchema';
-import type { AppearanceSettings } from '@/services/storage/settingsSchema';
+import type { AppearanceSettings, ThemeMode } from '@/services/storage/settingsSchema';
 import { loadSettings } from '@/services/storage/settingsStorage';
-import { loadAppearance } from '@/services/appearance/appearanceStorage';
+import { loadAppearance, saveAppearance } from '@/services/appearance/appearanceStorage';
 import {
   applyAppearanceToRoot,
   getSystemPrefersDark,
@@ -53,6 +53,7 @@ function rememberTemplatesBase() {
 const tags = ref<TemplateTag[]>([]);
 const variables = ref<TemplateVariable[]>([]);
 const appearance = ref<AppearanceSettings>(readCachedAppearance());
+let appearanceBase: AppearanceSettings = { ...appearance.value };
 let stopWatchingAppearance: (() => void) | null = null;
 const searchQuery = ref('');
 const selectedTagId = ref('');
@@ -117,10 +118,30 @@ function applyAppearance(next: AppearanceSettings) {
   } catch {}
 }
 
+function handleAppearanceSaved(next: AppearanceSettings) {
+  appearanceBase = { ...next };
+  applyAppearance(next);
+}
+
 async function syncAppearance() {
   try {
-    applyAppearance(await loadAppearance());
+    const loaded = await loadAppearance();
+    appearanceBase = { ...loaded };
+    applyAppearance(loaded);
   } catch {}
+}
+
+async function switchThemeQuick(nextTheme: ThemeMode) {
+  const next: AppearanceSettings = { ...appearance.value, theme: nextTheme };
+  applyAppearance(next);
+  try {
+    const saved = await saveAppearance(next, appearanceBase);
+    appearanceBase = { ...saved };
+    applyAppearance(saved);
+  } catch (error) {
+    await syncAppearance();
+    setStatus(error instanceof Error ? error.message : 'Falha ao alterar tema.', 'error');
+  }
 }
 
 async function refreshCatalogs() {
@@ -481,7 +502,10 @@ onMounted(() => {
 
   applyAppearance(appearance.value);
   stopWatchingAppearance = watchAppearanceChanges((nextAppearance) => {
-    if (nextAppearance) appearance.value = nextAppearance;
+    if (nextAppearance) {
+      appearance.value = nextAppearance;
+      appearanceBase = { ...nextAppearance };
+    }
     applyAppearanceToRoot(document.documentElement, appearance.value);
   });
 
@@ -506,9 +530,11 @@ onUnmounted(() => {
       :show-new-button="currentView === 'templates' && !showForm"
       :can-open-sidebar="canOpenSidebar"
       :is-checking-update="isCheckingUpdate"
+      :theme="appearance.theme"
       @create="startCreate"
       @open-sidebar="openSidebarPanel"
       @navigate="openView"
+      @change-theme="switchThemeQuick"
       @export-backup="exportTemplates"
       @import-backup="footerRef?.triggerFilePicker()"
       @reset-defaults="showConfirmResetModal = true"
@@ -553,7 +579,7 @@ onUnmounted(() => {
       :current-appearance="appearance"
       @back="returnToPreviousView"
       @preview="applyAppearance"
-      @changed="applyAppearance"
+      @changed="handleAppearanceSaved"
     />
 
     <template v-else>
