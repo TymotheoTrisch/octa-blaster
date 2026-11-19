@@ -138,8 +138,8 @@ function startEdit(target?: MentionTarget) {
 
 function onNameInput() {
   if (editingId.value || queryEditedManually.value) return;
-  const fullName = name.value.trim().replace(/\s+/g, ' ');
-  query.value = fullName ? `@${fullName}` : '';
+  const firstWord = name.value.trim().split(/\s+/)[0] || '';
+  query.value = firstWord ? `@${firstWord}` : '';
 }
 
 function onQueryInput() {
@@ -155,6 +155,12 @@ async function persistTargets(next: MentionTarget[], successMessage: string) {
 
 async function saveTarget() {
   if (busy.value) return;
+  const trimmedQuery = query.value.trim();
+  const normalizedQuery = trimmedQuery.startsWith('@') ? trimmedQuery : `@${trimmedQuery}`;
+  if (/\s/.test(normalizedQuery)) {
+    status.value = 'A busca da menção não pode conter espaços (use apenas o primeiro nome ou sobrenome, ex.: @Jorge).';
+    return;
+  }
   busy.value = true;
   try {
     const original = targets.value.find((target) => target.id === editingId.value);
@@ -275,12 +281,12 @@ async function restoreDefaults() {
           v-model="query"
           type="text"
           required
-          placeholder="Ex: @Jorge Tigre"
+          placeholder="Ex: @Jorge"
           @input="onQueryInput"
         />
       </div>
       <p class="management-help">
-        O nome completo exige <strong>correspondência exata</strong> na lista de menções do Octadesk (ex.: <em>Luiz Pulz</em> não marcará <em>Luiz Eduardo</em>); a busca é o texto digitado após o @.
+        O @ do Octadesk não aceita espaços na busca (use o primeiro nome ou sobrenome, ex.: <em>@Luiz</em>); na lista que abrir, a extensão seleciona <strong>somente</strong> o nome completo exato (<em>Luiz Pulz</em>).
       </p>
       <label class="management-checkbox-row">
         <input v-model="enabled" type="checkbox" />
