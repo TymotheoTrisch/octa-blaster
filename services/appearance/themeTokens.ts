@@ -16,6 +16,12 @@ export interface RgbColor {
   b: number;
 }
 
+export interface HsvColor {
+  h: number;
+  s: number;
+  v: number;
+}
+
 export interface BrandPalette {
   accent: string;
   accentHover: string;
@@ -46,6 +52,67 @@ export function rgbToHex({ r, g, b }: RgbColor): string {
   return `#${[clamp(r), clamp(g), clamp(b)]
     .map(channel => channel.toString(16).padStart(2, '0'))
     .join('')}`;
+}
+
+export function hexToHsv(hex: string): HsvColor | null {
+  const normalized = normalizeHexColor(hex);
+  if (!normalized) return null;
+  const rgb = hexToRgb(normalized);
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+
+  let h = 0;
+  if (delta > 0) {
+    if (max === r) {
+      h = 60 * (((g - b) / delta) % 6);
+    } else if (max === g) {
+      h = 60 * ((b - r) / delta + 2);
+    } else {
+      h = 60 * ((r - g) / delta + 4);
+    }
+    if (h < 0) h += 360;
+  }
+
+  const s = max === 0 ? 0 : (delta / max) * 100;
+  const v = max * 100;
+  return { h, s, v };
+}
+
+export function hsvToHex(h: number, s: number, v: number): string {
+  const hue = ((h % 360) + 360) % 360;
+  const sat = Math.max(0, Math.min(100, s)) / 100;
+  const val = Math.max(0, Math.min(100, v)) / 100;
+
+  const c = val * sat;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = val - c;
+
+  let rPrime = 0;
+  let gPrime = 0;
+  let bPrime = 0;
+  if (hue < 60) {
+    rPrime = c; gPrime = x;
+  } else if (hue < 120) {
+    rPrime = x; gPrime = c;
+  } else if (hue < 180) {
+    gPrime = c; bPrime = x;
+  } else if (hue < 240) {
+    gPrime = x; bPrime = c;
+  } else if (hue < 300) {
+    rPrime = x; bPrime = c;
+  } else {
+    rPrime = c; bPrime = x;
+  }
+
+  return rgbToHex({
+    r: (rPrime + m) * 255,
+    g: (gPrime + m) * 255,
+    b: (bPrime + m) * 255,
+  });
 }
 
 function mixRgb(source: RgbColor, target: RgbColor, ratio: number): RgbColor {

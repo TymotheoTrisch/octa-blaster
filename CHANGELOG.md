@@ -9,6 +9,14 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ---
 
+## [1.0.1] - 2026-11-19
+
+### 🐛 Corrigido
+- **Seletor visual de cor personalizada in-app:** substituído o seletor nativo do sistema (`<input type="color">`) em `ColorSwatchPicker.vue` por um seletor visual integrado (espectro 2D de saturação/brilho, controle horizontal de matiz e botões **OK** / **Cancelar**), evitando o fechamento automático do popup da extensão ao perder foco para janelas do sistema operacional (#56).
+- **Persistência de cor personalizada em `Aparência` e por código hexadecimal:** impedida a sobrescrita de `appearanceBase` durante `@preview`, adicionada fila coalescente de salvamento com persistência automática em prévia/desmontagem em `AppearanceView.vue` e corrigida a confirmação ao sair do campo hexadecimal (`commitTypedHex`) e na limpeza com campo vazio (#56).
+
+---
+
 ## [1.0.0] - 2026-11-19
 
 ### 🚀 Adicionado
@@ -72,7 +80,8 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ### 🚀 Adicionado
 - Reordenação de modelos por arrastar-e-soltar e teclado, cards em acordeão compacto com ações rápidas em ícones e links diretos para GitHub e Discussions (#44, #45).
 
-[Não lançado]: https://github.com/luizGDpulz/octa-blaster/compare/v1.0.0...HEAD
+[Não lançado]: https://github.com/luizGDpulz/octa-blaster/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/luizGDpulz/octa-blaster/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.7.0...v0.8.0
