@@ -9,7 +9,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ### 🚀 Adicionado
 - **Temas Claro, Escuro e Sistema (`Mais opções → Aparência`):** alternância persistida em `storage.local` e sincronizada em tempo real entre Popup, Painel Lateral e elementos injetados no Octadesk (widget flutuante, menu rápido `/` / `\` e modal de variáveis) (#9).
-- **Cor da marca e interior do logo personalizáveis:** paleta de presets, seletor visual (`<input type="color">`) e código hexadecimal com cálculo automático de contraste (WCAG), atualizando botões, destaques, SVG interno (com cor interna seguindo o tema branco/escuro por padrão ou personalizada) e o ícone da extensão na barra do navegador (`action.setIcon` / `browserAction.setIcon` / `sidebarAction.setIcon`) (#9).
+- **Cor da marca e cor secundária personalizáveis:** paleta de presets, seletor visual (`<input type="color">`) e código hexadecimal atualizando botões, destaques, texto/ícones dos botões da marca, interior do logo (seguindo o tema branco/escuro por padrão ou personalizado via **Cor secundária**) e o ícone da extensão na barra do navegador (`action.setIcon` / `browserAction.setIcon` / `sidebarAction.setIcon`) (#9).
 - **Cores personalizadas por Tag (`Mais opções → Tags`):** escolha opcional de cor por tag (presets, color picker e hexadecimal) aplicada com pílulas pastéis de alto contraste nos modos claro e escuro em cards, formulário, menu rápido e widget do Octadesk (#9).
 
 ### 🛠️ Modificado
