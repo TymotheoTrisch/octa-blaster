@@ -7,16 +7,23 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ## [Não lançado]
 
+---
+
+## [1.0.0] - 2026-11-19
+
 ### 🚀 Adicionado
-- **Temas Claro, Escuro e Sistema (`Mais opções` e `Aparência`):** seletor rápido `Sistema / Claro / Escuro` no topo do menu `...` e na tela dedicada, persistido em `storage.local`, incluído nos backups JSON v2 e sincronizado em tempo real entre Popup, Painel Lateral e elementos injetados no Octadesk (widget flutuante, menu rápido `/` / `\` e modal de variáveis) (#9).
-- **Cor da marca e cor secundária personalizáveis:** paleta de presets, seletor visual (`<input type="color">`) e código hexadecimal atualizando botões, destaques, texto/ícones dos botões da marca, interior do logo (seguindo o tema branco/escuro por padrão ou personalizado via **Cor secundária**) e o ícone da extensão na barra do navegador (`action.setIcon` / `browserAction.setIcon` / `sidebarAction.setIcon`) (#9).
-- **Cores personalizadas por Tag (`Mais opções → Tags`):** escolha opcional de cor por tag (presets, color picker e hexadecimal) aplicada com pílulas pastéis de alto contraste nos modos claro e escuro em cards, formulário, menu rápido e widget do Octadesk (#9).
+- **Temas Claro, Escuro e Sistema (`Mais opções` e `Aparência`):** seletor rápido `Sistema / Claro / Escuro` no topo do menu `...` e na tela dedicada, persistido em `storage.local`, incluído nos backups JSON v2 e sincronizado em tempo real entre Popup, Painel Lateral e elementos injetados no Octadesk (widget flutuante, menu rápido `/` / `\` e modal de variáveis) (#9, #55).
+- **Cor da marca e cor secundária personalizáveis:** paleta de presets, seletor visual (`<input type="color">`) e código hexadecimal atualizando botões, destaques, texto/ícones dos botões da marca, interior do logo (seguindo o tema branco/escuro por padrão ou personalizado via **Cor secundária**) e o ícone da extensão na barra do navegador (`action.setIcon` / `browserAction.setIcon` / `sidebarAction.setIcon`) (#9, #55).
+- **Cores personalizadas por Tag (`Mais opções → Tags`):** escolha opcional de cor por tag (presets, color picker e hexadecimal) aplicada com pílulas pastéis de alto contraste nos modos claro e escuro em cards, formulário, menu rápido e widget do Octadesk (#9, #55).
 
 ### 🛠️ Modificado
-- **Cabeçalho claro no Modo Claro:** barra superior (`AppHeader`) adaptada para superfície clara no plano claro, mantendo o contraste e a identidade visual alinhada ao Design System (#9).
+- **Cabeçalho claro no Modo Claro:** barra superior (`AppHeader`) adaptada para superfície clara no plano claro, mantendo o contraste e a identidade visual alinhada ao Design System (#9, #55).
 
 ### 🐛 Corrigido
-- **Extração tolerante e alerta de campos pendentes em licenças:** extrai o primeiro número presente na linha dos campos numéricos (suportando formatos como `lic_89898` e rótulos variados), preenche campos ausentes ou inválidos com `[Falta Informar]` e exibe um modal personalizado na tela listando o que precisa ser preenchido manualmente (#9).
+- **Extração tolerante e alerta de campos pendentes em licenças:** extrai o primeiro número presente na linha dos campos numéricos (suportando formatos como `lic_89898` e rótulos variados), preenche campos ausentes ou inválidos com `[Falta Informar]` e exibe um modal personalizado na tela listando o que precisa ser preenchido manualmente (#9, #55).
+- **Espaçamento na automação de licenças:** usa quebra de linha simples (`\n`) entre menções, resumo da operação e linha `Banco:` (#9, #55).
+- **Menu contextual do Painel Lateral:** oculta a opção **Abrir no Painel Lateral** quando a extensão já está aberta no painel lateral (#9, #55).
+- **Preservação de cores de tags em backups JSON:** mantém `tag.color` ao importar e mesclar backups completos v2 (#9, #55).
 
 ---
 
@@ -65,7 +72,8 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ### 🚀 Adicionado
 - Reordenação de modelos por arrastar-e-soltar e teclado, cards em acordeão compacto com ações rápidas em ícones e links diretos para GitHub e Discussions (#44, #45).
 
-[Não lançado]: https://github.com/luizGDpulz/octa-blaster/compare/v0.9.0...HEAD
+[Não lançado]: https://github.com/luizGDpulz/octa-blaster/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.5.9...v0.7.0
