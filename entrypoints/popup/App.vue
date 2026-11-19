@@ -455,6 +455,10 @@ async function triggerLicenseMentions() {
 }
 
 async function checkSidebarSupport() {
+  if (isSidebar.value) {
+    canOpenSidebar.value = false;
+    return;
+  }
   try {
     const b = browser as any;
     const c = (globalThis as any).chrome;

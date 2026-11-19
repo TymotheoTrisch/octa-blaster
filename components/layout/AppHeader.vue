@@ -156,7 +156,7 @@ defineExpose({ closeMenu });
               </button>
             </div>
             <div class="menu-divider"></div>
-            <template v-if="canOpenSidebar">
+            <template v-if="canOpenSidebar && !isSidebar">
               <div class="menu-section">
                 <button
                   type="button"
