@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom } from './helpers.mjs';
-import { automateLicenseMentions } from '../utils/mentionHelper.ts';
+import { automateLicenseMentions } from '../services/octadesk/mentionHelper.ts';
 
 for (const navigation of [
   '',
@@ -39,7 +39,7 @@ for (const navigation of [
     }
   });
 }
-import { isInternalNoteTabActive, switchToInternalNote, waitForInternalNoteEditor } from '../utils/mentionHelper.ts';
+import { isInternalNoteTabActive, switchToInternalNote, waitForInternalNoteEditor } from '../services/octadesk/mentionHelper.ts';
 
 function showElements(window) {
   window.HTMLElement.prototype.getBoundingClientRect = () => ({

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installStorage } from './helpers.mjs';
-import { DEFAULT_TEMPLATES, STORAGE_KEY, HAS_INITIALIZED_KEY, loadStoredTemplates, saveStoredTemplates } from '../utils/templateStorage.ts';
+import { DEFAULT_TEMPLATES, STORAGE_KEY, HAS_INITIALIZED_KEY, loadStoredTemplates, saveStoredTemplates } from '../services/storage/templateStorage.ts';
 
 test('background storage queue preserves a new default when an older client saves its snapshot', async () => {
   const custom = { id: 'mine', title: 'Meu título', content: 'Meu conteúdo', updatedAt: 123 };

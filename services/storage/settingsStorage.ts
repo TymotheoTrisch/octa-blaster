@@ -1,4 +1,4 @@
-import { rawStorageGet, rawStorageSet } from './storage';
+import { rawStorageGet, rawStorageSet } from './rawStorage';
 import { VARIABLES_KEY, SHORTCUT_KEY, MENTION_TARGETS_STORAGE_KEY, DEFAULT_MENTION_TARGETS, validateVariables, validateMentionTargets, validateSettingsPatch, type TemplateVariable, type SettingsSnapshot } from './settingsSchema';
 
 export async function loadSettingsLocal(): Promise<SettingsSnapshot> {
@@ -22,7 +22,13 @@ function mergeCollection<T>(proposed: T[], base: T[], latest: T[], key: (item: T
     if (next.has(id)) current.set(id, next.get(id)!);
     else current.delete(id);
   }
-  return [...current.values()];
+  const baseOrder = [...original.keys()].filter(id => next.has(id));
+  const proposedOrder = [...next.keys()].filter(id => original.has(id));
+  const wasReordered = baseOrder.some((id, index) => id !== proposedOrder[index]);
+  const orderedIds = wasReordered
+    ? [...new Set([...next.keys(), ...current.keys()])]
+    : [...current.keys()];
+  return orderedIds.map(id => current.get(id)).filter((item): item is T => item !== undefined);
 }
 
 // Prepara todos os campos antes de gravar, também para uma importação completa.

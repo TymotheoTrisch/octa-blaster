@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
-import { loadMentionTargets, saveMentionTargets, automateLicenseMentions } from '../utils/mentionHelper.ts';
+import { loadMentionTargets, saveMentionTargets, resetMentionTargets, automateLicenseMentions } from '../services/octadesk/mentionHelper.ts';
 
 const targets = [
   { id: 'ana', name: 'Ana Técnica', query: '@ana', pattern: 'ana\\s+t[eé]cnica', enabled: true },
@@ -117,4 +117,40 @@ test('license automation uses the saved enabled targets and skips disabled targe
     assert.ok(editor.value.includes('@Ana Técnica'));
     assert.ok(!editor.value.includes('@roberto'));
   } finally { storage.restore(); dom.restore(); }
+});
+
+test('resetMentionTargets restores default technicians cleanly', async () => {
+  const storage = installStorage();
+  try {
+    await saveMentionTargets([]);
+    assert.deepEqual(await loadMentionTargets(), []);
+    const restored = await resetMentionTargets([]);
+    assert.equal(restored.length, 2);
+    assert.equal(restored[0].id, 'jorge_tigre');
+    assert.equal(restored[0].query, '@Jorge');
+    assert.equal(restored[1].id, 'roberto_renck');
+    assert.equal(restored[1].query, '@Roberto');
+  } finally { storage.restore(); }
+});
+
+test('reordering mention targets with base persists the new order', async () => {
+  const storage = installStorage();
+  try {
+    const initial = await loadMentionTargets();
+    const reordered = [initial[1], initial[0]];
+    const saved = await saveMentionTargets(reordered, initial);
+    assert.deepEqual(saved.map(t => t.id), ['roberto_renck', 'jorge_tigre']);
+    assert.deepEqual((await loadMentionTargets()).map(t => t.id), ['roberto_renck', 'jorge_tigre']);
+  } finally { storage.restore(); }
+});
+
+test('default and newly created technicians enforce exact anchored patterns', async () => {
+  const storage = installStorage();
+  try {
+    const defaults = await loadMentionTargets();
+    assert.equal(defaults[0].pattern, '^jorge\\s+tigre$');
+    assert.equal(defaults[1].pattern, '^roberto\\s+renck$');
+    const saved = await saveMentionTargets([{ id: 'luiz', name: 'Luiz Pulz', query: '@Luiz', pattern: '', enabled: true }]);
+    assert.equal(saved[0].pattern, '^Luiz\\s+Pulz$');
+  } finally { storage.restore(); }
 });

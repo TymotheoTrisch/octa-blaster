@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkGithubRelease } from '../utils/updateChecker.ts';
+import { checkGithubRelease } from '../services/updates/updateChecker.ts';
 
 test('update checks use the official project release endpoint', async () => {
   const previous = globalThis.fetch;

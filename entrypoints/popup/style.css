@@ -67,6 +67,178 @@ button, input, textarea, select {
   font-size: inherit;
 }
 
+input[type='text'],
+input[type='search'],
+textarea {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #ffc600;
+  box-shadow: 0 0 0 2px rgba(255, 198, 0, 0.25);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.btn-primary {
+  background: #ffc600;
+  color: #1c1b1c;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-primary:hover {
+  background: #f0ba00;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(255, 198, 0, 0.4);
+}
+
+.btn-secondary {
+  background: #f7f8f9;
+  border: 1px solid #dee0e4;
+  color: #3c3f43;
+  padding: 7px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-secondary:hover {
+  background: #eceef0;
+}
+
+/* Modal Estilo Notion */
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 15, 15, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 200;
+}
+
+.notion-modal {
+  background: #ffffff;
+  border: 1px solid #dee0e4;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  padding: 16px;
+  width: 100%;
+  max-width: 310px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notion-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-icon-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255, 198, 0, 0.15);
+  color: #6f5600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c1b1c;
+}
+
+.modal-body {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #44474a;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.is-reordering,
+.is-reordering * {
+  cursor: grabbing !important;
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.menu-scale-enter-active,
+.menu-scale-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.menu-scale-enter-from,
+.menu-scale-leave-to {
+  opacity: 0;
+  transform: scale(0.96) translateY(-4px);
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

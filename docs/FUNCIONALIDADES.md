@@ -1,6 +1,6 @@
 # Guia das funcionalidades e teste manual
 
-Este guia descreve a contribuição sobre a base 0.7.0. A versão proposta no código é **0.9.1**; isso não significa que uma release oficial já foi publicada.
+Este guia descreve as funcionalidades atuais da extensão a partir da versão **0.8.0**.
 
 ## Variáveis
 
@@ -24,7 +24,7 @@ O atalho mostra a mesma lista e ordem do botão **Respostas**, com prévia abaix
 
 ## Técnicos e resumo das licenças
 
-A tela **Atalhos** também permite criar, editar, desativar e excluir os técnicos da marcação. Use o nome completo exibido nas sugestões do Octadesk e a busca, como `@nome`. Os técnicos habilitados são marcados sequencialmente na Anotação Interna e permanecem lado a lado. A próxima busca começa após a confirmação do marcador anterior; respostas lentas do Octadesk são aguardadas dentro do limite de 15 segundos por pessoa.
+Abra **Mais opções → Técnicos (Licenças)** para criar, editar, reordenar, ativar/desativar rapidamente ou restaurar os técnicos padrão da marcação. Use o nome completo exibido nas sugestões do Octadesk e a busca, como `@nome` (sugerida automaticamente ao cadastrar). Os técnicos habilitados são marcados sequencialmente na ordem da lista em Anotação Interna e permanecem lado a lado. A próxima busca começa após a confirmação do marcador anterior; respostas lentas do Octadesk são aguardadas dentro do limite de 15 segundos por pessoa.
 
 Quando o ticket contém o formulário de solicitação, **Marcar Licenças** também acrescenta o resumo após os técnicos. O banco vem do campo do e-mail, mesmo que o título mostre outro número. Os nomes abaixo são exemplos; o cadastro define quem será marcado.
 
@@ -83,8 +83,6 @@ pnpm build:firefox
 ```
 
 Abra `about:debugging#/runtime/this-firefox`, escolha **Carregar extensão temporária** e selecione `.output/firefox-mv2/manifest.json`. Em atualizações, clique em **Recarregar** e atualize o Octadesk com F5. Confira a versão instalada na extensão.
-
-No Windows, `Executar-Firefox.cmd` abre um Firefox de teste após instalar dependências e gerar a build. O script procura o Firefox nas pastas usuais e mantém um perfil em `%LOCALAPPDATA%\OctaBlaster\Firefox-Teste`. Ele cria os diretórios necessários e deve permanecer aberto durante a sessão. Esse perfil tem login próprio no Octadesk. O script não assina nem instala permanentemente a extensão. A instalação temporária manual funciona sem esse script.
 
 ## Roteiro para aprovação funcional
 

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom } from './helpers.mjs';
-import { parseLicenseRequestText, readTicketLicenseRequest, formatLicenseRequest } from '../utils/licenseRequest.ts';
-import { automateLicenseMentions } from '../utils/mentionHelper.ts';
+import { parseLicenseRequestText, readTicketLicenseRequest, formatLicenseRequest } from '../services/octadesk/licenseRequest.ts';
+import { automateLicenseMentions } from '../services/octadesk/mentionHelper.ts';
 
 const contract = `Olá Suporte, quero solicitar a CONTRATAÇÃO da LICENÇA FACIAL.
 Nome da Revenda: Revenda Teste

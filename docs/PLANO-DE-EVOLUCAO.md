@@ -1,6 +1,6 @@
-# Resumo da contribuição sobre a versão 0.7.0
+# Resumo da evolução para a versão 0.8.0
 
-Esta contribuição integra a `main` do projeto original no commit `054b298` e reúne as funcionalidades descritas abaixo. A versão proposta é **0.9.1**. O histórico detalhado está em [CHANGELOG.md](../CHANGELOG.md); a publicação de uma versão oficial depende da aprovação da manutenção.
+Esta entrega integra o PR #46 (`@TymotheoTrisch`) sobre a base `0.7.0` (`054b298`) e consolida as funcionalidades abaixo na **v0.8.0**. O histórico detalhado está em [CHANGELOG.md](../CHANGELOG.md).
 
 ## Escopo implementado
 

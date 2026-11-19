@@ -1,0 +1,24 @@
+name: Solicitação de Melhoria Técnica
+description: Proponha uma nova funcionalidade ou refatoração técnica
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema ou necessidade
+      description: Qual dor ou fluxo de trabalho essa melhoria resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solução proposta
+      description: Descreva como a funcionalidade ou melhoria técnica deve funcionar.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Critérios de aceite / Contexto adicional
+      description: Inclua detalhes sobre compatibilidade (Firefox/Chromium), armazenamento ou interface, se aplicável.

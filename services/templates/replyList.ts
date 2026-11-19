@@ -1,7 +1,7 @@
 import type { QuickReplyTemplate } from '@/types/template';
-import { loadStoredTemplates } from './templateStorage';
-import { getTemplateTagNames, type TemplateTag } from './templateTagSchema';
-import { loadTags } from './templateTags';
+import { loadStoredTemplates } from '../storage/templateStorage';
+import { getTemplateTagNames, type TemplateTag } from '../storage/templateTagSchema';
+import { loadTags } from '../storage/templateTags';
 
 export async function loadReplyList(): Promise<{ templates: QuickReplyTemplate[]; tags: TemplateTag[] }> {
   const [templates, tags] = await Promise.all([loadStoredTemplates(), loadTags()]);

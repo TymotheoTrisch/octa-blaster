@@ -1,0 +1,550 @@
+.management-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.management-subbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.management-subbar h2 {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.management-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.management-back-btn:hover {
+  background: #eceef0;
+  color: var(--text-primary);
+}
+
+.management-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  background: #ffc600;
+  color: #1c1b1c;
+  border: 1px solid #e0af00;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.management-add-btn:hover {
+  background: #f0ba00;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(255, 198, 0, 0.35);
+}
+
+.management-add-btn:active {
+  transform: translateY(0);
+}
+
+/* Barra de busca e filtro (mesma anatomia da aba principal) */
+.management-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 6px;
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.management-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.management-search-icon {
+  position: absolute;
+  left: 9px;
+  color: #8a8f96;
+  pointer-events: none;
+}
+
+.management-search-wrapper input {
+  padding-left: 30px;
+}
+
+.management-filter {
+  flex: 0 1 130px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.management-filter select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.management-filter select:focus {
+  border-color: #ffc600;
+  box-shadow: 0 0 0 2px rgba(255, 198, 0, 0.25);
+  outline: none;
+}
+
+/* Lista com scroll e drop indicator (mesma anatomia da aba principal) */
+.management-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 14px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.management-scroll[data-drop='true']::after {
+  content: '';
+  position: fixed;
+  left: var(--drop-x);
+  top: var(--drop-y);
+  width: var(--drop-w);
+  height: var(--drop-h, 2px);
+  background: #ffc600;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 50;
+  transform: translateY(-50%);
+}
+
+.management-scroll[data-drop='true']::before {
+  content: '';
+  position: fixed;
+  left: calc(var(--drop-x) - 3px);
+  top: var(--drop-y);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #e0af00;
+  pointer-events: none;
+  z-index: 51;
+  transform: translateY(-50%);
+}
+
+/* Card compacto idêntico ao TemplateCard */
+.management-shell .template-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  scroll-margin: 12px;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.management-shell .template-card.is-expanded {
+  padding: 9px 10px 10px 10px;
+}
+
+.management-shell .template-card.is-inactive {
+  background: #fafbfc;
+  opacity: 0.78;
+}
+
+.management-shell .template-card.has-open-menu {
+  position: relative;
+  z-index: 30;
+}
+
+.management-shell .template-card:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+  border-color: #cbd5e1;
+}
+
+.management-shell .template-card:has(.drag-handle:focus-visible) {
+  outline: 2px solid #ffc600;
+  outline-offset: 1px;
+}
+
+.management-shell .template-card.is-dragging {
+  position: relative;
+  z-index: 20;
+  transform: scale(1.015);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+  border-color: #e0af00;
+  pointer-events: none;
+  transition: none;
+}
+
+.management-shell .template-card.is-keyboard-grabbed {
+  border-color: #e0af00;
+  box-shadow: 0 6px 16px rgba(255, 198, 0, 0.25);
+}
+
+.management-shell .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.management-shell .template-card.is-expanded .card-header {
+  margin-bottom: 6px;
+}
+
+.management-shell .drag-handle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  margin-left: -3px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #5b5f63;
+  opacity: 0.45;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.management-shell .drag-handle:is(:hover, :focus-visible) {
+  opacity: 1;
+  color: #1c1b1c;
+  background: #f1f5f9;
+  outline: none;
+}
+
+.management-shell .drag-handle[aria-pressed='true'] {
+  opacity: 1;
+  color: #1c1b1c;
+  background: rgba(255, 198, 0, 0.28);
+}
+
+.management-shell .reorder-key-hint {
+  margin: 4px 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: #7c6200;
+}
+
+.management-shell .card-expand-trigger {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.management-shell .card-static-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 2px;
+}
+
+.management-shell .card-chevron {
+  flex-shrink: 0;
+  color: #8a8f96;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.management-shell .card-chevron.expanded {
+  transform: rotate(90deg);
+  color: #1c1b1c;
+}
+
+.management-shell .card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.management-shell .card-badge {
+  font-size: 9.5px;
+  padding: 1px 7px;
+  background: rgba(60, 63, 67, 0.08);
+  color: #3c3f43;
+  border-radius: 12px;
+  border: 1px solid #dee0e4;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.management-shell .card-badge-accent {
+  background: rgba(255, 198, 0, 0.22);
+  border-color: rgba(224, 175, 0, 0.55);
+  color: #6f5600;
+  font-weight: 600;
+}
+
+.management-shell .card-badge-btn {
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.management-shell .card-badge-btn:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.management-shell .card-menu {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.management-shell .card-more-wrapper {
+  position: relative;
+}
+
+.management-shell .btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: #5b5f63;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.management-shell .btn-icon:hover,
+.management-shell .btn-icon.active {
+  color: #1c1b1c;
+  background: #f1f5f9;
+}
+
+.management-shell .card-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 132px;
+  background: #ffffff;
+  border: 1px solid #dee0e4;
+  border-radius: 7px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 4px;
+  z-index: 40;
+  transform-origin: top right;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.management-shell .menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #1c1b1c;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.management-shell .menu-item:hover {
+  background: #f1f2f4;
+}
+
+.management-shell .menu-item-icon {
+  flex-shrink: 0;
+  color: #5b5f63;
+}
+
+.management-shell .menu-item-text {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.management-shell .menu-item-danger {
+  color: #ba1a1a;
+}
+
+.management-shell .menu-item-danger .menu-item-icon {
+  color: #ba1a1a;
+}
+
+.management-shell .menu-item-danger:hover {
+  background: #fee2e2;
+}
+
+.management-shell .card-body {
+  padding-top: 6px;
+  border-top: 1px solid #f0f1f3;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.management-section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #8a8f96;
+  margin-top: 6px;
+  padding: 0 2px;
+}
+
+.management-empty {
+  text-align: center;
+  padding: 24px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.management-help {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.management-status-inline {
+  padding: 6px 14px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: #f7f8f9;
+  color: #3c3f43;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Formulários padronizados com TemplateForm */
+.management-form-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.management-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.management-form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.management-form-group select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.management-form-group select:focus {
+  border-color: #ffc600;
+  box-shadow: 0 0 0 2px rgba(255, 198, 0, 0.25);
+  outline: none;
+}
+
+.management-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.management-checkbox-row input {
+  accent-color: var(--accent);
+}
+
+.management-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.management-footer-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.management-footer-bar .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  padding: 5px 10px;
+}
