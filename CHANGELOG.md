@@ -7,6 +7,13 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ## [Não lançado]
 
+### 🚀 Adicionado
+- **Temas Claro, Escuro e Sistema (`Mais opções → Aparência`):** alternância persistida em `storage.local` e sincronizada em tempo real entre Popup, Painel Lateral e elementos injetados no Octadesk (widget flutuante, menu rápido `/` / `\` e modal de variáveis) (#9).
+- **Cor da marca personalizável:** paleta de presets, seletor visual (`<input type="color">`) e código hexadecimal com cálculo automático de contraste (WCAG), atualizando botões, destaques, SVG interno e o ícone da extensão na barra do navegador (`action.setIcon` / `browserAction.setIcon` / `sidebarAction.setIcon`) (#9).
+
+### 🛠️ Modificado
+- **Cabeçalho claro no Modo Claro:** barra superior (`AppHeader`) adaptada para superfície clara no plano claro, mantendo o contraste e a identidade visual alinhada ao Design System (#9).
+
 ---
 
 ## [0.9.0] - 2026-11-19
