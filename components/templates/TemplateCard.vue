@@ -396,7 +396,10 @@ const emit = defineEmits<{
 
 .btn-icon-quick.btn-icon-send:hover:not(:disabled) {
   background: var(--accent-hover);
-  transform: translateY(-0.5px);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px var(--accent-glow);
 }
 
 .btn-icon-quick:disabled {
