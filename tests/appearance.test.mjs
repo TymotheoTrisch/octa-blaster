@@ -20,6 +20,7 @@ import {
   applyBrowserBrandIcon,
   renderBrandIconImageData,
 } from '../services/appearance/browserIcon.ts';
+import { bindInpageAppearance } from '../services/appearance/inpageTheme.ts';
 import { loadAppearance, saveAppearance } from '../services/appearance/appearanceStorage.ts';
 import {
   exportTemplatesToJson,
@@ -225,5 +226,49 @@ test('browserIcon restores static PNG paths for default brand color and renders 
     else globalThis.OffscreenCanvas = previousOffscreen;
     if (previousBrowser === undefined) delete globalThis.browser;
     else globalThis.browser = previousBrowser;
+  }
+});
+
+test('bindInpageAppearance applies stored theme and brand tokens to injected elements and reacts to storage updates', async () => {
+  const dom = installDom('<html><head></head><body><div id="widget"></div></body></html>');
+  const storage = installStorage({
+    [APPEARANCE_KEY]: { theme: 'dark', brandColor: '#10b981' },
+  });
+  const listeners = [];
+  browser.storage.onChanged = {
+    addListener(fn) {
+      listeners.push(fn);
+    },
+    removeListener(fn) {
+      const idx = listeners.indexOf(fn);
+      if (idx >= 0) listeners.splice(idx, 1);
+    },
+  };
+
+  try {
+    const widget = dom.document.getElementById('widget');
+    const stop = bindInpageAppearance(widget);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    assert.ok(dom.document.getElementById('octablaster-inpage-theme-tokens'));
+    assert.equal(widget.dataset.octaScope, 'true');
+    assert.equal(widget.dataset.theme, 'dark');
+    assert.equal(widget.style.getPropertyValue('--accent'), '#10b981');
+
+    for (const listener of [...listeners]) {
+      listener(
+        { [APPEARANCE_KEY]: { newValue: { theme: 'light', brandColor: '#ef4444' } } },
+        'local',
+      );
+    }
+
+    assert.equal(widget.dataset.theme, 'light');
+    assert.equal(widget.style.getPropertyValue('--accent'), '#ef4444');
+
+    stop();
+    assert.equal(listeners.length, 0);
+  } finally {
+    storage.restore();
+    dom.restore();
   }
 });
