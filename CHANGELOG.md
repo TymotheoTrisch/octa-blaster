@@ -7,13 +7,22 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 
 ## [Não lançado]
 
+---
+
+## [0.9.0] - 2026-11-19
+
 ### 🚀 Adicionado
-- **Tela dedicada para Técnicos (Licenças) (`Mais opções → Técnicos (Licenças)`):** separada de **Atalhos**, com toggle rápido Ativo/Desativado no card, reordenação da sequência de menções (`↑`/`↓`), sugestão automática de `@busca` ao digitar o nome e botão para restaurar técnicos padrão (#52).
+- **Tela dedicada para Técnicos (Licenças) (`Mais opções → Técnicos (Licenças)`):** separada de **Atalhos**, com padrão visual unificado (barra de busca, filtro Todos/Ativos/Inativos, cards expansíveis com drag-and-drop), toggle rápido Ativo/Desativado, sugestão automática de `@PrimeiroNome` ao digitar e botão para restaurar técnicos padrão (#52, #54).
+- **Telas de gestão unificadas:** **Tags**, **Variáveis** e **Atalhos** alinhadas ao design system principal da extensão, com pílulas, gutter de arrastar e busca/filtros no topo (#51, #54).
 
 ### 🛠️ Modificado
-- **Arquitetura modular por domínio:** `App.vue` (~2.190 → ~350 linhas), `content.ts` (~887 → ~15 linhas) e `background.ts` desmembrados em `components/` (`layout/`, `templates/`, `settings/`, `modals/`), `composables/` e `services/` (`storage/`, `templates/`, `octadesk/`, `background/`, `updates/`) (#53).
-- **Modal de variáveis e menu de atalho harmonizados:** novo visual alinhado ao design system do OctaBlaster (`#1c1b22` / `#3c3f43` / `#ffc600` / `#f7f8f9`) com backdrop suave, cabeçalho com botão fechar e foco automático no primeiro campo (#51).
-- **Refinamento de menções (`mentionHelper.ts`):** evita espaço extra ao final quando já há separador após o token nativo (#52).
+- **Arquitetura modular por domínio:** `App.vue` (~2.190 → ~350 linhas), `content.ts` (~887 → ~15 linhas) e `background.ts` desmembrados em `components/` (`layout/`, `templates/`, `settings/`, `modals/`), `composables/` e `services/` (`storage/`, `templates/`, `octadesk/`, `background/`, `updates/`) (#53, #54).
+- **Modal de variáveis e menu de atalho harmonizados:** novo visual alinhado ao design system do OctaBlaster (`#1c1b22` / `#3c3f43` / `#ffc600` / `#f7f8f9`) com backdrop suave, cabeçalho com botão fechar e foco automático no primeiro campo (#51, #54).
+
+### 🐛 Corrigido
+- **Cancelamento de slash command (`\` / `/`):** digitar espaço logo após o gatilho (`\ `, `/ `) ou dois espaços seguidos cancela o menu de atalho e mantém o texto literal (#51, #54).
+- **Correspondência exata de menções no Octadesk:** busca sem espaços no `@` (compatível com o autocomplete do Octadesk), extração limpa do nome no popover ignorando avatares (`<bexs-thumb>`) e tags inline, e validação global ancorada (`^...$`) para evitar falsos positivos entre nomes parecidos e nos técnicos padrão (#52, #54).
+- **Refinamento de menções (`mentionHelper.ts`):** evita espaço extra ao final quando já há separador após o token nativo (#52, #54).
 
 ---
 
@@ -45,6 +54,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ### 🚀 Adicionado
 - Reordenação de modelos por arrastar-e-soltar e teclado, cards em acordeão compacto com ações rápidas em ícones e links diretos para GitHub e Discussions (#44, #45).
 
-[Não lançado]: https://github.com/luizGDpulz/octa-blaster/compare/v0.8.0...HEAD
+[Não lançado]: https://github.com/luizGDpulz/octa-blaster/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/luizGDpulz/octa-blaster/compare/v0.5.9...v0.7.0
