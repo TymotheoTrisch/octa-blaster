@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Search } from 'lucide-vue-next';
 import type { QuickReplyTemplate } from '@/types/template';
-import { getTemplateTagIds, getTemplateTagNames, type TemplateTag } from '@/services/storage/templateTagSchema';
+import { getTemplateTagIds, getTemplateTagNames, getTemplateTags, type TemplateTag } from '@/services/storage/templateTagSchema';
 import { useTemplateReorder } from '@/composables/useTemplateReorder';
 import TemplateCard from './TemplateCard.vue';
 
@@ -152,7 +152,7 @@ defineExpose({ closeCardMenu });
         v-for="tpl in filteredTemplates"
         :key="tpl.id"
         :template="tpl"
-        :tag-names="getTemplateTagNames(tpl, tags)"
+        :template-tags="getTemplateTags(tpl, tags)"
         :can-reorder="canReorder"
         :expanded="isExpanded(tpl.id)"
         :is-dragging="draggingId === tpl.id"

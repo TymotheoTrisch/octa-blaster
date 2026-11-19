@@ -10,10 +10,12 @@ import {
   Trash2,
 } from 'lucide-vue-next';
 import type { QuickReplyTemplate } from '@/types/template';
+import type { TemplateTag } from '@/services/storage/templateTagSchema';
+import { computeTagBadgeVars } from '@/services/appearance/themeTokens';
 
 defineProps<{
   template: QuickReplyTemplate;
-  tagNames: string[];
+  templateTags: TemplateTag[];
   canReorder: boolean;
   expanded: boolean;
   isDragging: boolean;
@@ -71,8 +73,13 @@ const emit = defineEmits<{
       >
         <ChevronRight :size="14" :stroke-width="2" class="card-chevron" :class="{ expanded }" />
         <span class="card-title">{{ template.title }}</span>
-        <span v-if="tagNames.length && !expanded" class="card-badge card-badge-compact">
-          {{ tagNames.join(', ') }}
+        <span
+          v-if="templateTags.length && !expanded"
+          class="card-badge card-badge-compact"
+          :class="{ 'tag-badge-colored': Boolean(templateTags[0]?.color) }"
+          :style="computeTagBadgeVars(templateTags[0]?.color)"
+        >
+          {{ templateTags.map((tag) => tag.name).join(', ') }}
         </span>
       </button>
 
@@ -141,8 +148,16 @@ const emit = defineEmits<{
     </p>
 
     <div v-if="expanded" class="card-body">
-      <div v-if="tagNames.length" class="card-meta">
-        <span v-for="tagName in tagNames" :key="tagName" class="card-badge">{{ tagName }}</span>
+      <div v-if="templateTags.length" class="card-meta">
+        <span
+          v-for="tag in templateTags"
+          :key="tag.id"
+          class="card-badge"
+          :class="{ 'tag-badge-colored': Boolean(tag.color) }"
+          :style="computeTagBadgeVars(tag.color)"
+        >
+          {{ tag.name }}
+        </span>
       </div>
 
       <p class="card-preview-expanded">{{ template.content }}</p>

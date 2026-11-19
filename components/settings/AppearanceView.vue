@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { ArrowLeft, Monitor, Sun, Moon, RotateCcw, Check } from 'lucide-vue-next';
+import { ArrowLeft, Monitor, Sun, Moon, RotateCcw } from 'lucide-vue-next';
 import {
   BRAND_COLOR_PRESETS,
   DEFAULT_APPEARANCE,
@@ -11,6 +11,7 @@ import {
 } from '@/services/storage/settingsSchema';
 import { loadAppearance, saveAppearance } from '@/services/appearance/appearanceStorage';
 import { OCTABLASTER_ICON_PATH, OCTABLASTER_ICON_VIEWBOX } from '@/services/appearance/iconGeometry';
+import ColorSwatchPicker from '@/components/common/ColorSwatchPicker.vue';
 import './management.css';
 
 const props = defineProps<{
@@ -25,7 +26,6 @@ const emit = defineEmits<{
 
 const theme = ref<ThemeMode>(props.currentAppearance.theme);
 const brandColor = ref<string>(props.currentAppearance.brandColor);
-const hexInput = ref<string>(props.currentAppearance.brandColor);
 let appearanceBase: AppearanceSettings = { ...props.currentAppearance };
 
 const status = ref('');
@@ -42,18 +42,12 @@ const isDefaultAppearance = computed(
   () => theme.value === DEFAULT_APPEARANCE.theme && brandColor.value === DEFAULT_BRAND_COLOR,
 );
 
-const normalizedHexInput = computed(() => normalizeHexColor(hexInput.value));
-const canApplyHexInput = computed(
-  () => Boolean(normalizedHexInput.value) && normalizedHexInput.value !== brandColor.value,
-);
-
 watch(
   () => props.currentAppearance,
   (next) => {
     if (busy.value) return;
     theme.value = next.theme;
     brandColor.value = next.brandColor;
-    hexInput.value = next.brandColor;
     appearanceBase = { ...next };
   },
   { deep: true },
@@ -64,7 +58,6 @@ onMounted(async () => {
     const loaded = await loadAppearance();
     theme.value = loaded.theme;
     brandColor.value = loaded.brandColor;
-    hexInput.value = loaded.brandColor;
     appearanceBase = { ...loaded };
     emit('preview', loaded);
   } catch (error) {
@@ -83,7 +76,6 @@ async function persistAppearance(nextTheme: ThemeMode, nextColor: string, messag
 
   theme.value = nextTheme;
   brandColor.value = normalized;
-  hexInput.value = normalized;
   const next: AppearanceSettings = { theme: nextTheme, brandColor: normalized };
   emit('preview', next);
 
@@ -95,7 +87,6 @@ async function persistAppearance(nextTheme: ThemeMode, nextColor: string, messag
     appearanceBase = { ...saved };
     theme.value = saved.theme;
     brandColor.value = saved.brandColor;
-    hexInput.value = saved.brandColor;
     status.value = message;
     emit('changed', saved);
   } catch (error) {
@@ -110,41 +101,20 @@ function selectTheme(nextTheme: ThemeMode) {
   void persistAppearance(nextTheme, brandColor.value);
 }
 
-function selectPreset(color: string) {
-  void persistAppearance(theme.value, color);
-}
-
-function handleColorPickerInput(event: Event) {
-  const value = (event.target as HTMLInputElement).value;
-  const normalized = normalizeHexColor(value);
+function handleBrandPreview(color: string) {
+  const normalized = normalizeHexColor(color);
   if (!normalized) return;
   brandColor.value = normalized;
-  hexInput.value = normalized;
   emit('preview', { theme: theme.value, brandColor: normalized });
 }
 
-function handleColorPickerChange(event: Event) {
-  const value = (event.target as HTMLInputElement).value;
-  void persistAppearance(theme.value, value);
+function handleBrandCommit(color: string) {
+  void persistAppearance(theme.value, color);
 }
 
-function handleHexTyping(event: Event) {
-  const value = (event.target as HTMLInputElement).value;
-  hexInput.value = value;
-  const normalized = normalizeHexColor(value);
-  if (normalized) {
-    brandColor.value = normalized;
-    emit('preview', { theme: theme.value, brandColor: normalized });
-  }
-}
-
-function applyHexInput() {
-  if (!normalizedHexInput.value) {
-    statusIsError.value = true;
-    status.value = 'Código hexadecimal inválido. Ex.: #ffc600';
-    return;
-  }
-  void persistAppearance(theme.value, normalizedHexInput.value);
+function handleInvalidHex() {
+  statusIsError.value = true;
+  status.value = 'Código hexadecimal inválido. Ex.: #ffc600';
 }
 
 function resetDefaults() {
@@ -206,56 +176,18 @@ function resetDefaults() {
           <span class="appearance-hint">Botões, destaques, SVG interno e ícone do navegador</span>
         </div>
 
-        <div class="swatches-grid" role="list" aria-label="Cores sugeridas">
-          <button
-            v-for="preset in BRAND_COLOR_PRESETS"
-            :key="preset.color"
-            type="button"
-            class="swatch-btn"
-            :class="{ active: brandColor === preset.color }"
-            :style="{ '--swatch-color': preset.color }"
-            :title="`${preset.name} (${preset.color})`"
-            :aria-label="`Selecionar cor ${preset.name}`"
-            :aria-pressed="brandColor === preset.color"
-            :disabled="busy"
-            @click="selectPreset(preset.color)"
-          >
-            <Check v-if="brandColor === preset.color" :size="12" :stroke-width="2.6" />
-          </button>
-        </div>
-
-        <div class="custom-color-row">
-          <label class="color-picker-trigger" title="Escolher cor personalizada">
-            <input
-              type="color"
-              :value="brandColor"
-              aria-label="Seletor visual de cor da marca"
-              @input="handleColorPickerInput"
-              @change="handleColorPickerChange"
-            />
-            <span class="color-picker-swatch" :style="{ backgroundColor: brandColor }"></span>
-          </label>
-
-          <input
-            :value="hexInput"
-            type="text"
-            class="hex-code-input"
-            maxlength="7"
-            placeholder="#ffc600"
-            aria-label="Código hexadecimal da cor da marca"
-            @input="handleHexTyping"
-            @keydown.enter.prevent="applyHexInput"
-          />
-
-          <button
-            type="button"
-            class="btn-secondary btn-apply-hex"
-            :disabled="busy || !canApplyHexInput"
-            @click="applyHexInput"
-          >
-            Aplicar
-          </button>
-        </div>
+        <ColorSwatchPicker
+          :model-value="brandColor"
+          :presets="BRAND_COLOR_PRESETS"
+          :disabled="busy"
+          :show-apply-button="true"
+          :fallback-picker-color="DEFAULT_BRAND_COLOR"
+          placeholder="#ffc600"
+          aria-label="Cores sugeridas para a marca"
+          @update:model-value="handleBrandPreview"
+          @commit="handleBrandCommit"
+          @invalid-hex="handleInvalidHex"
+        />
       </div>
 
       <div class="template-card is-expanded appearance-preview-card">
@@ -368,90 +300,6 @@ function resetDefaults() {
   border-color: var(--border);
   font-weight: 600;
   box-shadow: var(--shadow-card);
-}
-
-.swatches-grid {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.swatch-btn {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 6px;
-  border: 2px solid transparent;
-  background: var(--swatch-color);
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
-  transition: transform 0.12s ease, border-color 0.12s ease;
-}
-
-.swatch-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.swatch-btn.active {
-  border-color: var(--text-primary);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
-}
-
-.swatch-btn :deep(svg) {
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
-}
-
-.custom-color-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.color-picker-trigger {
-  position: relative;
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.color-picker-trigger input[type='color'] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-}
-
-.color-picker-swatch {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-}
-
-.hex-code-input {
-  flex: 1;
-  min-width: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  text-transform: lowercase;
-}
-
-.btn-apply-hex {
-  padding: 6px 10px;
-  font-size: 11.5px;
-  flex-shrink: 0;
-}
-
-.btn-apply-hex:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .appearance-preview-box {

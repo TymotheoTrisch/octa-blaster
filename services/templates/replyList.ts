@@ -1,7 +1,8 @@
 import type { QuickReplyTemplate } from '@/types/template';
 import { loadStoredTemplates } from '../storage/templateStorage';
-import { getTemplateTagNames, type TemplateTag } from '../storage/templateTagSchema';
+import { getTemplateTags, type TemplateTag } from '../storage/templateTagSchema';
 import { loadTags } from '../storage/templateTags';
+import { computeTagBadgeVars } from '@/services/appearance/themeTokens';
 
 export async function loadReplyList(): Promise<{ templates: QuickReplyTemplate[]; tags: TemplateTag[] }> {
   const [templates, tags] = await Promise.all([loadStoredTemplates(), loadTags()]);
@@ -51,6 +52,17 @@ function ensureReplyListStyles(doc: Document): void {
       white-space: nowrap !important;
       flex-shrink: 0 !important;
     }
+    .octa-item-category.octa-item-category-colored {
+      background: var(--tag-bg-light) !important;
+      border: 1px solid var(--tag-border-light) !important;
+      color: var(--tag-text-light) !important;
+      font-weight: 600 !important;
+    }
+    [data-octa-scope="true"][data-theme="dark"] .octa-item-category.octa-item-category-colored {
+      background: var(--tag-bg-dark) !important;
+      border-color: var(--tag-border-dark) !important;
+      color: var(--tag-text-dark) !important;
+    }
     .octa-item-preview {
       display: block !important;
       font-size: 11px !important;
@@ -75,10 +87,17 @@ export function createReplyListItem(doc: Document, template: QuickReplyTemplate,
   title.className = 'octa-item-title';
   title.textContent = template.title;
   header.append(title);
-  for (const name of getTemplateTagNames(template, tags)) {
+  for (const tag of getTemplateTags(template, tags)) {
     const badge = doc.createElement('span');
     badge.className = 'octa-item-category';
-    badge.textContent = name;
+    const vars = computeTagBadgeVars(tag.color);
+    if (vars) {
+      badge.classList.add('octa-item-category-colored');
+      for (const [name, value] of Object.entries(vars)) {
+        badge.style.setProperty(name, value);
+      }
+    }
+    badge.textContent = tag.name;
     header.append(badge);
   }
   const preview = doc.createElement('div');

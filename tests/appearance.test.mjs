@@ -22,6 +22,7 @@ import {
   renderBrandIconImageData,
 } from '../services/appearance/browserIcon.ts';
 import { bindInpageAppearance } from '../services/appearance/inpageTheme.ts';
+import { createReplyListItem } from '../services/templates/replyList.ts';
 import { loadAppearance, saveAppearance } from '../services/appearance/appearanceStorage.ts';
 import {
   exportTemplatesToJson,
@@ -276,6 +277,28 @@ test('bindInpageAppearance applies stored theme and brand tokens to injected ele
     assert.equal(listeners.length, 0);
   } finally {
     storage.restore();
+    dom.restore();
+  }
+});
+
+test('createReplyListItem renders colored tag CSS variables only for tags with custom color', () => {
+  const dom = installDom('<html><head></head><body></body></html>');
+  try {
+    const item = createReplyListItem(
+      dom.document,
+      { id: 't1', title: 'Teste', content: 'Corpo', tags: ['colored', 'plain'], updatedAt: 1 },
+      [
+        { id: 'colored', name: 'Urgente', color: '#c92a2a' },
+        { id: 'plain', name: 'Geral' },
+      ],
+    );
+    const badges = Array.from(item.querySelectorAll('.octa-item-category'));
+    assert.equal(badges.length, 2);
+    assert.equal(badges[0].classList.contains('octa-item-category-colored'), true);
+    assert.ok(badges[0].style.getPropertyValue('--tag-text-light'));
+    assert.ok(badges[0].style.getPropertyValue('--tag-text-dark'));
+    assert.equal(badges[1].classList.contains('octa-item-category-colored'), false);
+  } finally {
     dom.restore();
   }
 });

@@ -130,7 +130,13 @@ defineExpose({ closeTagPicker });
               :checked="selectedTags.includes(tag.id)"
               @change="toggleTag(tag.id, ($event.target as HTMLInputElement).checked)"
             />
-            {{ tag.name }}
+            <span
+              v-if="tag.color"
+              class="message-tag-dot"
+              :style="{ backgroundColor: tag.color }"
+              aria-hidden="true"
+            ></span>
+            <span>{{ tag.name }}</span>
           </label>
           <p v-if="!tags.length" class="tag-hint">Cadastre tags para organizar suas mensagens.</p>
           <button
@@ -375,6 +381,14 @@ defineExpose({ closeTagPicker });
 
 .message-tag-option input {
   accent-color: var(--accent);
+}
+
+.message-tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.15);
 }
 
 .tag-picker-manage {
