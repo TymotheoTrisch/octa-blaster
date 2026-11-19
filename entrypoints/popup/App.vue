@@ -37,6 +37,7 @@ import TagsView from '@/components/settings/TagsView.vue';
 import ShortcutsView from '@/components/settings/ShortcutsView.vue';
 import TechniciansView from '@/components/settings/TechniciansView.vue';
 import AppearanceView from '@/components/settings/AppearanceView.vue';
+import AiSettingsView from '@/components/settings/AiSettingsView.vue';
 
 const GITHUB_REPO_URL = 'https://github.com/luizGDpulz/octa-blaster';
 const GITHUB_DISCUSSIONS_URL = 'https://github.com/luizGDpulz/octa-blaster/discussions';
@@ -573,6 +574,7 @@ onUnmounted(() => {
       @back="returnToPreviousView"
       @changed="refreshCatalogs"
     />
+    <AiSettingsView v-if="currentView === 'ai'" @back="returnToPreviousView" />
     <TechniciansView
       v-else-if="currentView === 'technicians'"
       @back="returnToPreviousView"

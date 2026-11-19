@@ -1,11 +1,14 @@
 import { createStorageQueue } from '@/services/background/storageQueue';
 import { createTicketRouter } from '@/services/background/ticketRouter';
+import { createAiRouter } from '@/services/background/aiRouter';
 import { syncBrowserBrandIconFromStorage } from '@/services/appearance/browserIcon';
 import { APPEARANCE_KEY } from '@/services/storage/settingsSchema';
 
 export default defineBackground(() => {
   const storageQueue = createStorageQueue();
   const ticketRouter = createTicketRouter();
+  const aiRouter = createAiRouter();
+  void browser.storage.local.remove?.('octablaster_ai_local_connection')?.catch?.(() => {});
 
   void syncBrowserBrandIconFromStorage();
 
@@ -26,6 +29,7 @@ export default defineBackground(() => {
 
   browser.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== browser.runtime.id || !message || typeof message !== 'object') return;
+    if (aiRouter.canHandle(message.action)) return aiRouter.handleMessage(message, sender, respond);
     if (message.action === 'SYNC_BROWSER_ICON') {
       void syncBrowserBrandIconFromStorage(
         typeof message.prefersDark === 'boolean' ? message.prefersDark : undefined,
@@ -41,5 +45,6 @@ export default defineBackground(() => {
 
   browser.tabs.onRemoved.addListener((tabId) => {
     ticketRouter.clearTab(tabId);
+    aiRouter.clearTab(tabId);
   });
 });

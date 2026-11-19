@@ -8,8 +8,8 @@ export default defineConfig({
     name: 'OctaBlaster - Respostas Rápidas Octadesk',
     description: 'Respostas prontas automatizadas, injeção rápida de texto e automação de licenças para tickets no Octadesk',
     version: packageInfo.version,
-    permissions: ['storage', 'activeTab', 'tabs'],
-    host_permissions: ['*://app.octadesk.com/*', '*://*.octadesk.com/*', 'http://127.0.0.1/*'],
+    permissions: ['storage', 'activeTab', 'tabs', 'nativeMessaging'],
+    host_permissions: ['*://app.octadesk.com/*', '*://*.octadesk.com/*'],
     browser_specific_settings: {
       gecko: {
         id: 'octablaster@pulz.dev.br',

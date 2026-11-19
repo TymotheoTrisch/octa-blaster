@@ -1,20 +1,16 @@
-export type AiTask = 'draft' | 'summary_latest' | 'summary_full' | 'chat';
 export interface AiChatTurn { role: 'user' | 'assistant'; content: string }
-
-export interface AiDraftInput {
-  model: string;
+export type AiTask = 'summary_latest' | 'summary_full' | 'chat';
+export interface AiSummaryInput {
+  model?: string;
+  task: AiTask;
   instruction: string;
   context: string;
-  examples: string[];
-  task?: AiTask;
   history?: AiChatTurn[];
 }
-
 export interface AiPublicConnection {
-  paired: boolean;
-  url: string;
-  connected?: boolean;
-  planAuthorized?: boolean;
-  enabled?: boolean;
+  connected: boolean;
+  planAuthorized: boolean;
+  enabled: boolean;
   account?: string;
+  model?: string;
 }

@@ -8,9 +8,9 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ## [Não lançado]
 
 ### Adicionado
-- Assistente de IA local com pareamento, login ChatGPT, proteção DPAPI no Windows, renovação de sessão e geração de rascunhos para revisão. Versão proposta: 0.10.0, sujeita à avaliação dos mantenedores.
-- Resumo da última mensagem, resumo da conversa carregada e chat de perguntas com continuidade, atualização explícita do contexto, histórico efêmero e cancelamento.
-- Indicação de cobertura das mensagens e truncamento; resumos usam o contexto disponível no ticket selecionado, sem envio automático ou alteração direta do rascunho.
+- Resumos de mensagens em box com rolagem, ancorados no cabeçalho Angular de cada comentário, e “Resumir ticket” junto ao número, abrindo somente resumo e chat de perguntas. Funciona em todos os tipos de ticket. Versão proposta: 1.1.0, sobre a base 1.0.0, para avaliação dos mantenedores.
+- Login ChatGPT persistente com renovação e credenciais DPAPI no Windows; inicialização automática via Native Messaging no Firefox após instalação única, sem testes ou códigos manuais.
+- Carregamento das interações intermediárias antes do resumo geral, indicação de cobertura/truncamento e descarte de respostas canceladas ou de outro ticket. O compositor anterior de geração/inserção de e-mails foi removido nesta etapa.
 
 ---
 

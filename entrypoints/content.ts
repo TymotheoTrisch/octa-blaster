@@ -1,5 +1,6 @@
 import { initEditorContext } from '@/services/octadesk/editorContext';
 import { startTicketWidgetLifecycle } from '@/services/octadesk/ticketWidget';
+import { startSummaryLifecycle } from '@/services/octadesk/aiSummaryLifecycle';
 
 export default defineContentScript({
   matches: ['*://app.octadesk.com/*', '*://*.octadesk.com/*'],
@@ -10,5 +11,6 @@ export default defineContentScript({
     console.log('[OctaBlaster] Content script inicializado no frame:', window.location.href);
     const editorContext = initEditorContext(document);
     startTicketWidgetLifecycle(editorContext, document);
+    startSummaryLifecycle(document);
   },
 });

@@ -18,6 +18,7 @@ import {
   Monitor,
   Sun,
   Moon,
+  Sparkles,
 } from 'lucide-vue-next';
 import {
   OCTABLASTER_ICON_PATH,
@@ -26,7 +27,7 @@ import {
 } from '@/services/appearance/iconGeometry';
 import type { ThemeMode } from '@/services/storage/settingsSchema';
 
-export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians' | 'appearance';
+export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians' | 'appearance' | 'ai';
 
 defineProps<{
   isSidebar: boolean;
@@ -187,6 +188,7 @@ defineExpose({ closeMenu });
                 <Users :size="14" class="menu-item-icon" />
                 <span class="menu-item-text">Técnicos (Licenças)</span>
               </button>
+              <button type="button" class="menu-item" @click="trigger(() => emit('navigate', 'ai'))"><Sparkles :size="15" /> Inteligência artificial</button>
               <button type="button" class="menu-item" @click="trigger(() => emit('navigate', 'appearance'))">
                 <Palette :size="14" class="menu-item-icon" />
                 <span class="menu-item-text">Aparência</span>
