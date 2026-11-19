@@ -1,6 +1,7 @@
 import { rawStorageGet } from '@/services/storage/rawStorage';
 import {
   APPEARANCE_KEY,
+  DEFAULT_APPEARANCE,
   DEFAULT_BRAND_COLOR,
   normalizeHexColor,
   validateAppearance,
@@ -10,6 +11,7 @@ import {
   OCTABLASTER_ICON_VIEWBOX_SIZE,
   OCTABLASTER_INNER_RECT,
 } from './iconGeometry';
+import { getSystemPrefersDark, resolveLogoInnerColor } from './themeTokens';
 
 const DEFAULT_ICON_PATHS = {
   16: 'icon/16.png',
@@ -160,15 +162,15 @@ export async function applyBrowserBrandIcon(
   return applied;
 }
 
-export async function syncBrowserBrandIconFromStorage(): Promise<void> {
+export async function syncBrowserBrandIconFromStorage(
+  prefersDark = getSystemPrefersDark(),
+): Promise<void> {
   try {
     const stored = await rawStorageGet([APPEARANCE_KEY]);
     const appearance = stored[APPEARANCE_KEY]
       ? validateAppearance(stored[APPEARANCE_KEY])
-      : null;
-    await applyBrowserBrandIcon(
-      appearance?.brandColor ?? DEFAULT_BRAND_COLOR,
-      appearance?.logoInnerColor,
-    );
+      : { ...DEFAULT_APPEARANCE };
+    const innerColor = resolveLogoInnerColor(appearance, prefersDark);
+    await applyBrowserBrandIcon(appearance.brandColor, innerColor);
   } catch {}
 }

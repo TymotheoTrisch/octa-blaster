@@ -10,6 +10,7 @@ import { loadSettings } from '@/services/storage/settingsStorage';
 import { loadAppearance } from '@/services/appearance/appearanceStorage';
 import {
   applyAppearanceToRoot,
+  getSystemPrefersDark,
   readCachedAppearance,
   watchAppearanceChanges,
 } from '@/services/appearance/themeTokens';
@@ -108,6 +109,12 @@ function applyAppearance(next: AppearanceSettings) {
   if (typeof document !== 'undefined') {
     applyAppearanceToRoot(document.documentElement, next);
   }
+  try {
+    void browser?.runtime?.sendMessage?.({
+      action: 'SYNC_BROWSER_ICON',
+      prefersDark: getSystemPrefersDark(),
+    })?.catch?.(() => {});
+  } catch {}
 }
 
 async function syncAppearance() {

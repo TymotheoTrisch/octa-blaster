@@ -20,6 +20,7 @@ import {
 import {
   applyBrowserBrandIcon,
   renderBrandIconImageData,
+  syncBrowserBrandIconFromStorage,
 } from '../services/appearance/browserIcon.ts';
 import { bindInpageAppearance } from '../services/appearance/inpageTheme.ts';
 import { createReplyListItem } from '../services/templates/replyList.ts';
@@ -257,6 +258,24 @@ test('browserIcon restores static PNG paths for default brand color and renders 
     const okInnerCustom = await applyBrowserBrandIcon(DEFAULT_BRAND_COLOR, '#ffffff');
     assert.equal(okInnerCustom, true);
     assert.deepEqual(drawnColors, ['#ffffff', '#ffc600', '#ffffff', '#ffc600', '#ffffff', '#ffc600']);
+
+    drawnColors.length = 0;
+    globalThis.browser.storage = {
+      local: {
+        async get() {
+          return { [APPEARANCE_KEY]: { theme: 'light', brandColor: '#7c3aed' } };
+        },
+      },
+    };
+    await syncBrowserBrandIconFromStorage(true);
+    assert.deepEqual(drawnColors, ['#ffffff', '#7c3aed', '#ffffff', '#7c3aed', '#ffffff', '#7c3aed']);
+
+    drawnColors.length = 0;
+    globalThis.browser.storage.local.get = async () => ({
+      [APPEARANCE_KEY]: { theme: 'system', brandColor: '#7c3aed' },
+    });
+    await syncBrowserBrandIconFromStorage(true);
+    assert.deepEqual(drawnColors, ['#18181b', '#7c3aed', '#18181b', '#7c3aed', '#18181b', '#7c3aed']);
   } finally {
     if (previousPath2D === undefined) delete globalThis.Path2D;
     else globalThis.Path2D = previousPath2D;

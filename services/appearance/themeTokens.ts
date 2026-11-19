@@ -157,6 +157,15 @@ export function resolveThemeMode(theme: ThemeMode, prefersDark: boolean): Resolv
   return prefersDark ? 'dark' : 'light';
 }
 
+export function resolveLogoInnerColor(
+  appearance: AppearanceSettings,
+  prefersDark = getSystemPrefersDark(),
+): string {
+  const normalizedInner = normalizeHexColor(appearance.logoInnerColor);
+  if (normalizedInner) return normalizedInner;
+  return resolveThemeMode(appearance.theme, prefersDark) === 'dark' ? '#18181b' : '#ffffff';
+}
+
 export function getSystemPrefersDark(): boolean {
   try {
     return Boolean(globalThis.window?.matchMedia?.('(prefers-color-scheme: dark)')?.matches);
@@ -181,8 +190,7 @@ export function applyAppearanceToRoot(
   if (!target) return resolved;
 
   const palette = computeBrandPalette(safe.brandColor, resolved);
-  const defaultLogoInner = resolved === 'dark' ? '#18181b' : '#ffffff';
-  const logoInner = safe.logoInnerColor ?? defaultLogoInner;
+  const logoInner = resolveLogoInnerColor(safe, prefersDark);
   target.dataset.theme = resolved;
   target.dataset.themePreference = safe.theme;
   target.dataset.brandColor = palette.accent;
