@@ -130,3 +130,14 @@ test('resetMentionTargets restores default technicians cleanly', async () => {
     assert.equal(restored[1].id, 'roberto_renck');
   } finally { storage.restore(); }
 });
+
+test('reordering mention targets with base persists the new order', async () => {
+  const storage = installStorage();
+  try {
+    const initial = await loadMentionTargets();
+    const reordered = [initial[1], initial[0]];
+    const saved = await saveMentionTargets(reordered, initial);
+    assert.deepEqual(saved.map(t => t.id), ['roberto_renck', 'jorge_tigre']);
+    assert.deepEqual((await loadMentionTargets()).map(t => t.id), ['roberto_renck', 'jorge_tigre']);
+  } finally { storage.restore(); }
+});

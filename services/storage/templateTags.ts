@@ -19,7 +19,13 @@ export async function saveTagsLocal(raw: TemplateTag[], base?: TemplateTag[]): P
       if (tag) current.set(id, tag);
       else current.delete(id);
     }
-    tags = validateTags([...current.values()]);
+    const baseOrder = [...original.keys()].filter(id => proposed.has(id));
+    const proposedOrder = [...proposed.keys()].filter(id => original.has(id));
+    const wasReordered = baseOrder.some((id, index) => id !== proposedOrder[index]);
+    const orderedIds = wasReordered
+      ? [...new Set([...proposed.keys(), ...current.keys()])]
+      : [...current.keys()];
+    tags = validateTags(orderedIds.map(id => current.get(id)).filter((tag): tag is TemplateTag => tag !== undefined));
   }
   const templates = await loadStoredTemplatesLocal(true);
   const updated = templates.map(template => {
