@@ -1,0 +1,516 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue';
+import { ArrowLeft, Monitor, Sun, Moon, RotateCcw, Check } from 'lucide-vue-next';
+import {
+  BRAND_COLOR_PRESETS,
+  DEFAULT_APPEARANCE,
+  DEFAULT_BRAND_COLOR,
+  normalizeHexColor,
+  type AppearanceSettings,
+  type ThemeMode,
+} from '@/services/storage/settingsSchema';
+import { loadAppearance, saveAppearance } from '@/services/appearance/appearanceStorage';
+import { OCTABLASTER_ICON_PATH, OCTABLASTER_ICON_VIEWBOX } from '@/services/appearance/iconGeometry';
+import './management.css';
+
+const props = defineProps<{
+  currentAppearance: AppearanceSettings;
+}>();
+
+const emit = defineEmits<{
+  back: [];
+  preview: [appearance: AppearanceSettings];
+  changed: [appearance: AppearanceSettings];
+}>();
+
+const theme = ref<ThemeMode>(props.currentAppearance.theme);
+const brandColor = ref<string>(props.currentAppearance.brandColor);
+const hexInput = ref<string>(props.currentAppearance.brandColor);
+let appearanceBase: AppearanceSettings = { ...props.currentAppearance };
+
+const status = ref('');
+const statusIsError = ref(false);
+const busy = ref(false);
+
+const themeOptions: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof Monitor }> = [
+  { value: 'system', label: 'Sistema', icon: Monitor },
+  { value: 'light', label: 'Claro', icon: Sun },
+  { value: 'dark', label: 'Escuro', icon: Moon },
+];
+
+const isDefaultAppearance = computed(
+  () => theme.value === DEFAULT_APPEARANCE.theme && brandColor.value === DEFAULT_BRAND_COLOR,
+);
+
+const normalizedHexInput = computed(() => normalizeHexColor(hexInput.value));
+const canApplyHexInput = computed(
+  () => Boolean(normalizedHexInput.value) && normalizedHexInput.value !== brandColor.value,
+);
+
+watch(
+  () => props.currentAppearance,
+  (next) => {
+    if (busy.value) return;
+    theme.value = next.theme;
+    brandColor.value = next.brandColor;
+    hexInput.value = next.brandColor;
+    appearanceBase = { ...next };
+  },
+  { deep: true },
+);
+
+onMounted(async () => {
+  try {
+    const loaded = await loadAppearance();
+    theme.value = loaded.theme;
+    brandColor.value = loaded.brandColor;
+    hexInput.value = loaded.brandColor;
+    appearanceBase = { ...loaded };
+    emit('preview', loaded);
+  } catch (error) {
+    statusIsError.value = true;
+    status.value = error instanceof Error ? error.message : 'Falha ao carregar aparência.';
+  }
+});
+
+async function persistAppearance(nextTheme: ThemeMode, nextColor: string, message = 'Aparência salva.') {
+  const normalized = normalizeHexColor(nextColor);
+  if (!normalized) {
+    statusIsError.value = true;
+    status.value = 'Informe uma cor hexadecimal válida (#RRGGBB).';
+    return;
+  }
+
+  theme.value = nextTheme;
+  brandColor.value = normalized;
+  hexInput.value = normalized;
+  const next: AppearanceSettings = { theme: nextTheme, brandColor: normalized };
+  emit('preview', next);
+
+  if (busy.value) return;
+  busy.value = true;
+  statusIsError.value = false;
+  try {
+    const saved = await saveAppearance(next, appearanceBase);
+    appearanceBase = { ...saved };
+    theme.value = saved.theme;
+    brandColor.value = saved.brandColor;
+    hexInput.value = saved.brandColor;
+    status.value = message;
+    emit('changed', saved);
+  } catch (error) {
+    statusIsError.value = true;
+    status.value = error instanceof Error ? error.message : 'Falha ao salvar aparência.';
+  } finally {
+    busy.value = false;
+  }
+}
+
+function selectTheme(nextTheme: ThemeMode) {
+  void persistAppearance(nextTheme, brandColor.value);
+}
+
+function selectPreset(color: string) {
+  void persistAppearance(theme.value, color);
+}
+
+function handleColorPickerInput(event: Event) {
+  const value = (event.target as HTMLInputElement).value;
+  const normalized = normalizeHexColor(value);
+  if (!normalized) return;
+  brandColor.value = normalized;
+  hexInput.value = normalized;
+  emit('preview', { theme: theme.value, brandColor: normalized });
+}
+
+function handleColorPickerChange(event: Event) {
+  const value = (event.target as HTMLInputElement).value;
+  void persistAppearance(theme.value, value);
+}
+
+function handleHexTyping(event: Event) {
+  const value = (event.target as HTMLInputElement).value;
+  hexInput.value = value;
+  const normalized = normalizeHexColor(value);
+  if (normalized) {
+    brandColor.value = normalized;
+    emit('preview', { theme: theme.value, brandColor: normalized });
+  }
+}
+
+function applyHexInput() {
+  if (!normalizedHexInput.value) {
+    statusIsError.value = true;
+    status.value = 'Código hexadecimal inválido. Ex.: #ffc600';
+    return;
+  }
+  void persistAppearance(theme.value, normalizedHexInput.value);
+}
+
+function resetDefaults() {
+  void persistAppearance(DEFAULT_APPEARANCE.theme, DEFAULT_BRAND_COLOR, 'Aparência padrão restaurada.');
+}
+</script>
+
+<template>
+  <section class="management-shell" aria-label="Aparência e Marca">
+    <div class="management-subbar">
+      <button
+        type="button"
+        class="management-back-btn"
+        aria-label="Voltar para a tela anterior"
+        @click="emit('back')"
+      >
+        <ArrowLeft :size="15" />
+      </button>
+      <h2>Aparência</h2>
+      <button
+        type="button"
+        class="card-badge card-badge-btn"
+        :disabled="busy || isDefaultAppearance"
+        title="Restaurar tema e cor padrão"
+        @click="resetDefaults"
+      >
+        Restaurar padrão
+      </button>
+    </div>
+
+    <div class="management-scroll">
+      <div class="template-card is-expanded appearance-card">
+        <div class="appearance-section-head">
+          <span class="appearance-label">Tema</span>
+          <span class="appearance-hint">Aplicado no popup, painel e página do Octadesk</span>
+        </div>
+
+        <div class="theme-segmented" role="radiogroup" aria-label="Selecionar tema">
+          <button
+            v-for="option in themeOptions"
+            :key="option.value"
+            type="button"
+            role="radio"
+            :aria-checked="theme === option.value"
+            class="theme-option-btn"
+            :class="{ active: theme === option.value }"
+            :disabled="busy"
+            @click="selectTheme(option.value)"
+          >
+            <component :is="option.icon" :size="13" :stroke-width="2" />
+            <span>{{ option.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="template-card is-expanded appearance-card">
+        <div class="appearance-section-head">
+          <span class="appearance-label">Cor da marca</span>
+          <span class="appearance-hint">Botões, destaques, SVG interno e ícone do navegador</span>
+        </div>
+
+        <div class="swatches-grid" role="list" aria-label="Cores sugeridas">
+          <button
+            v-for="preset in BRAND_COLOR_PRESETS"
+            :key="preset.color"
+            type="button"
+            class="swatch-btn"
+            :class="{ active: brandColor === preset.color }"
+            :style="{ '--swatch-color': preset.color }"
+            :title="`${preset.name} (${preset.color})`"
+            :aria-label="`Selecionar cor ${preset.name}`"
+            :aria-pressed="brandColor === preset.color"
+            :disabled="busy"
+            @click="selectPreset(preset.color)"
+          >
+            <Check v-if="brandColor === preset.color" :size="12" :stroke-width="2.6" />
+          </button>
+        </div>
+
+        <div class="custom-color-row">
+          <label class="color-picker-trigger" title="Escolher cor personalizada">
+            <input
+              type="color"
+              :value="brandColor"
+              aria-label="Seletor visual de cor da marca"
+              @input="handleColorPickerInput"
+              @change="handleColorPickerChange"
+            />
+            <span class="color-picker-swatch" :style="{ backgroundColor: brandColor }"></span>
+          </label>
+
+          <input
+            :value="hexInput"
+            type="text"
+            class="hex-code-input"
+            maxlength="7"
+            placeholder="#ffc600"
+            aria-label="Código hexadecimal da cor da marca"
+            @input="handleHexTyping"
+            @keydown.enter.prevent="applyHexInput"
+          />
+
+          <button
+            type="button"
+            class="btn-secondary btn-apply-hex"
+            :disabled="busy || !canApplyHexInput"
+            @click="applyHexInput"
+          >
+            Aplicar
+          </button>
+        </div>
+      </div>
+
+      <div class="template-card is-expanded appearance-preview-card">
+        <div class="appearance-section-head">
+          <span class="appearance-label">Prévia em tempo real</span>
+          <span class="card-badge card-badge-accent">Ao vivo</span>
+        </div>
+
+        <div class="appearance-preview-box">
+          <div class="preview-brand">
+            <svg
+              class="preview-logo"
+              :viewBox="OCTABLASTER_ICON_VIEWBOX"
+              width="20"
+              height="20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path :d="OCTABLASTER_ICON_PATH" />
+            </svg>
+            <span class="preview-title">OctaBlaster</span>
+          </div>
+          <div class="preview-actions">
+            <span class="preview-chip">{{ brandColor }}</span>
+            <span class="preview-btn">Inserir</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="management-footer-bar">
+        <button
+          type="button"
+          class="btn-secondary"
+          :disabled="busy || isDefaultAppearance"
+          @click="resetDefaults"
+        >
+          <RotateCcw :size="12" />
+          <span>Restaurar padrão</span>
+        </button>
+      </div>
+    </div>
+
+    <p v-if="status" class="management-status-inline" :class="{ 'is-error': statusIsError }" role="status">
+      {{ status }}
+    </p>
+  </section>
+</template>
+
+<style scoped>
+.appearance-card,
+.appearance-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.appearance-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.appearance-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.appearance-hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.theme-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 3px;
+  border-radius: 7px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+}
+
+.theme-option-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.theme-option-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.theme-option-btn.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border);
+  font-weight: 600;
+  box-shadow: var(--shadow-card);
+}
+
+.swatches-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.swatch-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background: var(--swatch-color);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.swatch-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.swatch-btn.active {
+  border-color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+.swatch-btn :deep(svg) {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+
+.custom-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-picker-trigger {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.color-picker-trigger input[type='color'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.color-picker-swatch {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.hex-code-input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  text-transform: lowercase;
+}
+
+.btn-apply-hex {
+  padding: 6px 10px;
+  font-size: 11.5px;
+  flex-shrink: 0;
+}
+
+.btn-apply-hex:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.appearance-preview-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+}
+
+.preview-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.preview-logo {
+  color: var(--accent);
+  filter: drop-shadow(0 0 0.5px rgba(0, 0, 0, 0.22));
+  flex-shrink: 0;
+}
+
+.preview-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-chip {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+  border: 1px solid var(--accent-soft-border);
+}
+
+.preview-btn {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-border);
+}
+
+.management-status-inline.is-error {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+</style>

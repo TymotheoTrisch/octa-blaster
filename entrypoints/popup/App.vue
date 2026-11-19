@@ -5,7 +5,14 @@ import type { QuickReplyTemplate, InsertMessageResponse } from '@/types/template
 import type { LicenseTicketInfo } from '@/services/octadesk/licenseDetector';
 import { prepareTemplate, loadVariables } from '@/services/templates/templateVariables';
 import type { TemplateVariable } from '@/services/storage/settingsSchema';
+import type { AppearanceSettings } from '@/services/storage/settingsSchema';
 import { loadSettings } from '@/services/storage/settingsStorage';
+import { loadAppearance } from '@/services/appearance/appearanceStorage';
+import {
+  applyAppearanceToRoot,
+  readCachedAppearance,
+  watchAppearanceChanges,
+} from '@/services/appearance/themeTokens';
 import { loadTags } from '@/services/storage/templateTags';
 import { getTemplateTagIds, type TemplateTag } from '@/services/storage/templateTagSchema';
 import {
@@ -28,6 +35,7 @@ import VariablesView from '@/components/settings/VariablesView.vue';
 import TagsView from '@/components/settings/TagsView.vue';
 import ShortcutsView from '@/components/settings/ShortcutsView.vue';
 import TechniciansView from '@/components/settings/TechniciansView.vue';
+import AppearanceView from '@/components/settings/AppearanceView.vue';
 
 const GITHUB_REPO_URL = 'https://github.com/luizGDpulz/octa-blaster';
 const GITHUB_DISCUSSIONS_URL = 'https://github.com/luizGDpulz/octa-blaster/discussions';
@@ -43,6 +51,8 @@ function rememberTemplatesBase() {
 
 const tags = ref<TemplateTag[]>([]);
 const variables = ref<TemplateVariable[]>([]);
+const appearance = ref<AppearanceSettings>(readCachedAppearance());
+let stopWatchingAppearance: (() => void) | null = null;
 const searchQuery = ref('');
 const selectedTagId = ref('');
 
@@ -93,12 +103,26 @@ function openExternalUrl(url: string) {
   }
 }
 
+function applyAppearance(next: AppearanceSettings) {
+  appearance.value = next;
+  if (typeof document !== 'undefined') {
+    applyAppearanceToRoot(document.documentElement, next);
+  }
+}
+
+async function syncAppearance() {
+  try {
+    applyAppearance(await loadAppearance());
+  } catch {}
+}
+
 async function refreshCatalogs() {
   try {
     tags.value = await loadTags();
     variables.value = await loadVariables();
     formTags.value = formTags.value.filter((id) => tags.value.some((tag) => tag.id === id));
     if (!tags.value.some((tag) => tag.id === selectedTagId.value)) selectedTagId.value = '';
+    await syncAppearance();
   } catch (error) {
     setStatus(error instanceof Error ? error.message : 'Falha ao carregar configurações.', 'error');
   }
@@ -448,6 +472,12 @@ onMounted(() => {
     if (manifest?.version) appVersion.value = manifest.version;
   } catch {}
 
+  applyAppearance(appearance.value);
+  stopWatchingAppearance = watchAppearanceChanges((nextAppearance) => {
+    if (nextAppearance) appearance.value = nextAppearance;
+    applyAppearanceToRoot(document.documentElement, appearance.value);
+  });
+
   void loadTemplates().then(refreshCatalogs);
   void checkLicenseStatus();
   void checkSidebarSupport();
@@ -455,6 +485,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  stopWatchingAppearance?.();
+  stopWatchingAppearance = null;
   document.removeEventListener('keydown', handleEscape);
 });
 </script>
@@ -508,6 +540,13 @@ onUnmounted(() => {
       v-else-if="currentView === 'technicians'"
       @back="returnToPreviousView"
       @changed="refreshCatalogs"
+    />
+    <AppearanceView
+      v-else-if="currentView === 'appearance'"
+      :current-appearance="appearance"
+      @back="returnToPreviousView"
+      @preview="applyAppearance"
+      @changed="applyAppearance"
     />
 
     <template v-else>

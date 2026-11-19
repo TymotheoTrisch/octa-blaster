@@ -8,6 +8,7 @@ import {
   Tags,
   Keyboard,
   Users,
+  Palette,
   Download,
   Upload,
   RotateCcw,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-vue-next';
 import { OCTABLASTER_ICON_PATH, OCTABLASTER_ICON_VIEWBOX } from '@/services/appearance/iconGeometry';
 
-export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians';
+export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians' | 'appearance';
 
 defineProps<{
   isSidebar: boolean;
@@ -145,6 +146,11 @@ defineExpose({ closeMenu });
               <button type="button" class="menu-item" @click="trigger(() => emit('navigate', 'technicians'))">
                 <Users :size="14" class="menu-item-icon" />
                 <span class="menu-item-text">Técnicos (Licenças)</span>
+              </button>
+              <button type="button" class="menu-item" @click="trigger(() => emit('navigate', 'appearance'))">
+                <Palette :size="14" class="menu-item-icon" />
+                <span class="menu-item-text">Aparência</span>
+                <span class="menu-brand-dot" aria-hidden="true"></span>
               </button>
             </div>
 
@@ -344,6 +350,15 @@ defineExpose({ closeMenu });
   flex: 1;
   font-size: 12px;
   font-weight: 500;
+}
+
+.menu-brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 1px solid var(--border-hover);
+  flex-shrink: 0;
 }
 
 .menu-divider {
