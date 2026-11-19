@@ -1,10 +1,10 @@
 {
-  "name": "octablaster-chatgpt-local-prototype",
-  "version": "0.0.1",
+  "name": "octablaster-local-helper",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "description": "Protótipo isolado para validar Sign in with ChatGPT e uso da franquia localmente",
+  "description": "Auxiliar local do OctaBlaster com autenticação ChatGPT e credenciais protegidas pelo Windows",
   "engines": {
     "node": ">=22.22.2"
   },
@@ -13,6 +13,6 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "jose": "6.2.18"
+    "jose": "6.1.3"
   }
 }

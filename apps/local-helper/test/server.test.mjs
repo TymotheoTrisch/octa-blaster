@@ -7,7 +7,7 @@ test('loopback UI authenticates local mutations, requires scope and confirmation
   const calls = [];
   let failNext = false;
   let jsonMode = false;
-  const app = await startPrototype({ hostId: 'urn:uuid:11111111-1111-4111-8111-111111111111',
+  const app = await startPrototype({ port: 0, hostId: 'urn:uuid:11111111-1111-4111-8111-111111111111',
     verifier: async () => ({ subject: 'fictional-account', email: 'test@example.invalid' }),
     fetcher: async (url) => {
       calls.push(url);

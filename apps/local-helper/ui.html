@@ -2,11 +2,13 @@
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OctaBlaster — protótipo ChatGPT</title><link rel="stylesheet" href="/ui.css"><script src="/ui.js" type="module"></script></head>
 <body><main>
-<p class="label">OCTABLASTER · EXPERIMENTO LOCAL</p>
-<h1>Validar o acesso pelo ChatGPT</h1>
-<p>Primeiro confirme a conta e a autorização para usar a franquia. O teste utiliza apenas uma mensagem fictícia e não acessa o Octadesk.</p>
+<p class="label">OCTABLASTER · AUXILIAR LOCAL</p>
+<h1>IA para respostas do Octadesk</h1>
+<p>Conecte a conta, escolha um modelo e pareie a extensão. As respostas geradas ficam para revisão; o envio é manual.</p>
 <section><h2>1. Entrar e autorizar</h2><p>O botão abre o login oficial da OpenAI. Confira as permissões e escolha se deseja permitir o uso do seu plano.</p>
 <button id="login">Continue with ChatGPT</button> <button id="disconnect" class="secondary">Encerrar sessão local</button>
+<button id="new-account" class="secondary">Adicionar outra conta</button>
+<label>Contas cadastradas<select id="accounts"></select></label><button id="select-account" class="secondary">Usar conta selecionada</button>
 <pre id="identity">Sem login.</pre></section>
 <section><h2>2. Conferir a franquia</h2>
 <p>Em Configurações → Uso do ChatGPT, confira o aplicativo OctaBlaster. Para este teste, mantenha o limite do aplicativo abaixo de 100% e não permita usar créditos após a franquia. O protótipo não consegue consultar ou alterar essas configurações.</p>
@@ -20,7 +22,11 @@
 <p>O teste solicita apenas uma frase de confirmação de recebimento de um chamado fictício. Nenhum histórico ou dado de cliente será enviado.</p>
 <button id="test" disabled>Testar com texto fictício</button>
 <pre id="result">Ainda não executado.</pre></section>
+<section><h2>4. Autorizar a extensão</h2><label><input type="checkbox" id="enabled"> Permitir gerar rascunhos pela extensão nesta conta</label><button id="save-preferences">Salvar autorização e modelo</button>
+<p>O teste fictício é opcional. Para usar a extensão, confirme a identidade e as configurações de créditos acima, escolha o modelo e salve a autorização.</p>
+<button id="pair-code" class="secondary">Gerar código de pareamento</button><pre id="pairing">Nenhum código gerado.</pre>
+<p>Na extensão, abra Mais opções → Inteligência artificial e informe o código. Ele vale por cinco minutos e uma utilização.</p><button id="revoke-pairing" class="secondary">Revogar todos os pareamentos</button></section>
 <p id="message" role="status" aria-live="polite"></p>
 <section id="diagnostic-section" hidden><h2>Diagnóstico da tentativa</h2><p>Somente informações sanitizadas do erro. Não contém tokens nem o corpo bruto da resposta.</p><pre id="diagnostic"></pre></section>
-<footer>Experimento de viabilidade. Tokens ficam somente na memória até encerrar o programa. Reiniciar exige novo login; renovação e persistência de credenciais fazem parte de uma etapa posterior. Uma resposta concluída confirma a chamada técnica, não a conferência de consumo e cobrança.</footer>
+<footer>Credenciais ficam protegidas pelo Windows (DPAPI) neste computador, com renovação da sessão quando permitida. A extensão recebe somente uma chave de pareamento local, nunca os tokens do ChatGPT. O auxiliar não usa chave de API nem muda automaticamente a forma de acesso. Confira o uso e os limites nas configurações do ChatGPT.</footer>
 </main></body></html>

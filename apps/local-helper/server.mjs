@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ChatGPTAuth, PrototypeError } from './auth.mjs';
 import { listModels, runFictionalTest } from './inference.mjs';
+import { openVault, memoryVault } from './vault.mjs';
+import { createBridge } from './bridge.mjs';
 
 const messages = {
   invalid_state: 'O retorno do login não corresponde à tentativa ativa ou expirou. Inicie um novo login.',
@@ -14,7 +16,7 @@ const messages = {
   token_exchange_failed: 'A troca oficial do código de login falhou. Inicie uma nova tentativa.',
   invalid_identity: 'Não foi possível validar a identidade da conta.',
   plan_permission_missing: 'Login concluído, mas a autorização de uso da franquia não foi concedida.',
-  login_required: 'Faça login novamente. Este protótipo mantém credenciais apenas na memória e não renova tokens.',
+  login_required: 'A sessão precisa ser reconectada. Entre novamente na conta selecionada.',
   plan_unavailable: 'O uso do plano foi recusado pela OpenAI. Não haverá troca para uma API paga.',
   usage_unavailable: 'A franquia está indisponível ou atingiu um limite. Nenhuma alternativa paga será usada.',
   stream_interrupted: 'A conexão terminou antes da confirmação final. O texto parcial foi descartado.',
@@ -29,6 +31,13 @@ const messages = {
   empty_response: 'A OpenAI concluiu a solicitação sem retornar texto.',
   invalid_model_catalog: 'A lista de modelos veio em um formato diferente do esperado.',
   invalid_body: 'A solicitação local é inválida ou excedeu o tamanho permitido.',
+  vault_unavailable: 'Não foi possível proteger ou carregar as credenciais. Nenhum arquivo em texto simples será utilizado.',
+  refresh_unavailable: 'Não foi possível renovar a sessão agora. As credenciais foram preservadas; tente mais tarde.',
+  invalid_account: 'Selecione uma conta cadastrada no auxiliar.',
+  pairing_invalid: 'Código de pareamento inválido.',
+  pairing_expired: 'O código expirou ou atingiu o limite de tentativas. Gere outro no auxiliar.',
+  bridge_forbidden: 'A extensão não está pareada ou a chave foi revogada.',
+  generation_disabled: 'Autorize a geração pela extensão no auxiliar local.',
 };
 
 async function loadHostId(dataDir) {
@@ -47,10 +56,11 @@ async function loadHostId(dataDir) {
   }
 }
 
-export async function startPrototype({ port = 0, hostId, dataDir = join(process.env.LOCALAPPDATA || join(homedir(), '.local', 'share'), 'OctaBlaster', 'ChatGPT-Prototype'), fetcher, verifier } = {}) {
+export async function startPrototype({ port = 53894, hostId, vault: providedVault, dataDir = join(process.env.LOCALAPPDATA || join(homedir(), '.local', 'share'), 'OctaBlaster', 'ChatGPT-Local'), fetcher, verifier } = {}) {
   const stableHost = hostId || await loadHostId(dataDir);
+  const vault = providedVault || (hostId ? memoryVault() : await openVault(dataDir));
   const session = randomBytes(32).toString('base64url'), csrf = randomBytes(32).toString('base64url');
-  let auth, origin, busy = false, lastError = '', lastDiagnostic = null, models = [], result = null;
+  let auth, bridge, origin, busy = false, lastError = '', lastDiagnostic = null, models = [], result = null;
   const server = createServer(async (req, res) => {
     const headers = {
       'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
@@ -58,8 +68,24 @@ export async function startPrototype({ port = 0, hostId, dataDir = join(process.
     };
     const send = (status, value) => { res.writeHead(status, { ...headers, 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); };
     const reject = () => send(403, { error: 'Solicitação local não autorizada.' });
-    if (!origin || req.headers.host !== new URL(origin).host || (req.headers.origin && req.headers.origin !== origin) || req.url.length > 8192) return reject();
+    if (!origin || req.headers.host !== new URL(origin).host || req.url.length > 8192) return reject();
     const url = new URL(req.url, origin);
+    const readBody = async () => {
+      const chunks = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > (url.pathname.startsWith('/bridge/') ? 300_000 : 4096)) throw new PrototypeError('invalid_body'); chunks.push(chunk); }
+      const value = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new PrototypeError('invalid_body');
+      return value;
+    };
+    if (url.pathname.startsWith('/bridge/')) {
+      if (busy) return send(409, { error: messages.busy });
+      busy = true;
+      try { await bridge.handle(req, res, url, send, readBody); }
+      catch (error) { if (!res.destroyed) send(400, { error: messages[error.code] || 'A geração falhou. Tente novamente manualmente ou confira a conexão no auxiliar.', code: error instanceof PrototypeError ? error.code : 'local_error' }); }
+      finally { busy = false; }
+      return;
+    }
+    if (req.headers.origin && req.headers.origin !== origin) return reject();
     if (req.method === 'GET' && url.pathname === '/') {
       res.writeHead(200, { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': `octablaster_prototype=${session}; HttpOnly; SameSite=Strict; Path=/` });
       return res.end(await readFile(new URL('./ui.html', import.meta.url), 'utf8'));
@@ -71,30 +97,37 @@ export async function startPrototype({ port = 0, hostId, dataDir = join(process.
     if (req.method === 'GET' && url.pathname === '/auth/callback') {
       if (busy) return send(409, { error: messages.busy });
       busy = true;
-      try { await auth.complete(url); lastError = ''; lastDiagnostic = null; result = null; models = []; }
+      try { await auth.complete(url); await vault.update(state => ({ ...state, preferences: { ...state.preferences, enabled: false } })); lastError = ''; lastDiagnostic = null; result = null; models = []; }
       catch (error) { lastError = messages[error.code] || 'Não foi possível validar este login. Nenhuma chamada de IA foi feita.'; }
       finally { busy = false; }
       res.writeHead(303, { ...headers, Location: '/' });
       return res.end();
     }
     if (!req.headers.cookie?.split(';').some(value => value.trim() === `octablaster_prototype=${session}`)) return reject();
-    if (req.method === 'GET' && url.pathname === '/status') return send(200, { ...auth.status(), busy, lastError, lastDiagnostic, result, billingVerified: false });
+    if (req.method === 'GET' && url.pathname === '/status') return send(200, { ...auth.status(), accounts: auth.accounts(), preferences: vault.read().preferences, pairedClients: vault.read().bridges.length, busy, lastError, lastDiagnostic, result, billingVerified: false });
     if (req.method === 'GET' && url.pathname === '/config') return send(200, { csrf });
     if (req.method !== 'POST' || req.headers.origin !== origin || req.headers['x-octablaster-csrf'] !== csrf || req.headers['content-type'] !== 'application/json') return reject();
     if (busy) return send(409, { error: messages.busy });
     busy = true;
     try {
-      let raw = '';
-      for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 2048) throw new PrototypeError('invalid_body'); }
-      const input = JSON.parse(raw || '{}');
-      if (url.pathname === '/auth/start') { lastError = ''; lastDiagnostic = null; return send(200, { url: auth.begin() }); }
-      if (url.pathname === '/disconnect') { auth.disconnect(); result = null; models = []; lastError = ''; lastDiagnostic = null; return send(200, { disconnected: true }); }
-      if (url.pathname === '/models') { models = await listModels(auth.access(), fetcher); lastError = ''; lastDiagnostic = null; return send(200, { models }); }
+      const input = await readBody();
+      if (url.pathname === '/auth/start') { lastError = ''; lastDiagnostic = null; return send(200, { url: auth.begin(input.newAccount ? null : undefined) }); }
+      if (url.pathname === '/account/select') { await auth.select(input.clientId); await vault.update(state => ({ ...state, preferences: { ...state.preferences, enabled: false } })); models = []; return send(200, { selected: true }); }
+      if (url.pathname === '/disconnect') { const revocation = await auth.disconnect(); result = null; models = []; lastError = revocation.revocationConfirmed ? '' : 'Sessão local encerrada. A revogação remota não foi confirmada; você pode desconectar o aplicativo nas configurações do ChatGPT.'; lastDiagnostic = null; return send(200, { disconnected: true }); }
+      if (url.pathname === '/pairing/code') return send(200, bridge.issueCode());
+      if (url.pathname === '/pairing/revoke') { await vault.update(state => ({ ...state, bridges: [] })); return send(200, { revoked: true }); }
+      if (url.pathname === '/preferences') {
+        if (typeof input.enabled !== 'boolean' || typeof input.model !== 'string' || input.model.length > 160) throw new PrototypeError('invalid_body');
+        if (input.enabled && (!auth.status().connected || !auth.status().planAuthorized || !models.some(item => item.slug === input.model) || input.confirmCredits !== true || input.confirmIdentity !== true)) throw new PrototypeError('confirmation_required');
+        await vault.update(state => ({ ...state, preferences: { enabled: input.enabled, model: input.model } }));
+        return send(200, { saved: true });
+      }
+      if (url.pathname === '/models') { models = await listModels(await auth.authorizedAccess(), fetcher); lastError = ''; lastDiagnostic = null; return send(200, { models }); }
       if (url.pathname === '/test') {
         result = null;
         if (input.confirmIdentity !== true || input.confirmCredits !== true) throw new PrototypeError('confirmation_required');
         if (!models.some(model => model.slug === input.model)) throw new PrototypeError('invalid_model');
-        const accessToken = auth.access();
+        const accessToken = await auth.authorizedAccess();
         const generated = await runFictionalTest(accessToken, input.model, fetcher);
         result = { ...generated, model: input.model, completedAt: new Date().toISOString(), billingVerified: false };
         lastError = ''; lastDiagnostic = null;
@@ -107,18 +140,20 @@ export async function startPrototype({ port = 0, hostId, dataDir = join(process.
       return send(400, { error: lastError, diagnostic: lastDiagnostic });
     } finally { busy = false; }
   });
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
+  try { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); }); }
+  catch (error) { await vault.close(); throw error; }
   origin = `http://127.0.0.1:${server.address().port}`;
-  auth = new ChatGPTAuth({ hostId: stableHost, redirectUri: `${origin}/auth/callback`, ...(fetcher ? { fetcher } : {}), ...(verifier ? { verifier } : {}) });
-  const close = () => { auth.disconnect(); server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); };
+  auth = new ChatGPTAuth({ hostId: stableHost, redirectUri: `${origin}/auth/callback`, saved: vault.read(), onSave: data => vault.update(state => ({ ...state, ...data })), ...(fetcher ? { fetcher } : {}), ...(verifier ? { verifier } : {}) });
+  bridge = createBridge({ auth, vault, fetcher });
+  const close = async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await vault.close(); };
   return { origin, close };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const app = await startPrototype();
-    console.log(`OctaBlaster — protótipo local: ${app.origin}`);
-    console.log('Tokens apenas na memória. Nenhum teste de IA é feito antes do login, da autorização e do clique em Testar.');
+    console.log(`OctaBlaster — auxiliar local: ${app.origin}`);
+    console.log('Credenciais protegidas pelo Windows. A geração depende de autorização e ação explícita do atendente.');
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void app.close().then(() => process.exit(0)); });
   } catch { console.error('Não foi possível iniciar o protótipo local.'); process.exitCode = 1; }
 }

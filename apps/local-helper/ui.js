@@ -7,6 +7,9 @@ async function refresh() {
     : 'Sem login.';
   if (status.result) byId('result').textContent = `${status.result.text}\n\nFormato recebido: ${status.result.transport || 'não informado'} (${status.result.contentType || 'cabeçalho não informado'})\nUso informado na resposta: ${JSON.stringify(status.result.usage)}\nConsumo na conta e ausência de cobrança: conferir no ChatGPT.`;
   byId('message').textContent = status.lastError || '';
+  const previous = byId('accounts').value;
+  byId('accounts').replaceChildren(...(status.accounts || []).map(account => { const option = document.createElement('option'); option.value = account.clientId; option.textContent = `${account.identity.email || account.identity.name || 'Conta'} · ${account.clientId.slice(-6)}`; option.selected = account.active || account.clientId === previous; return option; }));
+  byId('enabled').checked = !!status.preferences?.enabled;
   showDiagnostic(status.lastDiagnostic);
   update();
 }
@@ -15,7 +18,7 @@ function showDiagnostic(diagnostic) {
   byId('diagnostic').textContent = diagnostic ? JSON.stringify(diagnostic, null, 2) : '';
 }
 function update() {
-  const ready = status.connected && status.planAuthorized && !status.expired && !pending && !status.busy;
+  const ready = status.connected && status.planAuthorized && !pending && !status.busy;
   byId('models').disabled = !ready;
   byId('test').disabled = !ready || !byId('model').value || !byId('confirmIdentity').checked || !byId('confirmCredits').checked;
   byId('login').disabled = pending || status.busy;
@@ -34,10 +37,15 @@ async function post(path, input = {}) {
   finally { pending = false; update(); }
 }
 byId('login').onclick = async () => { const result = await post('/auth/start'); if (result) location.assign(result.url); };
+byId('new-account').onclick = async () => { const result = await post('/auth/start', { newAccount: true }); if (result) location.assign(result.url); };
+byId('select-account').onclick = async () => { const result = await post('/account/select', { clientId: byId('accounts').value }); if (result) { byId('model').replaceChildren(); byId('confirmIdentity').checked = false; byId('confirmCredits').checked = false; await refresh(); } };
+byId('save-preferences').onclick = async () => { const result = await post('/preferences', { enabled: byId('enabled').checked, model: byId('model').value, confirmIdentity: byId('confirmIdentity').checked, confirmCredits: byId('confirmCredits').checked }); if (result) { await refresh(); byId('message').textContent = 'Preferências salvas.'; } };
+byId('pair-code').onclick = async () => { const result = await post('/pairing/code'); if (result) byId('pairing').textContent = `Código: ${result.code}\nVálido por cinco minutos. Auxiliar: ${location.origin}`; };
+byId('revoke-pairing').onclick = async () => { const result = await post('/pairing/revoke'); if (result) { byId('pairing').textContent = 'Pareamentos revogados.'; } };
 byId('disconnect').onclick = async () => { await post('/disconnect'); byId('result').textContent = 'Sessão encerrada.'; byId('model').replaceChildren(); await refresh(); };
 byId('models').onclick = async () => {
   const result = await post('/models');
-  if (result) { byId('model').replaceChildren(...result.models.map(model => { const option = document.createElement('option'); option.value = model.slug; option.textContent = model.name; return option; })); update(); }
+  if (result) { byId('model').replaceChildren(...result.models.map(model => { const option = document.createElement('option'); option.value = model.slug; option.textContent = model.name; option.selected = model.slug === status.preferences?.model; return option; })); update(); }
 };
 byId('test').onclick = async () => { byId('result').textContent = 'Aguardando a confirmação final da resposta…'; const result = await post('/test', { model: byId('model').value, confirmIdentity: byId('confirmIdentity').checked, confirmCredits: byId('confirmCredits').checked }); if (result) await refresh(); else byId('result').textContent = 'O teste não foi concluído. Nenhum rascunho parcial foi aprovado.'; };
 for (const id of ['confirmIdentity', 'confirmCredits', 'model']) byId(id).onchange = update;
