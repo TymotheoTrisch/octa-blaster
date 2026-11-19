@@ -21,6 +21,14 @@ const messages = {
   inference_failed: 'A solicitação não terminou com sucesso. O texto parcial foi descartado.',
   confirmation_required: 'Confirme a conta e as configurações de créditos antes do teste.',
   busy: 'Já existe uma operação em andamento.',
+  invalid_model: 'Selecione um modelo da lista atual da conta antes do teste.',
+  provider_request_failed: 'A OpenAI recusou ou não conseguiu processar a solicitação. Confira o diagnóstico abaixo.',
+  network_error: 'Não foi possível estabelecer a conexão com a OpenAI. Nenhuma nova tentativa foi feita.',
+  request_timeout: 'A OpenAI não respondeu dentro do tempo de espera. Nenhuma nova tentativa foi feita.',
+  invalid_stream: 'A resposta da OpenAI não veio no formato de streaming esperado.',
+  empty_response: 'A OpenAI concluiu a solicitação sem retornar texto.',
+  invalid_model_catalog: 'A lista de modelos veio em um formato diferente do esperado.',
+  invalid_body: 'A solicitação local é inválida ou excedeu o tamanho permitido.',
 };
 
 async function loadHostId(dataDir) {
@@ -42,7 +50,7 @@ async function loadHostId(dataDir) {
 export async function startPrototype({ port = 0, hostId, dataDir = join(process.env.LOCALAPPDATA || join(homedir(), '.local', 'share'), 'OctaBlaster', 'ChatGPT-Prototype'), fetcher, verifier } = {}) {
   const stableHost = hostId || await loadHostId(dataDir);
   const session = randomBytes(32).toString('base64url'), csrf = randomBytes(32).toString('base64url');
-  let auth, origin, busy = false, lastError = '', models = [], result = null;
+  let auth, origin, busy = false, lastError = '', lastDiagnostic = null, models = [], result = null;
   const server = createServer(async (req, res) => {
     const headers = {
       'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
@@ -63,14 +71,14 @@ export async function startPrototype({ port = 0, hostId, dataDir = join(process.
     if (req.method === 'GET' && url.pathname === '/auth/callback') {
       if (busy) return send(409, { error: messages.busy });
       busy = true;
-      try { await auth.complete(url); lastError = ''; result = null; models = []; }
+      try { await auth.complete(url); lastError = ''; lastDiagnostic = null; result = null; models = []; }
       catch (error) { lastError = messages[error.code] || 'Não foi possível validar este login. Nenhuma chamada de IA foi feita.'; }
       finally { busy = false; }
       res.writeHead(303, { ...headers, Location: '/' });
       return res.end();
     }
     if (!req.headers.cookie?.split(';').some(value => value.trim() === `octablaster_prototype=${session}`)) return reject();
-    if (req.method === 'GET' && url.pathname === '/status') return send(200, { ...auth.status(), busy, lastError, result, billingVerified: false });
+    if (req.method === 'GET' && url.pathname === '/status') return send(200, { ...auth.status(), busy, lastError, lastDiagnostic, result, billingVerified: false });
     if (req.method === 'GET' && url.pathname === '/config') return send(200, { csrf });
     if (req.method !== 'POST' || req.headers.origin !== origin || req.headers['x-octablaster-csrf'] !== csrf || req.headers['content-type'] !== 'application/json') return reject();
     if (busy) return send(409, { error: messages.busy });
@@ -79,9 +87,9 @@ export async function startPrototype({ port = 0, hostId, dataDir = join(process.
       let raw = '';
       for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 2048) throw new PrototypeError('invalid_body'); }
       const input = JSON.parse(raw || '{}');
-      if (url.pathname === '/auth/start') { lastError = ''; return send(200, { url: auth.begin() }); }
-      if (url.pathname === '/disconnect') { auth.disconnect(); result = null; models = []; return send(200, { disconnected: true }); }
-      if (url.pathname === '/models') { models = await listModels(auth.access(), fetcher); return send(200, { models }); }
+      if (url.pathname === '/auth/start') { lastError = ''; lastDiagnostic = null; return send(200, { url: auth.begin() }); }
+      if (url.pathname === '/disconnect') { auth.disconnect(); result = null; models = []; lastError = ''; lastDiagnostic = null; return send(200, { disconnected: true }); }
+      if (url.pathname === '/models') { models = await listModels(auth.access(), fetcher); lastError = ''; lastDiagnostic = null; return send(200, { models }); }
       if (url.pathname === '/test') {
         result = null;
         if (input.confirmIdentity !== true || input.confirmCredits !== true) throw new PrototypeError('confirmation_required');
@@ -89,12 +97,14 @@ export async function startPrototype({ port = 0, hostId, dataDir = join(process.
         const accessToken = auth.access();
         const generated = await runFictionalTest(accessToken, input.model, fetcher);
         result = { ...generated, model: input.model, completedAt: new Date().toISOString(), billingVerified: false };
+        lastError = ''; lastDiagnostic = null;
         return send(200, result);
       }
       return send(404, { error: 'Rota não encontrada.' });
     } catch (error) {
       lastError = messages[error.code] || 'A operação falhou. Nenhuma alternativa paga será utilizada.';
-      return send(400, { error: lastError });
+      lastDiagnostic = { code: error instanceof PrototypeError ? error.code : 'unexpected_local_error', ...(error instanceof PrototypeError ? error.diagnostic : {}) };
+      return send(400, { error: lastError, diagnostic: lastDiagnostic });
     } finally { busy = false; }
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });

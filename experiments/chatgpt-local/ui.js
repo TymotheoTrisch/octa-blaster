@@ -7,7 +7,12 @@ async function refresh() {
     : 'Sem login.';
   if (status.result) byId('result').textContent = `${status.result.text}\n\nUso informado na resposta: ${JSON.stringify(status.result.usage)}\nConsumo na conta e ausência de cobrança: conferir no ChatGPT.`;
   byId('message').textContent = status.lastError || '';
+  showDiagnostic(status.lastDiagnostic);
   update();
+}
+function showDiagnostic(diagnostic) {
+  byId('diagnostic-section').hidden = !diagnostic;
+  byId('diagnostic').textContent = diagnostic ? JSON.stringify(diagnostic, null, 2) : '';
 }
 function update() {
   const ready = status.connected && status.planAuthorized && !status.expired && !pending && !status.busy;
@@ -21,7 +26,9 @@ async function post(path, input = {}) {
   try {
     const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Octablaster-CSRF': csrf }, body: JSON.stringify(input) });
     const body = await response.json();
-    if (!response.ok) throw new Error(body.error);
+    if (!response.ok) { showDiagnostic(body.diagnostic); throw new Error(body.error); }
+    byId('message').textContent = '';
+    showDiagnostic(null);
     return body;
   } catch (error) { byId('message').textContent = error.message || 'A operação local falhou.'; return null; }
   finally { pending = false; update(); }

@@ -12,7 +12,7 @@ const opaque = () => randomBytes(32).toString('base64url');
 const equal = (a, b) => typeof a === 'string' && typeof b === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 export class PrototypeError extends Error {
-  constructor(code) { super(code); this.code = code; }
+  constructor(code, diagnostic = {}) { super(code); this.code = code; this.diagnostic = diagnostic; }
 }
 
 export async function verifyIdentity(token, clientId, nonce, keys = jwks) {

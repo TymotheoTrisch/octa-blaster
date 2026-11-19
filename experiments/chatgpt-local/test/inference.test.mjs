@@ -40,3 +40,38 @@ test('a failed request has no retry, paid fallback or output from the error body
     assert.equal(calls, 1);
   }
 });
+
+test('structured HTTP errors preserve actionable diagnostics while removing credentials', async () => {
+  const secret = 'sensitive-oauth-value';
+  await assert.rejects(runFictionalTest(secret, 'fake-model', async () => Response.json({ error: {
+    code: 'unsupported_parameter', type: 'invalid_request_error', param: 'temperature',
+    message: `Rejected parameter. Bearer ${secret}, account test@example.invalid and sk-secret-key`,
+  } }, { status: 400, headers: { 'x-request-id': 'req_fictional' } })), error => {
+    assert.equal(error.code, 'provider_request_failed');
+    assert.equal(error.diagnostic.stage, 'responses');
+    assert.equal(error.diagnostic.httpStatus, 400);
+    assert.equal(error.diagnostic.providerCode, 'unsupported_parameter');
+    assert.equal(error.diagnostic.param, 'temperature');
+    assert.equal(error.diagnostic.requestId, 'req_fictional');
+    const serialized = JSON.stringify(error.diagnostic);
+    for (const sensitive of [secret, 'test@example.invalid', 'sk-secret-key']) assert.ok(!serialized.includes(sensitive));
+    return true;
+  });
+});
+
+test('admission detail, non-JSON responses and stream errors retain distinct shapes', async () => {
+  await assert.rejects(runFictionalTest('fake', 'fake-model', async () => Response.json({ detail: 'Route is unavailable' }, { status: 503 })), error => {
+    assert.equal(error.diagnostic.bodyShape, 'detail');
+    assert.equal(error.diagnostic.detail, 'Route is unavailable');
+    assert.equal(error.diagnostic.httpStatus, 503);
+    return true;
+  });
+  await assert.rejects(runFictionalTest('fake', 'fake-model', async () => new Response('<html>Do not expose this body</html>', { status: 502 })), error => error.diagnostic.bodyShape === 'non_json' && !JSON.stringify(error).includes('<html>'));
+  await assert.rejects(collectResponse(stream([{ type: 'response.failed', response: { error: { code: 'subscription_sharing_user_not_eligible', message: 'Not eligible' } } }])), error => error.diagnostic.stage === 'stream' && error.diagnostic.providerCode === 'subscription_sharing_user_not_eligible');
+});
+
+test('network and timeout errors are classified without retaining raw exception messages', async () => {
+  for (const [name, expected] of [['TypeError', 'network_error'], ['TimeoutError', 'request_timeout']]) {
+    await assert.rejects(runFictionalTest('secret', 'fake-model', async () => { const error = new Error('secret and private network data'); error.name = name; throw error; }), error => error.code === expected && error.diagnostic.stage === 'responses' && !JSON.stringify(error).includes('private network'));
+  }
+});

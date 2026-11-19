@@ -19,6 +19,7 @@ Fontes oficiais:
 - [Registro e login](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
 - [Modelos e inferência](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
 - [Limitações](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+- [Erros e recuperação](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery)
 - [Uso do plano e créditos](https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites)
 
 ## Executar
@@ -42,6 +43,8 @@ No Windows também é possível executar `Iniciar-Prototipo-IA.cmd`. Abra o ende
 6. A tela mostra apenas uma resposta concluída e o uso de tokens retornado pela requisição. Em seguida, confira o consumo do aplicativo nas configurações do ChatGPT e os controles de crédito/cobrança da conta.
 
 Nenhuma chamada de inferência é disparada ao abrir o programa ou ao concluir o login. Consulta de modelos e teste exigem ações locais. Não há repetição automática, chave de API tradicional nem fallback para outra forma de acesso.
+
+Se uma tentativa falhar, a seção **Diagnóstico da tentativa** mostra etapa, status HTTP quando disponível, formato do erro e código/parâmetro retornados pelo provedor. O texto é sanitizado para remover a credencial utilizada, padrões de tokens e e-mails. O corpo bruto e os cabeçalhos de autenticação não são conservados. O diagnóstico fica apenas na memória, acessível na tela local; não há registro em arquivo ou envio automático. Ele permite distinguir recusa antes do stream, falha de rede e erro durante o stream, sem assumir que todo erro representa falta de franquia.
 
 ## Limites de comprovação
 

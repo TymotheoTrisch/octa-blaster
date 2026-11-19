@@ -5,12 +5,14 @@ import { DIRECT_SCOPE } from '../auth.mjs';
 
 test('loopback UI authenticates local mutations, requires scope and confirmations, and never exposes tokens', async () => {
   const calls = [];
+  let failNext = false;
   const app = await startPrototype({ hostId: 'urn:uuid:11111111-1111-4111-8111-111111111111',
     verifier: async () => ({ subject: 'fictional-account', email: 'test@example.invalid' }),
     fetcher: async (url) => {
       calls.push(url);
       if (url.endsWith('/oauth/token')) return Response.json({ access_token: 'NEVER_EXPOSE_TOKEN', id_token: 'fake', token_type: 'Bearer', expires_in: 3600, scope: `${DIRECT_SCOPE} resource.invoke` });
       if (url.endsWith('/models')) return Response.json({ models: [{ slug: 'fictional-model', display_name: 'Fictício', visibility: 'list' }] });
+      if (failNext) return Response.json({ error: { code: 'unsupported_parameter', param: 'temperature', message: 'Rejected: NEVER_EXPOSE_TOKEN' } }, { status: 400 });
       return new Response(`data: ${JSON.stringify({ type: 'response.completed', response: { output: [{ content: [{ type: 'output_text', text: 'Rascunho fictício.' }] }], usage: { total_tokens: 25 } } })}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
     },
   });
@@ -39,6 +41,15 @@ test('loopback UI authenticates local mutations, requires scope and confirmation
     assert.equal(result.text, 'Rascunho fictício.');
     assert.equal(result.billingVerified, false);
     assert.equal(calls.length, 3);
+    failNext = true;
+    const failed = await (await post('/test', { model: 'fictional-model', confirmIdentity: true, confirmCredits: true })).json();
+    assert.equal(failed.diagnostic.httpStatus, 400);
+    assert.equal(failed.diagnostic.providerCode, 'unsupported_parameter');
+    assert.ok(!JSON.stringify(failed).includes('NEVER_EXPOSE_TOKEN'));
+    const persisted = await (await fetch(`${app.origin}/status`, { headers: { cookie } })).json();
+    assert.equal(persisted.lastDiagnostic.param, 'temperature');
+    assert.equal(persisted.result, null);
+    assert.equal(calls.length, 4);
     await post('/disconnect');
     const disconnected = await (await fetch(`${app.origin}/status`, { headers: { cookie } })).json();
     assert.equal(disconnected.connected, false);
