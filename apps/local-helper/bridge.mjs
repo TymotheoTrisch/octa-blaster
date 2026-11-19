@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { PrototypeError } from './auth.mjs';
-import { listModels, runDraft } from './inference.mjs';
+import { listModels, runSummary } from './inference.mjs';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 const extensionOrigin = value => typeof value === 'string' && /^(?:moz-extension|chrome-extension):\/\/[a-zA-Z0-9-]+$/.test(value);
@@ -32,14 +32,16 @@ export function createBridge({ auth, vault, fetcher, now = Date.now }) {
       if (!preferences.enabled) throw new PrototypeError('generation_disabled');
       if (url.pathname === '/bridge/models') { send(200, { models: await listModels(await auth.authorizedAccess(), fetcher), preferredModel: preferences.model }); return true; }
       if (url.pathname === '/bridge/draft') {
+        if (!['summary_latest', 'summary_full', 'chat'].includes(input.task)) throw new PrototypeError('invalid_body');
         const token = await auth.authorizedAccess();
         const catalog = await listModels(token, fetcher);
-        if (!catalog.some(item => item.slug === input.model)) throw new PrototypeError('invalid_model');
+        const model = input.model || preferences.model;
+        if (!catalog.some(item => item.slug === model)) throw new PrototypeError('invalid_model');
         if (res.destroyed) throw new PrototypeError('request_cancelled');
         const controller = new AbortController();
         const cancel = () => { if (!res.writableEnded) controller.abort(); };
         res.once('close', cancel);
-        try { const result = await runDraft(token, input.model, input, fetcher, controller.signal); if (!res.destroyed) send(200, result); }
+        try { const result = await runSummary(token, model, input, fetcher, controller.signal); if (!res.destroyed) send(200, result); }
         finally { res.off('close', cancel); }
         return true;
       }

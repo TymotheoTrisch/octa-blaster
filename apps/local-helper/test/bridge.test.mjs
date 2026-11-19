@@ -14,7 +14,7 @@ test('extension pairing is one-use, origin-bound, revocable and sends only expli
     assert.equal(body.store, false); assert.equal(body.stream, true);
     const input = JSON.parse(body.input[0].content);
     assert.equal(input.conversa_do_ticket, 'Contexto autorizado fictício');
-    assert.deepEqual(input.exemplos_de_estilo, ['Exemplo escolhido']);
+    assert.deepEqual(input.exemplos_de_estilo, []);
     assert.ok(!options.body.includes('OAUTH_MUST_NOT_LEAVE_HELPER'));
     return Response.json({ id: 'resp_fake', object: 'response', status: 'completed', output: [{ content: [{ type: 'output_text', text: 'Resposta fictícia.' }] }] });
   } });
@@ -32,7 +32,7 @@ test('extension pairing is one-use, origin-bound, revocable and sends only expli
     assert.notEqual((await bridge('status')).status, 200);
     const status = await (await bridge('status', {}, pairing.key)).text();
     assert.ok(!status.includes('OAUTH_MUST_NOT_LEAVE_HELPER'));
-    const response = await (await bridge('draft', { model: 'fake-model', context: 'Contexto autorizado fictício', instruction: 'Confirme o recebimento.', examples: ['Exemplo escolhido'] }, pairing.key)).json();
+    const response = await (await bridge('draft', { task: 'summary_full', model: 'fake-model', context: 'Contexto autorizado fictício', instruction: 'Resuma o atendimento.', examples: [] }, pairing.key)).json();
     assert.equal(response.text, 'Resposta fictícia.'); assert.equal(generations, 1);
     await local('/pairing/revoke');
     assert.notEqual((await bridge('status', {}, pairing.key)).status, 200);

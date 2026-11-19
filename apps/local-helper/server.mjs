@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ChatGPTAuth, PrototypeError } from './auth.mjs';
-import { listModels, runFictionalTest } from './inference.mjs';
+import { listModels } from './inference.mjs';
 import { openVault, memoryVault } from './vault.mjs';
 import { createBridge } from './bridge.mjs';
 
@@ -60,7 +60,14 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
   const stableHost = hostId || await loadHostId(dataDir);
   const vault = providedVault || (hostId ? memoryVault() : await openVault(dataDir));
   const session = randomBytes(32).toString('base64url'), csrf = randomBytes(32).toString('base64url');
-  let auth, bridge, origin, busy = false, lastError = '', lastDiagnostic = null, models = [], result = null;
+  let auth, bridge, origin, busy = false, lastError = '', lastDiagnostic = null, models = [], result = null, nativeLogin = false;
+  async function enableNative() {
+    models = await listModels(await auth.authorizedAccess(), fetcher);
+    const preferred = vault.read().preferences.model;
+    const model = models.find(item => item.slug === preferred)?.slug || models[0]?.slug;
+    if (!model) throw new PrototypeError('invalid_model_catalog');
+    await vault.update(state => ({ ...state, preferences: { enabled: true, model } }));
+  }
   const server = createServer(async (req, res) => {
     const headers = {
       'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
@@ -70,6 +77,11 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
     const reject = () => send(403, { error: 'Solicitação local não autorizada.' });
     if (!origin || req.headers.host !== new URL(origin).host || req.url.length > 8192) return reject();
     const url = new URL(req.url, origin);
+    if (req.method === 'GET' && url.pathname === '/health') return send(200, { app: 'OctaBlaster', apiVersion: 2 });
+    if (req.method === 'GET' && url.pathname === '/connected') {
+      res.writeHead(200, { ...headers, 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!doctype html><meta charset="utf-8"><title>OctaBlaster</title><h1>Login concluído</h1><p>Volte ao Octadesk. Você pode fechar esta aba; a autorização permanece salva no computador.</p>');
+    }
     const readBody = async () => {
       const chunks = []; let size = 0;
       for await (const chunk of req) { size += chunk.length; if (size > (url.pathname.startsWith('/bridge/') ? 300_000 : 4096)) throw new PrototypeError('invalid_body'); chunks.push(chunk); }
@@ -90,17 +102,13 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
       res.writeHead(200, { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': `octablaster_prototype=${session}; HttpOnly; SameSite=Strict; Path=/` });
       return res.end(await readFile(new URL('./ui.html', import.meta.url), 'utf8'));
     }
-    if (req.method === 'GET' && ['/ui.js', '/ui.css'].includes(url.pathname)) {
-      res.writeHead(200, { ...headers, 'Content-Type': url.pathname.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/css; charset=utf-8' });
-      return res.end(await readFile(new URL(`.${url.pathname}`, import.meta.url), 'utf8'));
-    }
     if (req.method === 'GET' && url.pathname === '/auth/callback') {
       if (busy) return send(409, { error: messages.busy });
       busy = true;
-      try { await auth.complete(url); await vault.update(state => ({ ...state, preferences: { ...state.preferences, enabled: false } })); lastError = ''; lastDiagnostic = null; result = null; models = []; }
+      try { await auth.complete(url); if (nativeLogin) await enableNative(); else await vault.update(state => ({ ...state, preferences: { ...state.preferences, enabled: false } })); lastError = ''; lastDiagnostic = null; result = null; }
       catch (error) { lastError = messages[error.code] || 'Não foi possível validar este login. Nenhuma chamada de IA foi feita.'; }
       finally { busy = false; }
-      res.writeHead(303, { ...headers, Location: '/' });
+      res.writeHead(303, { ...headers, Location: nativeLogin && !lastError ? '/connected' : '/' }); nativeLogin = false;
       return res.end();
     }
     if (!req.headers.cookie?.split(';').some(value => value.trim() === `octablaster_prototype=${session}`)) return reject();
@@ -111,9 +119,22 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
     busy = true;
     try {
       const input = await readBody();
+      if (url.pathname === '/native/connect') {
+        if (!input.newAccount && auth.status().connected && auth.status().planAuthorized) {
+          try { await enableNative(); return send(200, { connected: true }); }
+          catch (error) { if (error.code !== 'login_required') throw error; }
+        }
+        nativeLogin = true; return send(200, { url: auth.begin(input.newAccount ? null : undefined) });
+      }
+      if (url.pathname === '/native/preferences') {
+        models = await listModels(await auth.authorizedAccess(), fetcher);
+        if (!models.some(item => item.slug === input.model)) throw new PrototypeError('invalid_model');
+        await vault.update(state => ({ ...state, preferences: { ...state.preferences, model: input.model } }));
+        return send(200, { saved: true });
+      }
       if (url.pathname === '/auth/start') { lastError = ''; lastDiagnostic = null; return send(200, { url: auth.begin(input.newAccount ? null : undefined) }); }
       if (url.pathname === '/account/select') { await auth.select(input.clientId); await vault.update(state => ({ ...state, preferences: { ...state.preferences, enabled: false } })); models = []; return send(200, { selected: true }); }
-      if (url.pathname === '/disconnect') { const revocation = await auth.disconnect(); result = null; models = []; lastError = revocation.revocationConfirmed ? '' : 'Sessão local encerrada. A revogação remota não foi confirmada; você pode desconectar o aplicativo nas configurações do ChatGPT.'; lastDiagnostic = null; return send(200, { disconnected: true }); }
+      if (url.pathname === '/disconnect') { const revocation = await auth.disconnect(); await vault.update(state => ({ ...state, preferences: { ...state.preferences, enabled: false } })); result = null; models = []; lastError = revocation.revocationConfirmed ? '' : 'Sessão local encerrada. A revogação remota não foi confirmada; você pode desconectar o aplicativo nas configurações do ChatGPT.'; lastDiagnostic = null; return send(200, { disconnected: true, revocationConfirmed: revocation.revocationConfirmed }); }
       if (url.pathname === '/pairing/code') return send(200, bridge.issueCode());
       if (url.pathname === '/pairing/revoke') { await vault.update(state => ({ ...state, bridges: [] })); return send(200, { revoked: true }); }
       if (url.pathname === '/preferences') {
@@ -123,16 +144,6 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
         return send(200, { saved: true });
       }
       if (url.pathname === '/models') { models = await listModels(await auth.authorizedAccess(), fetcher); lastError = ''; lastDiagnostic = null; return send(200, { models }); }
-      if (url.pathname === '/test') {
-        result = null;
-        if (input.confirmIdentity !== true || input.confirmCredits !== true) throw new PrototypeError('confirmation_required');
-        if (!models.some(model => model.slug === input.model)) throw new PrototypeError('invalid_model');
-        const accessToken = await auth.authorizedAccess();
-        const generated = await runFictionalTest(accessToken, input.model, fetcher);
-        result = { ...generated, model: input.model, completedAt: new Date().toISOString(), billingVerified: false };
-        lastError = ''; lastDiagnostic = null;
-        return send(200, result);
-      }
       return send(404, { error: 'Rota não encontrada.' });
     } catch (error) {
       lastError = messages[error.code] || 'A operação falhou. Nenhuma alternativa paga será utilizada.';
@@ -155,5 +166,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(`OctaBlaster — auxiliar local: ${app.origin}`);
     console.log('Credenciais protegidas pelo Windows. A geração depende de autorização e ação explícita do atendente.');
     for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void app.close().then(() => process.exit(0)); });
-  } catch { console.error('Não foi possível iniciar o protótipo local.'); process.exitCode = 1; }
+  } catch { console.error('Não foi possível iniciar o auxiliar local.'); process.exitCode = 1; }
 }

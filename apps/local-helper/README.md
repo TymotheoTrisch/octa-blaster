@@ -1,49 +1,27 @@
-# Auxiliar local de IA do OctaBlaster
+# Auxiliar de resumos do OctaBlaster
 
-Aplicativo Node.js executado no Windows para autenticar a conta ChatGPT e atender a extensão pareada. Inclui geração de rascunhos, resumos e chat sobre o ticket selecionado, sempre mediante ação explícita. O envio de e-mails permanece manual.
+No Windows, execute **Instalar-IA-Firefox.cmd** uma vez. Na extensão atualizada, abra **Inteligência artificial → Entrar com ChatGPT**. Depois, o Firefox inicia o auxiliar automaticamente e o login é renovado quando permitido. Não é necessário manter CMD aberto, abrir o site local ou gerar códigos.
 
-## Executar
+Requisitos da instalação: Node.js 22.22.2+ e pnpm 10+. O instalador copia o runtime para `%LOCALAPPDATA%\OctaBlaster\Auxiliar`, compila o launcher C# com o Windows e registra o host `com.octablaster.ai` em HKCU, restrito ao ID oficial da extensão. `Desinstalar-IA-Firefox.cmd` remove esse registro; use Sair na extensão antes para encerrar a sessão.
 
-Pré-requisitos: Windows, Node.js 22.22.2+ e pnpm 10+.
+O guia completo está em [docs/IA-LOCAL.md](../../docs/IA-LOCAL.md), com arquitetura, atualização, limites, login, testes e funcionamento dos dois resumos.
+
+## Desenvolvimento
 
 ```powershell
-cd apps/local-helper
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm test
-pnpm start
 ```
 
-Também é possível abrir `Iniciar-Auxiliar-IA.cmd`. O endereço padrão é `http://127.0.0.1:53894`. Faça o login oficial, confira a identidade e a autorização de uso do plano, selecione o modelo e salve a autorização de geração. Gere um código e informe-o em **Mais opções → Inteligência artificial** na extensão.
+`pnpm start` inicia o servidor manualmente para diagnóstico; o fluxo normal utiliza Native Messaging. O runtime mantém compatibilidade com o auxiliar 0.10 já aberto para preservar sua autorização durante a atualização.
 
-O primeiro login deste auxiliar é independente do antigo experimento em `experiments/chatgpt-local`. Tokens daquele processo não são copiados nem reaproveitados.
+- `native-protocol.mjs`: frames JSON UTF-8 com prefixo uint32 little-endian, limites e rejeição de mensagens inválidas.
+- `native-host.mjs`: comunicação stdio, início oculto do serviço, tarefas autorizadas e cancelamento.
+- `native-session.mjs`: sessão HTTP interna, autenticação local e compatibilidade de atualização.
+- `auth.mjs` e `vault.mjs`: registros por conta, validação OAuth, renovação serializada e credenciais protegidas pela DPAPI.
+- `bridge.mjs` e `inference.mjs`: escopo de tarefas, modelos autorizados, resposta concluída e ausência de alternativa paga.
+- `windows/Install.ps1` e `NativeLauncher.cs`: instalação local e transporte binário sem expor dados em argumentos/logs.
 
-O guia completo de instalação, pareamento, chat, contexto e arquitetura está em [docs/IA-LOCAL.md](../../docs/IA-LOCAL.md).
+Os tokens não chegam à extensão, não entram no backup e não são registrados em logs. O chat e o conteúdo de clientes não são persistidos pelo aplicativo. As tarefas habilitadas são resumo de mensagem, resumo do ticket e perguntas sobre esse contexto. A validade da autorização é definida pelo provedor, com renovação; não é um token manual de cinco minutos nem um cookie do navegador.
 
-## Credenciais e comunicação
-
-- O serviço escuta somente em `127.0.0.1`, valida o host e protege a interface local com cookie e CSRF.
-- O login utiliza PKCE S256, state e nonce. A identidade é verificada criptograficamente e os escopos concedidos são conferidos separadamente.
-- Registros por conta e tokens ficam protegidos pela DPAPI CurrentUser do Windows em `%LOCALAPPDATA%\OctaBlaster\ChatGPT-Local`, com gravação atômica. A renovação é serializada e persiste a rotação dos tokens.
-- A extensão recebe somente uma chave de pareamento, vinculada à origem. O código tem validade de cinco minutos, no máximo cinco tentativas e uso único. Pareamentos podem ser revogados na interface local.
-- O auxiliar não registra conteúdo do ticket, chat ou tokens em logs. O chat fica somente na memória da janela da extensão. Os testes usam dados fictícios e não fazem inferência real.
-- Sair limpa os tokens da sessão selecionada e tenta a revogação oficial quando disponível. Para conferir e administrar a autorização do aplicativo, utilize também as configurações da conta ChatGPT.
-
-## Inferência e limites
-
-As tarefas usam a rota pública Responses com `store: false` e exigem resposta concluída; texto parcial não é aprovado. O decoder aceita SSE inclusive sem Content-Type, ou um objeto Responses JSON válido e concluído. Não há retries automáticos, chave de API tradicional, cookies reaproveitados ou alternativa paga.
-
-Há limites explícitos de contexto, orientação, exemplos e histórico. Mensagens de e-mail são dados, não instruções de sistema. Cada tarefa usa instruções próprias: rascunho, resumo da última mensagem, resumo do atendimento disponível ou perguntas de continuidade.
-
-A autorização técnica não comprova faturamento. Confira os controles de uso do plano e créditos na conta antes de habilitar a geração. As confirmações locais são declarações manuais; `billingVerified` permanece falso. Consulte [VALIDATION.md](VALIDATION.md) para separar o teste real inicial da validação automatizada e da homologação ainda pendente.
-
-## Referências do desenho de autenticação
-
-Documentação consultada na fase de viabilidade em 19/11/2026:
-
-- [Visão geral](https://developers.openai.com/siwc/token-sharing-open-source)
-- [Registro e login](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
-- [Modelos e inferência](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)
-- [Limitações](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
-- [Erros e recuperação](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery)
-
-Este pacote segue a licença AGPL-3.0-or-later do repositório. Não há hospedagem contratada para esse desenho.
+Veja [VALIDATION.md](VALIDATION.md). A licença é AGPL-3.0-or-later, conforme o LICENSE da raiz do repositório.

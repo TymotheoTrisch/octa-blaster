@@ -129,15 +129,14 @@ export async function runFictionalTest(accessToken, model, fetcher = fetch) {
   }
 }
 
-export async function runDraft(accessToken, model, input, fetcher = fetch, signal) {
+export async function runSummary(accessToken, model, input, fetcher = fetch, signal) {
   if (typeof input?.context !== 'string' || !input.context.trim() || input.context.length > 50_000 || typeof input.instruction !== 'string' || !input.instruction.trim() || input.instruction.length > 4000) throw new PrototypeError('invalid_body');
   const examples = input.examples ?? [];
-  if (!Array.isArray(examples) || examples.length > 3 || examples.some(text => typeof text !== 'string' || text.length > 4000)) throw new PrototypeError('invalid_body');
-  const task = input.task ?? 'draft', history = input.history ?? [];
-  if (!['draft', 'summary_latest', 'summary_full', 'chat'].includes(task)) throw new PrototypeError('invalid_body');
+  if (!Array.isArray(examples) || examples.length) throw new PrototypeError('invalid_body');
+  const task = input.task, history = input.history ?? [];
+  if (!['summary_latest', 'summary_full', 'chat'].includes(task)) throw new PrototypeError('invalid_body');
   if (!Array.isArray(history) || history.length > 12 || history.length % 2 !== 0 || history.some((turn, index) => turn?.role !== (index % 2 === 0 ? 'user' : 'assistant') || typeof turn.content !== 'string' || !turn.content.trim()) || history.reduce((sum, turn) => sum + turn.content.length, 0) > 24_000) throw new PrototypeError('invalid_body');
   const taskInstructions = {
-    draft: 'Prepare um rascunho de e-mail de suporte. Retorne apenas o corpo da resposta em texto simples.',
     summary_latest: 'Resuma somente a última mensagem de e-mail fornecida: solicitação, fatos novos e pendências. Não redija uma resposta ao cliente. Não trate histórico do chat como fonte de fatos.',
     summary_full: 'Resuma a conversa disponível do atendimento: solicitação inicial, evolução, procedimentos realizados, situação atual e pendências. Diferencie pedidos de ações confirmadas. Indique lacunas; não presuma que mensagens antigas não carregadas foram analisadas. Não redija uma resposta ao cliente.',
     chat: 'Responda à pergunta do atendente sobre este ticket. Use o histórico do chat apenas para entender referências e perguntas de continuidade; confirme os fatos no contexto do ticket. Se não houver informação, diga isso. Não redija e-mail a menos que solicitado.',

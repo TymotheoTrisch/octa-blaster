@@ -57,6 +57,8 @@ export class ChatGPTAuth {
       client_id: selected?.clientId || 'dynamic_agent_client', ...(!selected ? { agent_name_hint: 'OctaBlaster' } : {}), ext_agent_host_id: this.hostId,
       response_type: 'code', redirect_uri: this.redirectUri, scope: SCOPES, resource: RESOURCE,
       state, nonce, code_challenge_method: 'S256', code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+      ...(selected?.idToken ? { id_token_hint: selected.idToken } : {}),
+      ...(selected?.identity.email ? { login_hint: selected.identity.email } : {}),
     }).toString();
     return url.href;
   }
