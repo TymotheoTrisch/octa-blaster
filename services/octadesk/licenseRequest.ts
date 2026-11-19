@@ -85,5 +85,5 @@ export function formatLicenseRequest(request: LicenseRequest): string {
     description = `Contratação ${request.quantity} ${request.quantity === 1 ? 'lic' : 'lics'} (${request.firstLicenseExempt ? 'com isenção da primeira licença' : 'sem isenção'})`;
   } else if (request.operation === 'Troca') description = `Troca lic ${request.licenses[0]}\nMotivo: ${request.swapReason}`;
   else description = `Cancelamento lics: ${request.licenses.join(', ')}`;
-  return `${description}\n\nBanco: ${request.database}`;
+  return `${description}\nBanco: ${request.database}`;
 }

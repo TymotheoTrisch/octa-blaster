@@ -35,10 +35,10 @@ const targets = [
 ];
 
 for (const [text, expected] of [
-  [contract, 'Contratação 2 lics (com isenção da primeira licença)\n\nBanco: 135558'],
-  [contract.replace('Licenças: 2', 'Licenças: 1').replace('Licença: Sim', 'Licença: Não'), 'Contratação 1 lic (sem isenção)\n\nBanco: 135558'],
-  [swap, 'Troca lic 11822\nMotivo: Licença corrompida.\n\nBanco: 158750'],
-  [cancel, 'Cancelamento lics: 13039, 13041, 13042\n\nBanco: 151303'],
+  [contract, 'Contratação 2 lics (com isenção da primeira licença)\nBanco: 135558'],
+  [contract.replace('Licenças: 2', 'Licenças: 1').replace('Licença: Sim', 'Licença: Não'), 'Contratação 1 lic (sem isenção)\nBanco: 135558'],
+  [swap, 'Troca lic 11822\nMotivo: Licença corrompida.\nBanco: 158750'],
+  [cancel, 'Cancelamento lics: 13039, 13041, 13042\nBanco: 151303'],
 ]) {
   test(`email fields format ${expected.split('\n')[0]}`, () => {
     const result = parseLicenseRequestText(text);

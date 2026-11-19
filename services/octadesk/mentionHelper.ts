@@ -733,7 +733,7 @@ export async function automateLicenseMentions(
           editorDoc.getSelection()?.removeAllRanges();
           editorDoc.getSelection()?.addRange(range);
         }
-        if (!insertTextIntoElement(targetEditor, `\n\n${summary}`, undefined, true)) {
+        if (!insertTextIntoElement(targetEditor, `\n${summary}`, undefined, true)) {
           return { success: false, message: 'Os técnicos foram marcados, mas não foi possível inserir o resumo da solicitação.' };
         }
       }
