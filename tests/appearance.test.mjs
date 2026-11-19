@@ -13,6 +13,7 @@ import { loadSettings } from '../services/storage/settingsStorage.ts';
 import {
   applyAppearanceToRoot,
   computeBrandPalette,
+  computeTagBadgeVars,
   contrastRatio,
   resolveThemeMode,
 } from '../services/appearance/themeTokens.ts';
@@ -82,6 +83,12 @@ test('computeBrandPalette guarantees accessible foreground and soft-text contras
   assert.equal(charcoalDark.accentText, '#ffffff');
   assert.notEqual(charcoalDark.accentHover, '#1c1b1c');
   assert.ok(contrastRatio(charcoalDark.accentSoftText, '#1e1e21') >= 4.5);
+
+  assert.equal(computeTagBadgeVars(undefined), undefined);
+  const tagVars = computeTagBadgeVars('#ffc600');
+  assert.ok(tagVars);
+  assert.ok(contrastRatio(tagVars['--tag-text-light'], '#ffffff') >= 4.5);
+  assert.ok(contrastRatio(tagVars['--tag-text-dark'], '#202024') >= 4.5);
 });
 
 test('resolveThemeMode and applyAppearanceToRoot apply data-theme and CSS custom properties', () => {

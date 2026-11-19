@@ -133,6 +133,24 @@ export function computeBrandPalette(
   };
 }
 
+export function computeTagBadgeVars(rawColor?: string): Record<string, string> | undefined {
+  const hex = normalizeHexColor(rawColor);
+  if (!hex) return undefined;
+  const rgb = hexToRgb(hex);
+  const lightText = ensureMinimumContrast(hex, '#ffffff', { r: 28, g: 27, b: 28 }, 4.5);
+  const darkText = ensureMinimumContrast(hex, '#202024', { r: 244, g: 244, b: 245 }, 4.5);
+  const rgba = (alpha: number) => `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+
+  return {
+    '--tag-bg-light': rgba(0.14),
+    '--tag-border-light': rgba(0.36),
+    '--tag-text-light': lightText,
+    '--tag-bg-dark': rgba(0.22),
+    '--tag-border-dark': rgba(0.45),
+    '--tag-text-dark': darkText,
+  };
+}
+
 export function resolveThemeMode(theme: ThemeMode, prefersDark: boolean): ResolvedTheme {
   if (theme === 'dark') return 'dark';
   if (theme === 'light') return 'light';

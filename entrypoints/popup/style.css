@@ -358,3 +358,16 @@ textarea {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
+
+.tag-badge-colored {
+  background: var(--tag-bg-light) !important;
+  border-color: var(--tag-border-light) !important;
+  color: var(--tag-text-light) !important;
+  font-weight: 600 !important;
+}
+
+:root[data-theme='dark'] .tag-badge-colored {
+  background: var(--tag-bg-dark) !important;
+  border-color: var(--tag-border-dark) !important;
+  color: var(--tag-text-dark) !important;
+}

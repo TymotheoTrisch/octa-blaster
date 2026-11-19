@@ -124,3 +124,29 @@ test('a tag-only backup retains its catalog when it has no response templates', 
   const tags = [{ id: 'support', name: 'Suporte' }];
   assert.deepEqual(parseTemplateBackup(JSON.stringify({ format: 'octablaster', version: 1, templates: [], tags })), { templates: [], tags });
 });
+
+test('tags accept optional custom hex colors, reject invalid colors, and preserve them across save and backup', async () => {
+  const dom = installDom();
+  const storage = installStorage({ [STORAGE_KEY]: [{ ...reply, tags: ['support'], category: 'Suporte' }], [HAS_INITIALIZED_KEY]: true });
+  let download;
+  dom.window.HTMLAnchorElement.prototype.click = function () { download = this.href; this.remove(); };
+  try {
+    await assert.rejects(saveTags([{ id: 'support', name: 'Suporte', color: 'azul' }]), /Cor inválida/);
+    const saved = await saveTags([
+      { id: 'support', name: 'Suporte', color: '#1971C2' },
+      { id: 'plain', name: 'Geral', color: '' },
+    ]);
+    assert.deepEqual(saved, [
+      { id: 'support', name: 'Suporte', color: '#1971c2' },
+      { id: 'plain', name: 'Geral' },
+    ]);
+
+    await exportTemplatesToJson();
+    const json = decodeURIComponent(download.slice(download.indexOf(',') + 1));
+    const backup = parseTemplateBackup(json);
+    assert.deepEqual(backup.tags, saved);
+  } finally {
+    storage.restore();
+    dom.restore();
+  }
+});

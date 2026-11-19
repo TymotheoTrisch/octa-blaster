@@ -1,11 +1,24 @@
 import type { QuickReplyTemplate } from '@/types/template';
+import { normalizeHexColor } from './settingsSchema';
 
 export interface TemplateTag {
   id: string;
   name: string;
+  color?: string;
 }
 
 export const TAGS_KEY = 'octablaster_tags';
+
+export const TAG_COLOR_PRESETS: ReadonlyArray<{ name: string; color: string }> = [
+  { name: 'Azul', color: '#1971c2' },
+  { name: 'Esmeralda', color: '#2b8a3e' },
+  { name: 'Âmbar', color: '#e67700' },
+  { name: 'Laranja', color: '#d9480f' },
+  { name: 'Rosa', color: '#c2255c' },
+  { name: 'Vermelho', color: '#c92a2a' },
+  { name: 'Violeta', color: '#7c3aed' },
+  { name: 'Ardósia', color: '#495057' },
+];
 
 export function validateTags(raw: unknown): TemplateTag[] {
   if (!Array.isArray(raw)) throw new Error('A lista de tags é inválida.');
@@ -19,7 +32,13 @@ export function validateTags(raw: unknown): TemplateTag[] {
     if (ids.has(id) || names.has(normalized)) throw new Error(`Tag repetida: ${name}`);
     ids.add(id);
     names.add(normalized);
-    return { id, name };
+    const tag: TemplateTag = { id, name };
+    if (item?.color !== undefined && item?.color !== null && String(item.color).trim() !== '') {
+      const color = normalizeHexColor(item.color);
+      if (!color) throw new Error(`Cor inválida para a tag ${name}.`);
+      tag.color = color;
+    }
+    return tag;
   });
 }
 
@@ -44,8 +63,14 @@ export function getTemplateTagIds(template: QuickReplyTemplate, tags: TemplateTa
   return tag ? [tag.id] : [];
 }
 
+export function getTemplateTags(template: QuickReplyTemplate, tags: TemplateTag[]): TemplateTag[] {
+  return getTemplateTagIds(template, tags)
+    .map(id => tags.find(tag => tag.id === id))
+    .filter((tag): tag is TemplateTag => tag !== undefined);
+}
+
 export function getTemplateTagNames(template: QuickReplyTemplate, tags: TemplateTag[]): string[] {
-  return getTemplateTagIds(template, tags).map(id => tags.find(tag => tag.id === id)!.name);
+  return getTemplateTags(template, tags).map(tag => tag.name);
 }
 
 export function applyTemplateTags(template: QuickReplyTemplate, tags: TemplateTag[], ids: string[]): QuickReplyTemplate {
