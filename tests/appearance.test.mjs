@@ -15,6 +15,9 @@ import {
   computeBrandPalette,
   computeTagBadgeVars,
   contrastRatio,
+  hexToHsv,
+  hsvToHex,
+  readCachedAppearance,
   resolveThemeMode,
 } from '../services/appearance/themeTokens.ts';
 import {
@@ -364,6 +367,61 @@ test('createReplyListItem renders colored tag CSS variables only for tags with c
     assert.ok(badges[0].style.getPropertyValue('--tag-text-light'));
     assert.ok(badges[0].style.getPropertyValue('--tag-text-dark'));
     assert.equal(badges[1].classList.contains('octa-item-category-colored'), false);
+  } finally {
+    dom.restore();
+  }
+});
+
+test('hexToHsv and hsvToHex round-trip primary colors, presets and neutrals accurately', () => {
+  assert.equal(hexToHsv('invalid'), null);
+
+  for (const hex of [
+    '#ff0000',
+    '#00ff00',
+    '#0000ff',
+    '#ffc600',
+    '#1971c2',
+    '#2f9e44',
+    '#e03131',
+    '#000000',
+    '#ffffff',
+    '#18181b',
+  ]) {
+    const hsv = hexToHsv(hex);
+    assert.ok(hsv, `expected valid HSV for ${hex}`);
+    assert.equal(hsvToHex(hsv.h, hsv.s, hsv.v), hex);
+  }
+
+  // Clamping out-of-range saturation/value and wrapping negative hue
+  assert.equal(hsvToHex(-360, 120, 150), '#ff0000');
+  assert.equal(hsvToHex(180, -10, -20), '#000000');
+});
+
+test('sequential custom color commits after preview persist latest appearance to storage and cache', async () => {
+  const dom = installDom('<html><body></body></html>');
+  try {
+    await withBackground({}, async storage => {
+      const base0 = await loadAppearance();
+      assert.deepEqual(base0, DEFAULT_APPEARANCE);
+
+      // Simulate previewing locally (cache not mutated unless persisted) and then committing first custom color
+      const saved1 = await saveAppearance(
+        { theme: 'light', brandColor: '#3b5bdb', logoInnerColor: '#f8f9fa' },
+        base0,
+      );
+      assert.deepEqual(saved1, { theme: 'light', brandColor: '#3b5bdb', logoInnerColor: '#f8f9fa' });
+      assert.deepEqual(storage.data[APPEARANCE_KEY], saved1);
+      assert.deepEqual(readCachedAppearance(), saved1);
+
+      // Sequential update using the last persisted snapshot preserves the newest selection
+      const saved2 = await saveAppearance(
+        { theme: 'dark', brandColor: '#e8590c' },
+        saved1,
+      );
+      assert.deepEqual(saved2, { theme: 'dark', brandColor: '#e8590c' });
+      assert.deepEqual(storage.data[APPEARANCE_KEY], saved2);
+      assert.deepEqual(readCachedAppearance(), saved2);
+    });
   } finally {
     dom.restore();
   }
