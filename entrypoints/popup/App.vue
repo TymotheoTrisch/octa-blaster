@@ -598,21 +598,21 @@ onUnmounted(() => {
 }
 
 .status-success {
-  background: #ecfdf5;
-  color: #065f46;
-  border-color: #a7f3d0;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border-color: var(--success-border);
 }
 
 .status-error {
-  background: #fef2f2;
-  color: #ba1a1a;
-  border-color: #fecaca;
+  background: var(--error-bg);
+  color: var(--error-text);
+  border-color: var(--error-border);
 }
 
 .status-info {
-  background: #f7f8f9;
-  color: #3c3f43;
-  border-color: #dee0e4;
+  background: var(--info-bg);
+  color: var(--info-text);
+  border-color: var(--info-border);
 }
 
 .status-icon {
@@ -627,14 +627,14 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 198, 0, 0.12);
-  border-bottom: 1px solid rgba(255, 198, 0, 0.35);
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-soft-border);
 }
 
 .btn-license-quick {
-  background: #ffc600;
-  color: #1c1b1c;
-  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-border);
   border-radius: 4px;
   padding: 5px 10px;
   font-size: 11px;
@@ -648,9 +648,9 @@ onUnmounted(() => {
 }
 
 .btn-license-quick:hover:not(:disabled) {
-  background: #f0ba00;
+  background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(255, 198, 0, 0.4);
+  box-shadow: 0 2px 6px var(--accent-glow);
 }
 
 .btn-license-quick:disabled {

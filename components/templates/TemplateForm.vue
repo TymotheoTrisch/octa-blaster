@@ -225,7 +225,7 @@ defineExpose({ closeTagPicker });
 }
 
 .btn-close:hover {
-  background: #f1f5f9;
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -261,9 +261,9 @@ defineExpose({ closeTagPicker });
 }
 
 .tag-btn {
-  background: #e2e8f0;
-  border: 1px solid #cbd5e1;
-  color: #334155;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   border-radius: 4px;
   font-size: 10px;
   padding: 2px 6px;
@@ -272,18 +272,19 @@ defineExpose({ closeTagPicker });
 }
 
 .tag-btn:hover {
-  background: #cbd5e1;
+  background: var(--bg-hover-strong);
+  border-color: var(--border-hover);
 }
 
 .tag-btn-highlight {
-  background: rgba(255, 198, 0, 0.22);
-  border-color: rgba(255, 198, 0, 0.55);
-  color: #6f5600;
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+  color: var(--accent-soft-text);
   font-weight: 600;
 }
 
 .tag-btn-highlight:hover {
-  background: rgba(255, 198, 0, 0.35);
+  background: var(--accent-soft-hover);
 }
 
 .form-actions {
@@ -354,8 +355,8 @@ defineExpose({ closeTagPicker });
   padding: 5px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg-primary);
-  box-shadow: 0 4px 14px #0002;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-popover);
 }
 
 .message-tag-option {
