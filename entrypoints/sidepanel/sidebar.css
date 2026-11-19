@@ -26,7 +26,7 @@ body {
 }
 
 .header {
-  background: #1c1b22 !important;
+  background: var(--header-bg) !important;
   border-top: none !important;
   justify-content: space-between !important;
   padding: 6px 12px !important;

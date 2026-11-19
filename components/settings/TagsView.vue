@@ -10,8 +10,10 @@ import {
   Trash2,
 } from 'lucide-vue-next';
 import { loadTags, saveTags } from '@/services/storage/templateTags';
-import type { TemplateTag } from '@/services/storage/templateTagSchema';
+import { TAG_COLOR_PRESETS, type TemplateTag } from '@/services/storage/templateTagSchema';
+import { computeTagBadgeVars } from '@/services/appearance/themeTokens';
 import { useListReorder } from '@/composables/useListReorder';
+import ColorSwatchPicker from '@/components/common/ColorSwatchPicker.vue';
 import './management.css';
 
 const emit = defineEmits<{ back: []; changed: [] }>();
@@ -29,8 +31,10 @@ const openMenuId = ref<string | null>(null);
 const editingId = ref<string | null>(null);
 const showForm = ref(false);
 const name = ref('');
+const color = ref('');
 const status = ref('');
 const busy = ref(false);
+const previewBadgeStyle = computed(() => computeTagBadgeVars(color.value));
 
 const canReorder = computed(() => !searchQuery.value.trim());
 
@@ -106,6 +110,7 @@ function startEdit(tag?: TemplateTag) {
   openMenuId.value = null;
   editingId.value = tag?.id || null;
   name.value = tag?.name || '';
+  color.value = tag?.color || '';
   status.value = '';
   showForm.value = true;
 }
@@ -114,9 +119,10 @@ async function save() {
   if (busy.value) return;
   busy.value = true;
   try {
-    const updated = {
+    const updated: TemplateTag = {
       id: editingId.value || crypto.randomUUID(),
       name: name.value,
+      ...(color.value ? { color: color.value } : {}),
     };
     const next = editingId.value
       ? tags.value.map((tag) => (tag.id === editingId.value ? updated : tag))
@@ -182,6 +188,26 @@ async function remove(tag: TemplateTag) {
         <label>Nome da tag</label>
         <input v-model="name" type="text" required maxlength="40" placeholder="Suporte" />
       </div>
+      <div class="management-form-group">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+          <label>Cor da tag (opcional)</label>
+          <span
+            class="card-badge"
+            :class="{ 'tag-badge-colored': Boolean(previewBadgeStyle) }"
+            :style="previewBadgeStyle"
+          >
+            {{ name.trim() || 'Prévia' }}
+          </span>
+        </div>
+        <ColorSwatchPicker
+          v-model="color"
+          :presets="TAG_COLOR_PRESETS"
+          :allow-clear="true"
+          clear-label="Sem cor (padrão)"
+          :disabled="busy"
+          aria-label="Cores sugeridas para a tag"
+        />
+      </div>
       <p class="management-help">
         As tags organizam e filtram as mensagens. Excluir uma tag remove apenas sua associação.
       </p>
@@ -239,7 +265,13 @@ async function remove(tag: TemplateTag) {
 
             <div class="card-static-row">
               <span class="card-title">{{ tag.name }}</span>
-              <span class="card-badge">Tag</span>
+              <span
+                class="card-badge"
+                :class="{ 'tag-badge-colored': Boolean(tag.color) }"
+                :style="computeTagBadgeVars(tag.color)"
+              >
+                {{ tag.color ? tag.name : 'Tag' }}
+              </span>
             </div>
 
             <div class="card-menu">

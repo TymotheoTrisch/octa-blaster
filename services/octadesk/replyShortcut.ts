@@ -3,6 +3,7 @@ import { loadReplySettings, prepareTemplate } from '../templates/templateVariabl
 import type { TemplateTag } from '../storage/templateTagSchema';
 import { insertTextIntoElement } from './insertText';
 import { getScopedTicketContainer, getTicketIdentity } from './licenseDetector';
+import { bindInpageAppearance } from '@/services/appearance/inpageTheme';
 import type { QuickReplyTemplate } from '@/types/template';
 
 interface EditorQuery {
@@ -94,8 +95,11 @@ export function installReplyShortcut(
   let selected = 0;
   let generation = 0;
   let choosing = false;
+  let stopAppearance: (() => void) | null = null;
   const close = () => {
     generation++;
+    stopAppearance?.();
+    stopAppearance = null;
     menu?.remove();
     menu = null;
     currentQuery = null;
@@ -148,12 +152,12 @@ export function installReplyShortcut(
     if (!menu) return;
     menu.replaceChildren();
     const header = doc.createElement('div');
-    header.style.cssText = 'padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;background:#f7f8f9;border-bottom:1px solid #dee0e4;color:#5b5f63';
+    header.style.cssText = 'padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;background:var(--octa-bg-secondary, #f7f8f9);border-bottom:1px solid var(--octa-border, #dee0e4);color:var(--octa-text-muted, #5b5f63)';
     header.textContent = 'Respostas rápidas';
     menu.append(header);
     if (!choices.length) {
       const empty = doc.createElement('div');
-      empty.style.cssText = 'padding:14px 12px;text-align:center;font-size:12px;color:#5b5f63;background:#ffffff';
+      empty.style.cssText = 'padding:14px 12px;text-align:center;font-size:12px;color:var(--octa-text-muted, #5b5f63);background:var(--octa-bg, #ffffff)';
       empty.textContent = 'Nenhuma resposta encontrada';
       menu.append(empty);
       return;
@@ -161,7 +165,7 @@ export function installReplyShortcut(
     const list = doc.createElement('div');
     list.setAttribute('role', 'listbox');
     list.setAttribute('aria-label', 'Respostas rápidas');
-    list.style.cssText = 'max-height:min(260px, 50vh);overflow:auto;scrollbar-width:thin;scrollbar-color:#cbd5e1 #f7f8f9';
+    list.style.cssText = 'max-height:min(260px, 50vh);overflow:auto;scrollbar-width:thin;scrollbar-color:var(--octa-scroll-thumb, #cbd5e1) var(--octa-scroll-track, #f7f8f9)';
     choices.forEach((template, index) => {
       const button = createReplyListItem(doc, template, tags);
       button.setAttribute('role', 'option');
@@ -212,6 +216,7 @@ export function installReplyShortcut(
               .toLocaleLowerCase('pt-BR')
               .includes(query.query.toLocaleLowerCase('pt-BR')),
           );
+        stopAppearance?.();
         menu?.remove();
         menu = doc.createElement('div');
         menu.className = 'octablaster-shortcut-menu';
@@ -224,8 +229,9 @@ export function installReplyShortcut(
         const height = doc.documentElement.clientHeight || doc.defaultView?.innerHeight || 600;
         const menuWidth = Math.min(360, width - 16);
         const menuHeight = Math.min(300, height - 16);
-        menu.style.cssText = `position:fixed;left:${Math.max(8, Math.min(rect.left, width - menuWidth - 8))}px;top:${Math.max(8, Math.min(rect.bottom + 4, height - menuHeight - 8))}px;z-index:2147483646;width:${menuWidth}px;max-height:${menuHeight}px;overflow:hidden;border:1px solid #3c3f43;border-radius:8px;background:#ffffff;color:#1c1b1c;padding:0;box-shadow:0 4px 20px rgba(0,0,0,0.14),0 1px 3px rgba(0,0,0,0.06);font:13px 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif`;
+        menu.style.cssText = `position:fixed;left:${Math.max(8, Math.min(rect.left, width - menuWidth - 8))}px;top:${Math.max(8, Math.min(rect.bottom + 4, height - menuHeight - 8))}px;z-index:2147483646;width:${menuWidth}px;max-height:${menuHeight}px;overflow:hidden;border:1px solid var(--octa-border-strong, #3c3f43);border-radius:8px;background:var(--octa-bg, #ffffff);color:var(--octa-text, #1c1b1c);padding:0;box-shadow:var(--octa-shadow-popover, 0 4px 20px rgba(0,0,0,0.14),0 1px 3px rgba(0,0,0,0.06));font:13px 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif`;
         doc.body.append(menu);
+        stopAppearance = bindInpageAppearance(menu);
         render();
       } catch {
         close();

@@ -1,0 +1,370 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { installStorage, installDom } from './helpers.mjs';
+import {
+  APPEARANCE_KEY,
+  DEFAULT_APPEARANCE,
+  DEFAULT_BRAND_COLOR,
+  normalizeHexColor,
+  validateAppearance,
+  validateSettingsSnapshot,
+} from '../services/storage/settingsSchema.ts';
+import { loadSettings } from '../services/storage/settingsStorage.ts';
+import {
+  applyAppearanceToRoot,
+  computeBrandPalette,
+  computeTagBadgeVars,
+  contrastRatio,
+  resolveThemeMode,
+} from '../services/appearance/themeTokens.ts';
+import {
+  applyBrowserBrandIcon,
+  renderBrandIconImageData,
+  syncBrowserBrandIconFromStorage,
+} from '../services/appearance/browserIcon.ts';
+import { bindInpageAppearance } from '../services/appearance/inpageTheme.ts';
+import { createReplyListItem } from '../services/templates/replyList.ts';
+import { loadAppearance, saveAppearance } from '../services/appearance/appearanceStorage.ts';
+import {
+  exportTemplatesToJson,
+  mergeImportedTemplates,
+  parseTemplateBackup,
+  STORAGE_KEY,
+  HAS_INITIALIZED_KEY,
+} from '../services/storage/templateStorage.ts';
+import { TAGS_KEY } from '../services/storage/templateTagSchema.ts';
+import { loadTags } from '../services/storage/templateTags.ts';
+
+async function withBackground(initial, run) {
+  const storage = installStorage(initial);
+  const previous = globalThis.defineBackground;
+  let listener;
+  globalThis.defineBackground = setup => setup;
+  browser.tabs = { onRemoved: { addListener() {} } };
+  browser.runtime = {
+    id: 'test-extension',
+    onMessage: { addListener(fn) { listener = fn; } },
+    sendMessage(message) {
+      return new Promise(resolve => listener(message, { id: 'test-extension' }, resolve));
+    },
+  };
+  try {
+    const { default: setup } = await import('../entrypoints/background.ts');
+    setup();
+    await run(storage);
+  } finally {
+    if (previous === undefined) delete globalThis.defineBackground;
+    else globalThis.defineBackground = previous;
+    storage.restore();
+  }
+}
+
+test('normalizeHexColor and validateAppearance sanitize valid colors and reject invalid values', () => {
+  assert.equal(normalizeHexColor('#FC0'), '#ffcc00');
+  assert.equal(normalizeHexColor('  1971C2 '), '#1971c2');
+  assert.equal(normalizeHexColor('#12345'), null);
+  assert.equal(normalizeHexColor('yellow'), null);
+
+  assert.deepEqual(
+    validateAppearance({ theme: 'dark', brandColor: '#AbC' }),
+    { theme: 'dark', brandColor: '#aabbcc' },
+  );
+  assert.deepEqual(
+    validateAppearance({ theme: 'light', brandColor: '#ffc600', logoInnerColor: '#FFF' }),
+    { theme: 'light', brandColor: '#ffc600', logoInnerColor: '#ffffff' },
+  );
+  assert.throws(() => validateAppearance({ theme: 'neon', brandColor: '#ffc600' }), /Tema/);
+  assert.throws(() => validateAppearance({ theme: 'light', brandColor: 'not-a-color' }), /Cor da marca/);
+  assert.throws(() => validateAppearance({ theme: 'light', brandColor: '#ffc600', logoInnerColor: 'xyz' }), /Cor interna/);
+});
+
+test('computeBrandPalette guarantees accessible soft-text contrast and syncs secondary foreground with theme or override', () => {
+  const yellowLight = computeBrandPalette(DEFAULT_BRAND_COLOR, 'light');
+  assert.equal(yellowLight.accent, '#ffc600');
+  assert.equal(yellowLight.accentText, '#ffffff');
+  assert.ok(contrastRatio(yellowLight.accentSoftText, '#ffffff') >= 4.5);
+
+  const blueDark = computeBrandPalette('#1971c2', 'dark');
+  assert.equal(blueDark.accentText, '#18181b');
+  assert.ok(contrastRatio(blueDark.accentSoftText, '#1e1e21') >= 4.5);
+
+  const charcoalDark = computeBrandPalette('#1c1b1c', 'dark', '#f4f4f5');
+  assert.equal(charcoalDark.accentText, '#f4f4f5');
+  assert.notEqual(charcoalDark.accentHover, '#1c1b1c');
+  assert.ok(contrastRatio(charcoalDark.accentSoftText, '#1e1e21') >= 4.5);
+
+  assert.equal(computeTagBadgeVars(undefined), undefined);
+  const tagVars = computeTagBadgeVars('#ffc600');
+  assert.ok(tagVars);
+  assert.ok(contrastRatio(tagVars['--tag-text-light'], '#ffffff') >= 4.5);
+  assert.ok(contrastRatio(tagVars['--tag-text-dark'], '#202024') >= 4.5);
+});
+
+test('resolveThemeMode and applyAppearanceToRoot apply data-theme and CSS custom properties', () => {
+  assert.equal(resolveThemeMode('system', true), 'dark');
+  assert.equal(resolveThemeMode('system', false), 'light');
+  assert.equal(resolveThemeMode('light', true), 'light');
+  assert.equal(resolveThemeMode('dark', false), 'dark');
+
+  const dom = installDom('<html><body></body></html>');
+  try {
+    const resolved = applyAppearanceToRoot(
+      dom.document.documentElement,
+      { theme: 'system', brandColor: '#1971c2' },
+      true,
+    );
+    assert.equal(resolved, 'dark');
+    assert.equal(dom.document.documentElement.dataset.theme, 'dark');
+    assert.equal(dom.document.documentElement.dataset.themePreference, 'system');
+    assert.equal(dom.document.documentElement.dataset.brandColor, '#1971c2');
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--accent'), '#1971c2');
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--accent-text'), '#18181b');
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#18181b');
+
+    applyAppearanceToRoot(
+      dom.document.documentElement,
+      { theme: 'light', brandColor: '#ffc600' },
+      true,
+    );
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--accent-text'), '#ffffff');
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#ffffff');
+
+    applyAppearanceToRoot(
+      dom.document.documentElement,
+      { theme: 'light', brandColor: '#ffc600', logoInnerColor: '#1971c2' },
+      false,
+    );
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--accent-text'), '#1971c2');
+    assert.equal(dom.document.documentElement.style.getPropertyValue('--logo-inner'), '#1971c2');
+  } finally {
+    dom.restore();
+  }
+});
+
+test('appearanceStorage persists preferences via background queue and detects conflicts across panels', async () => {
+  await withBackground({}, async storage => {
+    assert.deepEqual(await loadAppearance(), DEFAULT_APPEARANCE);
+
+    const saved = await saveAppearance(
+      { theme: 'dark', brandColor: '#10b981' },
+      DEFAULT_APPEARANCE,
+    );
+    assert.deepEqual(saved, { theme: 'dark', brandColor: '#10b981' });
+    assert.deepEqual(storage.data[APPEARANCE_KEY], { theme: 'dark', brandColor: '#10b981' });
+
+    await assert.rejects(
+      saveAppearance({ theme: 'light', brandColor: '#ef4444' }, DEFAULT_APPEARANCE),
+      /outro painel/,
+    );
+    assert.deepEqual(await loadAppearance(), { theme: 'dark', brandColor: '#10b981' });
+  });
+});
+
+test('v2 backups preserve appearance when present and stay backward compatible when omitted', async () => {
+  const legacyV2 = validateSettingsSnapshot({ variables: [], targets: [], trigger: '/' });
+  assert.equal(legacyV2.appearance, undefined);
+
+  const dom = installDom();
+  try {
+    await withBackground(
+      {
+        [STORAGE_KEY]: [{ id: 'r1', title: 'Saudação', content: 'Olá', tags: ['vip'], category: 'VIP', updatedAt: 1 }],
+        [HAS_INITIALIZED_KEY]: true,
+        [TAGS_KEY]: [{ id: 'vip', name: 'VIP', color: '#c2255c' }],
+        [APPEARANCE_KEY]: { theme: 'dark', brandColor: '#7c3aed', logoInnerColor: '#f4f4f5' },
+      },
+      async storage => {
+        let download;
+        dom.window.HTMLAnchorElement.prototype.click = function () {
+          download = this.href;
+          this.remove();
+        };
+        await exportTemplatesToJson();
+        const json = decodeURIComponent(download.slice(download.indexOf(',') + 1));
+        const backup = parseTemplateBackup(json);
+        assert.deepEqual(backup.settings.appearance, {
+          theme: 'dark',
+          brandColor: '#7c3aed',
+          logoInnerColor: '#f4f4f5',
+        });
+        assert.deepEqual(backup.tags, [{ id: 'vip', name: 'VIP', color: '#c2255c' }]);
+
+        storage.data[STORAGE_KEY] = [];
+        storage.data[TAGS_KEY] = [];
+        storage.data[APPEARANCE_KEY] = { theme: 'light', brandColor: '#ffc600' };
+        await mergeImportedTemplates([], backup.templates, [], backup.tags, backup.settings, await loadSettings());
+        assert.deepEqual(await loadAppearance(), {
+          theme: 'dark',
+          brandColor: '#7c3aed',
+          logoInnerColor: '#f4f4f5',
+        });
+        assert.deepEqual(await loadTags(), [{ id: 'vip', name: 'VIP', color: '#c2255c' }]);
+      },
+    );
+  } finally {
+    dom.restore();
+  }
+});
+
+test('browserIcon restores static PNG paths for default brand color and renders ImageData for custom colors', async () => {
+  const previousPath2D = globalThis.Path2D;
+  const previousOffscreen = globalThis.OffscreenCanvas;
+  const previousBrowser = globalThis.browser;
+
+  const calls = [];
+  const drawnColors = [];
+
+  globalThis.Path2D = class MockPath2D {
+    constructor(d) {
+      this.d = d;
+    }
+  };
+  globalThis.OffscreenCanvas = class MockOffscreenCanvas {
+    constructor(width, height) {
+      this.width = width;
+      this.height = height;
+    }
+    getContext() {
+      return {
+        clearRect() {},
+        save() {},
+        scale() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        arcTo() {},
+        closePath() {},
+        fillStyle: '',
+        fill() {
+          drawnColors.push(this.fillStyle);
+        },
+        restore() {},
+        getImageData: (x, y, w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }),
+      };
+    }
+  };
+  globalThis.browser = {
+    action: {
+      async setIcon(payload) {
+        calls.push(['action', payload]);
+      },
+    },
+    sidebarAction: {
+      async setIcon(payload) {
+        calls.push(['sidebar', payload]);
+      },
+    },
+  };
+
+  try {
+    const okDefault = await applyBrowserBrandIcon(DEFAULT_BRAND_COLOR);
+    assert.equal(okDefault, true);
+    assert.deepEqual(calls[0][1].path, { 16: 'icon/16.png', 32: 'icon/32.png', 48: 'icon/48.png' });
+    assert.deepEqual(calls[1][1].path, { 16: 'icon/16.png', 32: 'icon/32.png' });
+
+    const rendered = renderBrandIconImageData('#1971c2', [16, 32]);
+    assert.ok(rendered[16] && rendered[32]);
+    assert.deepEqual(drawnColors, ['#1971c2', '#1971c2']);
+
+    const okCustom = await applyBrowserBrandIcon('#1971c2');
+    assert.equal(okCustom, true);
+    assert.ok(calls[2][1].imageData[16] && calls[2][1].imageData[32] && calls[2][1].imageData[48]);
+    assert.ok(calls[3][1].imageData[16] && calls[3][1].imageData[32]);
+
+    drawnColors.length = 0;
+    const okInnerCustom = await applyBrowserBrandIcon(DEFAULT_BRAND_COLOR, '#ffffff');
+    assert.equal(okInnerCustom, true);
+    assert.deepEqual(drawnColors, ['#ffffff', '#ffc600', '#ffffff', '#ffc600', '#ffffff', '#ffc600']);
+
+    drawnColors.length = 0;
+    globalThis.browser.storage = {
+      local: {
+        async get() {
+          return { [APPEARANCE_KEY]: { theme: 'light', brandColor: '#7c3aed' } };
+        },
+      },
+    };
+    await syncBrowserBrandIconFromStorage(true);
+    assert.deepEqual(drawnColors, ['#ffffff', '#7c3aed', '#ffffff', '#7c3aed', '#ffffff', '#7c3aed']);
+
+    drawnColors.length = 0;
+    globalThis.browser.storage.local.get = async () => ({
+      [APPEARANCE_KEY]: { theme: 'system', brandColor: '#7c3aed' },
+    });
+    await syncBrowserBrandIconFromStorage(true);
+    assert.deepEqual(drawnColors, ['#18181b', '#7c3aed', '#18181b', '#7c3aed', '#18181b', '#7c3aed']);
+  } finally {
+    if (previousPath2D === undefined) delete globalThis.Path2D;
+    else globalThis.Path2D = previousPath2D;
+    if (previousOffscreen === undefined) delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas = previousOffscreen;
+    if (previousBrowser === undefined) delete globalThis.browser;
+    else globalThis.browser = previousBrowser;
+  }
+});
+
+test('bindInpageAppearance applies stored theme and brand tokens to injected elements and reacts to storage updates', async () => {
+  const dom = installDom('<html><head></head><body><div id="widget"></div></body></html>');
+  const storage = installStorage({
+    [APPEARANCE_KEY]: { theme: 'dark', brandColor: '#10b981' },
+  });
+  const listeners = [];
+  browser.storage.onChanged = {
+    addListener(fn) {
+      listeners.push(fn);
+    },
+    removeListener(fn) {
+      const idx = listeners.indexOf(fn);
+      if (idx >= 0) listeners.splice(idx, 1);
+    },
+  };
+
+  try {
+    const widget = dom.document.getElementById('widget');
+    const stop = bindInpageAppearance(widget);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    assert.ok(dom.document.getElementById('octablaster-inpage-theme-tokens'));
+    assert.equal(widget.dataset.octaScope, 'true');
+    assert.equal(widget.dataset.theme, 'dark');
+    assert.equal(widget.style.getPropertyValue('--accent'), '#10b981');
+
+    for (const listener of [...listeners]) {
+      listener(
+        { [APPEARANCE_KEY]: { newValue: { theme: 'light', brandColor: '#ef4444' } } },
+        'local',
+      );
+    }
+
+    assert.equal(widget.dataset.theme, 'light');
+    assert.equal(widget.style.getPropertyValue('--accent'), '#ef4444');
+
+    stop();
+    assert.equal(listeners.length, 0);
+  } finally {
+    storage.restore();
+    dom.restore();
+  }
+});
+
+test('createReplyListItem renders colored tag CSS variables only for tags with custom color', () => {
+  const dom = installDom('<html><head></head><body></body></html>');
+  try {
+    const item = createReplyListItem(
+      dom.document,
+      { id: 't1', title: 'Teste', content: 'Corpo', tags: ['colored', 'plain'], updatedAt: 1 },
+      [
+        { id: 'colored', name: 'Urgente', color: '#c92a2a' },
+        { id: 'plain', name: 'Geral' },
+      ],
+    );
+    const badges = Array.from(item.querySelectorAll('.octa-item-category'));
+    assert.equal(badges.length, 2);
+    assert.equal(badges[0].classList.contains('octa-item-category-colored'), true);
+    assert.ok(badges[0].style.getPropertyValue('--tag-text-light'));
+    assert.ok(badges[0].style.getPropertyValue('--tag-text-dark'));
+    assert.equal(badges[1].classList.contains('octa-item-category-colored'), false);
+  } finally {
+    dom.restore();
+  }
+});

@@ -10,10 +10,12 @@ import {
   Trash2,
 } from 'lucide-vue-next';
 import type { QuickReplyTemplate } from '@/types/template';
+import type { TemplateTag } from '@/services/storage/templateTagSchema';
+import { computeTagBadgeVars } from '@/services/appearance/themeTokens';
 
 defineProps<{
   template: QuickReplyTemplate;
-  tagNames: string[];
+  templateTags: TemplateTag[];
   canReorder: boolean;
   expanded: boolean;
   isDragging: boolean;
@@ -71,8 +73,13 @@ const emit = defineEmits<{
       >
         <ChevronRight :size="14" :stroke-width="2" class="card-chevron" :class="{ expanded }" />
         <span class="card-title">{{ template.title }}</span>
-        <span v-if="tagNames.length && !expanded" class="card-badge card-badge-compact">
-          {{ tagNames.join(', ') }}
+        <span
+          v-if="templateTags.length && !expanded"
+          class="card-badge card-badge-compact"
+          :class="{ 'tag-badge-colored': Boolean(templateTags[0]?.color) }"
+          :style="computeTagBadgeVars(templateTags[0]?.color)"
+        >
+          {{ templateTags.map((tag) => tag.name).join(', ') }}
         </span>
       </button>
 
@@ -141,8 +148,16 @@ const emit = defineEmits<{
     </p>
 
     <div v-if="expanded" class="card-body">
-      <div v-if="tagNames.length" class="card-meta">
-        <span v-for="tagName in tagNames" :key="tagName" class="card-badge">{{ tagName }}</span>
+      <div v-if="templateTags.length" class="card-meta">
+        <span
+          v-for="tag in templateTags"
+          :key="tag.id"
+          class="card-badge"
+          :class="{ 'tag-badge-colored': Boolean(tag.color) }"
+          :style="computeTagBadgeVars(tag.color)"
+        >
+          {{ tag.name }}
+        </span>
       </div>
 
       <p class="card-preview-expanded">{{ template.content }}</p>
@@ -178,8 +193,8 @@ const emit = defineEmits<{
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 7px 9px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
   scroll-margin: 12px;
   transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
@@ -194,12 +209,12 @@ const emit = defineEmits<{
 }
 
 .template-card:hover {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
-  border-color: #cbd5e1;
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--border-hover);
 }
 
 .template-card:has(.drag-handle:focus-visible) {
-  outline: 2px solid #ffc600;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -207,15 +222,15 @@ const emit = defineEmits<{
   position: relative;
   z-index: 20;
   transform: scale(1.015);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
-  border-color: #e0af00;
+  box-shadow: var(--shadow-drag);
+  border-color: var(--accent-border);
   pointer-events: none;
   transition: none;
 }
 
 .template-card.is-keyboard-grabbed {
-  border-color: #e0af00;
-  box-shadow: 0 6px 16px rgba(255, 198, 0, 0.25);
+  border-color: var(--accent-border);
+  box-shadow: 0 6px 16px var(--accent-soft);
 }
 
 .card-header {
@@ -243,7 +258,7 @@ const emit = defineEmits<{
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #5b5f63;
+  color: var(--text-muted);
   opacity: 0.45;
   cursor: grab;
   touch-action: none;
@@ -254,22 +269,22 @@ const emit = defineEmits<{
 
 .drag-handle:is(:hover, :focus-visible) {
   opacity: 1;
-  color: #1c1b1c;
-  background: #f1f5f9;
+  color: var(--text-primary);
+  background: var(--bg-hover);
   outline: none;
 }
 
 .drag-handle[aria-pressed='true'] {
   opacity: 1;
-  color: #1c1b1c;
-  background: rgba(255, 198, 0, 0.28);
+  color: var(--accent-soft-text);
+  background: var(--accent-soft);
 }
 
 .reorder-key-hint {
   margin: 4px 0 4px 0;
   font-size: 10px;
   font-weight: 500;
-  color: #7c6200;
+  color: var(--accent-soft-text);
 }
 
 .card-expand-trigger {
@@ -288,23 +303,23 @@ const emit = defineEmits<{
 }
 
 .card-expand-trigger:focus-visible {
-  outline: 2px solid #ffc600;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
 .card-chevron {
   flex-shrink: 0;
-  color: #8a8f96;
+  color: var(--text-subtle);
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
 .card-expand-trigger:hover .card-chevron {
-  color: #3c3f43;
+  color: var(--text-secondary);
 }
 
 .card-chevron.expanded {
   transform: rotate(90deg);
-  color: #1c1b1c;
+  color: var(--text-primary);
 }
 
 .card-title {
@@ -328,10 +343,10 @@ const emit = defineEmits<{
 .card-badge {
   font-size: 10px;
   padding: 2px 8px;
-  background: rgba(60, 63, 67, 0.08);
-  color: #3c3f43;
+  background: var(--bg-badge);
+  color: var(--text-secondary);
   border-radius: 12px;
-  border: 1px solid #dee0e4;
+  border: 1px solid var(--border);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -359,28 +374,32 @@ const emit = defineEmits<{
   width: 24px;
   height: 24px;
   padding: 0;
-  border: 1px solid #dee0e4;
+  border: 1px solid var(--border);
   border-radius: 5px;
-  background: #f7f8f9;
-  color: #3c3f43;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s, transform 0.12s;
 }
 
 .btn-icon-quick:hover:not(:disabled) {
-  background: #eceef0;
-  border-color: #cbd5e1;
+  background: var(--bg-hover-strong);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
 }
 
 .btn-icon-quick.btn-icon-send {
-  background: #ffc600;
-  color: #1c1b1c;
-  border-color: #e5b100;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent-border);
 }
 
 .btn-icon-quick.btn-icon-send:hover:not(:disabled) {
-  background: #f0ba00;
-  transform: translateY(-0.5px);
+  background: var(--accent-hover);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px var(--accent-glow);
 }
 
 .btn-icon-quick:disabled {
@@ -393,8 +412,8 @@ const emit = defineEmits<{
 }
 
 .card-more-trigger.active {
-  background: #f1f5f9;
-  color: #1c1b1c;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .card-dropdown-menu {
@@ -402,10 +421,10 @@ const emit = defineEmits<{
   top: calc(100% + 4px);
   right: 0;
   width: 132px;
-  background: #ffffff;
-  border: 1px solid #dee0e4;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: 7px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-popover);
   padding: 4px;
   z-index: 40;
   transform-origin: top right;
@@ -424,19 +443,19 @@ const emit = defineEmits<{
   border: none;
   border-radius: 5px;
   font-size: 12px;
-  color: #1c1b1c;
+  color: var(--text-primary);
   cursor: pointer;
   text-align: left;
   transition: background 0.12s ease;
 }
 
 .menu-item:hover {
-  background: #f1f2f4;
+  background: var(--bg-hover);
 }
 
 .menu-item-icon {
   flex-shrink: 0;
-  color: #5b5f63;
+  color: var(--text-muted);
 }
 
 .menu-item-text {
@@ -446,15 +465,15 @@ const emit = defineEmits<{
 }
 
 .menu-item-danger {
-  color: #ba1a1a;
+  color: var(--danger);
 }
 
 .menu-item-danger .menu-item-icon {
-  color: #ba1a1a;
+  color: var(--danger);
 }
 
 .menu-item-danger:hover {
-  background: #fee2e2;
+  background: var(--danger-soft);
 }
 
 .btn-icon {
@@ -463,7 +482,7 @@ const emit = defineEmits<{
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
-  color: #5b5f63;
+  color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -471,13 +490,13 @@ const emit = defineEmits<{
 }
 
 .btn-icon:hover {
-  color: #1c1b1c;
-  background: #f1f5f9;
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .card-body {
   padding-top: 4px;
-  border-top: 1px solid #f0f1f3;
+  border-top: 1px solid var(--border-divider);
 }
 
 .card-meta {
@@ -523,25 +542,26 @@ const emit = defineEmits<{
 }
 
 .btn-copy {
-  background: #f7f8f9;
-  color: #3c3f43;
-  border: 1px solid #dee0e4;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
 }
 
 .btn-copy:hover:not(:disabled) {
-  background: #eceef0;
+  background: var(--bg-hover-strong);
+  color: var(--text-primary);
 }
 
 .btn-send {
-  background: #ffc600;
-  color: #1c1b1c;
-  border: 1px solid #e5b100;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-border);
   font-weight: 700;
 }
 
 .btn-send:hover:not(:disabled) {
-  background: #f0ba00;
+  background: var(--accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(255, 198, 0, 0.4);
+  box-shadow: 0 2px 6px var(--accent-glow);
 }
 </style>

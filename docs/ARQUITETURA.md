@@ -7,8 +7,9 @@ O projeto mantém WXT, Vue 3 e TypeScript, sem backend adicional. A estrutura é
 | Camada | Arquivos | Responsabilidade |
 | --- | --- | --- |
 | Pontos de entrada | `entrypoints/popup/App.vue`, `entrypoints/content.ts`, `entrypoints/background.ts` | Orquestração enxuta de interface, content script e service worker/background. |
-| Componentes de layout & UI | `components/layout/`, `components/templates/`, `components/modals/` | Cabeçalho, rodapé, lista, cards, formulário de respostas e modais de confirmação/atualização. |
-| Telas de gestão | `components/settings/` (`VariablesView`, `TagsView`, `ShortcutsView`, `TechniciansView`) | Cadastros dedicados de variáveis, tags, atalhos do editor e técnicos das licenças. |
+| Componentes de layout & UI | `components/layout/`, `components/templates/`, `components/modals/`, `components/common/ColorSwatchPicker.vue` | Cabeçalho, rodapé, lista, cards, formulário de respostas, seletor de cores compartilhado e modais de confirmação/atualização. |
+| Telas de gestão | `components/settings/` (`VariablesView`, `TagsView`, `ShortcutsView`, `TechniciansView`, `AppearanceView`) | Cadastros dedicados de variáveis, tags, atalhos do editor, técnicos das licenças e aparência/tema. |
+| Aparência & temas | `services/appearance/` (`appearanceStorage.ts`, `themeTokens.ts`, `inpageTheme.ts`, `browserIcon.ts`, `iconGeometry.ts`) | Paleta claro/escuro/sistema, tokens da marca/cor secundária, contraste de badges, sincronização in-page e ícone dinâmico no navegador. |
 | Composables | `composables/useTemplateReorder.ts` | Lógica reativa reutilizável (drag-and-drop e reordenação por teclado). |
 | Background | `services/background/` (`storageQueue.ts`, `ticketRouter.ts`) | Fila serializada de gravações e roteamento seguro por aba/frame e token. |
 | Modelos e persistência | `services/storage/` (`rawStorage.ts`, `settingsSchema.ts`, `settingsStorage.ts`, `templateTagSchema.ts`, `templateTags.ts`, `templateStorage.ts`) | Adaptação das APIs, contratos, validações, migrações, conflitos e backup. |
@@ -52,7 +53,8 @@ Widgets e atalhos capturam o editor, a identidade do ticket e o rascunho antes d
 | `INSERT_REPLY`, `CHECK_LICENSE_TICKET`, `AUTOMATE_LICENSE_MENTIONS` | Ações executadas pelo content script. |
 | `TEMPLATE_STORAGE` | Leitura, gravação, importação e exportação de mensagens/backup. |
 | `TAG_CATALOG` | Leitura e gravação do catálogo de tags. |
-| `SETTINGS_STORAGE` | Leitura e gravação de variáveis, técnicos e atalho. |
+| `SETTINGS_STORAGE` | Leitura e gravação de variáveis, técnicos, atalho e aparência. |
+| `SYNC_BROWSER_ICON` | Reaplicação do ícone dinâmico na barra/painel lateral conforme o tema resolvido. |
 
 ## Persistência e compatibilidade
 
@@ -61,10 +63,11 @@ Widgets e atalhos capturam o editor, a identidade do ticket e o rascunho antes d
 | `octablaster_quick_replies_v2` | Mensagens, ordem e associações com tags. |
 | `octablaster_initialized_v2` | Inicialização da instalação. |
 | `octablaster_defaults_state` | Versão da migração e IDs dos padrões já apresentados. |
-| `octablaster_tags` | Catálogo de tags com ID e nome. |
+| `octablaster_tags` | Catálogo de tags com ID, nome e cor opcional (`color`). |
 | `octablaster_variables` | Nome, valor e modo de cada variável. |
 | `octablaster_mention_targets` | ID, nome, busca, padrão de identificação e estado dos técnicos. |
 | `octablaster_shortcut` | `\\`, `/` ou string vazia. |
+| `octablaster_appearance` | Tema (`system`, `light`, `dark`), `brandColor` e `logoInnerColor` opcional (cor secundária). |
 
 O background serializa leituras e gravações das três famílias de dados. As funções com sufixo `Local` executam dentro desse contexto e não enviam uma nova mensagem ao próprio background. A interface usa as funções públicas que encaminham as operações.
 
@@ -72,7 +75,7 @@ Os formulários enviam a proposta junto com a cópia carregada anteriormente. A 
 
 `storage.ts` suporta Promises e callbacks do Chrome, verifica `runtime.lastError` e mantém o fallback em `localStorage` quando disponível. Se o principal e o fallback falharem, a operação rejeita. O fallback só conta como sucesso se concluir todas as chaves. Não há transação entre chaves do `localStorage`: falhas intermediárias podem deixar uma gravação parcial, sempre acompanhada de erro. O service worker do Chrome não possui esse fallback.
 
-O backup no formato 2 contém `format`, `version`, `templates`, `tags` e `settings` (`variables`, `targets`, `trigger`). A exportação lê o estado persistido dentro da fila. Na importação, os dados e conflitos são avaliados antes da gravação conjunta; mensagens e tags são mescladas e configurações são restauradas com proteção contra alterações concorrentes. Listas antigas e backups no formato 1 não modificam as configurações atuais. O arquivo inclui os valores salvos das variáveis em texto legível.
+O backup no formato 2 contém `format`, `version`, `templates`, `tags` (incluindo `color` opcional) e `settings` (`variables`, `targets`, `trigger` e `appearance` opcional). A exportação lê o estado persistido dentro da fila. Na importação, os dados e conflitos são avaliados antes da gravação conjunta; mensagens e tags são mescladas e configurações são restauradas com proteção contra alterações concorrentes. Listas antigas e backups no formato 1 não modificam as configurações atuais. O arquivo inclui os valores salvos das variáveis em texto legível.
 
 ## Licenças e dependência do DOM
 

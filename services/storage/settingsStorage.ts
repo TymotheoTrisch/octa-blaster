@@ -1,13 +1,30 @@
 import { rawStorageGet, rawStorageSet } from './rawStorage';
-import { VARIABLES_KEY, SHORTCUT_KEY, MENTION_TARGETS_STORAGE_KEY, DEFAULT_MENTION_TARGETS, validateVariables, validateMentionTargets, validateSettingsPatch, type TemplateVariable, type SettingsSnapshot } from './settingsSchema';
+import {
+  VARIABLES_KEY,
+  SHORTCUT_KEY,
+  MENTION_TARGETS_STORAGE_KEY,
+  APPEARANCE_KEY,
+  DEFAULT_MENTION_TARGETS,
+  DEFAULT_APPEARANCE,
+  validateVariables,
+  validateMentionTargets,
+  validateAppearance,
+  validateSettingsPatch,
+  type TemplateVariable,
+  type SettingsSnapshot,
+} from './settingsSchema';
 
 export async function loadSettingsLocal(): Promise<SettingsSnapshot> {
-  const data = await rawStorageGet([VARIABLES_KEY, SHORTCUT_KEY, MENTION_TARGETS_STORAGE_KEY]);
-  return {
+  const data = await rawStorageGet([VARIABLES_KEY, SHORTCUT_KEY, MENTION_TARGETS_STORAGE_KEY, APPEARANCE_KEY]);
+  const snapshot: SettingsSnapshot = {
     variables: validateVariables(data[VARIABLES_KEY] ?? []),
     targets: validateMentionTargets(data[MENTION_TARGETS_STORAGE_KEY] ?? DEFAULT_MENTION_TARGETS),
     trigger: data[SHORTCUT_KEY] === '/' || data[SHORTCUT_KEY] === '' ? data[SHORTCUT_KEY] : '\\',
   };
+  if (data[APPEARANCE_KEY] !== undefined) {
+    snapshot.appearance = validateAppearance(data[APPEARANCE_KEY]);
+  }
+  return snapshot;
 }
 
 function mergeCollection<T>(proposed: T[], base: T[], latest: T[], key: (item: T) => string, label: string): T[] {
@@ -53,6 +70,22 @@ export async function prepareSettingsSaveLocal(raw: Partial<SettingsSnapshot>, r
     }
     // Uma tela antiga sem mudança no atalho preserva a alteração mais recente.
     items[SHORTCUT_KEY] = base?.trigger === proposed.trigger ? latest.trigger : proposed.trigger;
+  }
+  if (proposed.appearance !== undefined) {
+    const latestAppearance = latest.appearance ?? DEFAULT_APPEARANCE;
+    const baseAppearance = base?.appearance;
+    if (
+      baseAppearance !== undefined
+      && JSON.stringify(proposed.appearance) !== JSON.stringify(baseAppearance)
+      && JSON.stringify(latestAppearance) !== JSON.stringify(baseAppearance)
+      && JSON.stringify(latestAppearance) !== JSON.stringify(proposed.appearance)
+    ) {
+      throw new Error('A aparência foi alterada em outro painel. Reabra a tela antes de salvar.');
+    }
+    items[APPEARANCE_KEY] =
+      baseAppearance && JSON.stringify(baseAppearance) === JSON.stringify(proposed.appearance)
+        ? latestAppearance
+        : proposed.appearance;
   }
   return items;
 }
