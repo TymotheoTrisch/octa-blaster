@@ -1,11 +1,14 @@
 import { ref, nextTick, onUnmounted, type Ref } from 'vue';
-import type { QuickReplyTemplate } from '@/types/template';
 
-interface UseTemplateReorderOptions {
-  templates: Ref<QuickReplyTemplate[]>;
+interface UseListReorderOptions<T> {
+  items: Ref<T[]>;
+  getId: (item: T) => string;
+  getLabel: (item: T) => string;
   canReorder: Ref<boolean>;
   listRef: Ref<HTMLElement | null>;
   onPersist: () => Promise<void>;
+  cardSelector?: string;
+  idAttribute?: string;
 }
 
 const FLIP_DURATION_MS = 180;
@@ -19,12 +22,20 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-export function useTemplateReorder({
-  templates,
+/**
+ * Reordenação genérica por ponteiro (drag-and-drop com autoscroll e animação FLIP)
+ * e por teclado (Espaço/Enter + setas) para listas de cards da extensão.
+ */
+export function useListReorder<T>({
+  items,
+  getId,
+  getLabel,
   canReorder,
   listRef,
   onPersist,
-}: UseTemplateReorderOptions) {
+  cardSelector = '.template-card',
+  idAttribute = 'data-reorder-id',
+}: UseListReorderOptions<T>) {
   const draggingId = ref<string | null>(null);
   const keyboardGrabbedId = ref<string | null>(null);
   const liveAnnouncement = ref('');
@@ -33,7 +44,6 @@ export function useTemplateReorder({
   let keyboardOriginalIndex = -1;
   let isMovingFocus = false;
 
-  // Estado do ponteiro ativo
   let activePointerId: number | null = null;
   let activeHandleEl: HTMLElement | null = null;
   let activeCardEl: HTMLElement | null = null;
@@ -56,13 +66,21 @@ export function useTemplateReorder({
   function getCardElements(): HTMLElement[] {
     const container = listRef.value;
     if (!container) return [];
-    return Array.from(container.querySelectorAll<HTMLElement>('.template-card[data-template-id]'));
+    return Array.from(container.querySelectorAll<HTMLElement>(`${cardSelector}[${idAttribute}]`));
+  }
+
+  function findCardById(id: string): HTMLElement | null {
+    return (
+      listRef.value?.querySelector<HTMLElement>(
+        `${cardSelector}[${idAttribute}="${CSS.escape(id)}"]`,
+      ) || null
+    );
   }
 
   function captureRects(): Map<string, DOMRect> {
     const map = new Map<string, DOMRect>();
     for (const el of getCardElements()) {
-      const id = el.dataset.templateId;
+      const id = el.getAttribute(idAttribute);
       if (id) map.set(id, el.getBoundingClientRect());
     }
     return map;
@@ -74,7 +92,7 @@ export function useTemplateReorder({
   ) {
     if (prefersReducedMotion()) return;
     for (const el of getCardElements()) {
-      const id = el.dataset.templateId;
+      const id = el.getAttribute(idAttribute);
       if (!id) continue;
       const first =
         overrideFirstRect && overrideFirstRect.id === id
@@ -150,7 +168,6 @@ export function useTemplateReorder({
       markerW = nextRect.width;
     }
 
-    // Mantém o marcador dentro da área visível do container
     const clampedMarkerY = Math.max(containerRect.top + 2, Math.min(containerRect.bottom - 2, markerY));
     container.setAttribute('data-drop', 'true');
     container.style.setProperty('--drop-x', `${markerX}px`);
@@ -211,7 +228,7 @@ export function useTemplateReorder({
     lastFrameTime = now;
 
     const rect = container.getBoundingClientRect();
-    const cardHeight = activeCardEl.offsetHeight || 96;
+    const cardHeight = activeCardEl.offsetHeight || 64;
     const edgeZone = Math.min(cardHeight, rect.height / 3);
     let velocity = 0;
 
@@ -284,8 +301,8 @@ export function useTemplateReorder({
       runFlipAnimation(before, { id, rect: currentRect });
     }
     if (id) {
-      const tpl = templates.value.find((t) => t.id === id);
-      if (tpl) announce(`Reordenação de ${tpl.title} cancelada.`);
+      const item = items.value.find((entry) => getId(entry) === id);
+      if (item) announce(`Reordenação de ${getLabel(item)} cancelada.`);
     }
   }
 
@@ -315,25 +332,22 @@ export function useTemplateReorder({
     }
 
     const toIdx = slot > fromIdx ? slot - 1 : slot;
-    const nextList = [...templates.value];
+    const nextList = [...items.value];
     const [moved] = nextList.splice(fromIdx, 1);
     if (!moved) return;
     nextList.splice(toIdx, 0, moved);
-    templates.value = nextList;
+    items.value = nextList;
 
     await nextTick();
 
-    const movedEl = listRef.value?.querySelector<HTMLElement>(
-      `.template-card[data-template-id="${CSS.escape(id)}"]`,
-    );
-    movedEl?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    findCardById(id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 
     runFlipAnimation(
       beforeRects,
       draggedRect ? { id, rect: draggedRect } : undefined,
     );
 
-    announce(`${moved.title} movido para a posição ${toIdx + 1} de ${nextList.length}.`);
+    announce(`${getLabel(moved)} movido para a posição ${toIdx + 1} de ${nextList.length}.`);
     await onPersist();
   }
 
@@ -364,11 +378,11 @@ export function useTemplateReorder({
     }
 
     const handle = event.currentTarget as HTMLElement | null;
-    const card = handle?.closest('.template-card') as HTMLElement | null;
+    const card = handle?.closest(cardSelector) as HTMLElement | null;
     const container = listRef.value;
     if (!handle || !card || !container) return;
 
-    const idx = templates.value.findIndex((t) => t.id === id);
+    const idx = items.value.findIndex((entry) => getId(entry) === id);
     if (idx === -1) return;
 
     event.preventDefault();
@@ -398,25 +412,23 @@ export function useTemplateReorder({
     autoscrollRaf = requestAnimationFrame(autoscrollStep);
   }
 
-  async function moveTemplateStep(id: string, delta: -1 | 1) {
-    const fromIdx = templates.value.findIndex((t) => t.id === id);
+  async function moveStep(id: string, delta: -1 | 1) {
+    const fromIdx = items.value.findIndex((entry) => getId(entry) === id);
     if (fromIdx === -1) return;
     const toIdx = fromIdx + delta;
-    if (toIdx < 0 || toIdx >= templates.value.length) return;
+    if (toIdx < 0 || toIdx >= items.value.length) return;
 
     const beforeRects = captureRects();
-    const nextList = [...templates.value];
+    const nextList = [...items.value];
     const [moved] = nextList.splice(fromIdx, 1);
     if (!moved) return;
     nextList.splice(toIdx, 0, moved);
-    templates.value = nextList;
+    items.value = nextList;
 
     isMovingFocus = true;
     await nextTick();
 
-    const movedCard = listRef.value?.querySelector<HTMLElement>(
-      `.template-card[data-template-id="${CSS.escape(id)}"]`,
-    );
+    const movedCard = findCardById(id);
     const movedHandle = movedCard?.querySelector<HTMLElement>('.drag-handle');
     movedCard?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     movedHandle?.focus({ preventScroll: true });
@@ -426,27 +438,27 @@ export function useTemplateReorder({
     });
 
     runFlipAnimation(beforeRects);
-    announce(`${moved.title} movido para a posição ${toIdx + 1} de ${nextList.length}.`);
+    announce(`${getLabel(moved)} movido para a posição ${toIdx + 1} de ${nextList.length}.`);
     await onPersist();
   }
 
   async function onHandleKeydown(event: KeyboardEvent, id: string) {
     if (!canReorder.value) return;
-    const idx = templates.value.findIndex((t) => t.id === id);
+    const idx = items.value.findIndex((entry) => getId(entry) === id);
     if (idx === -1) return;
-    const tpl = templates.value[idx];
-    if (!tpl) return;
+    const item = items.value[idx];
+    if (!item) return;
 
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
       if (keyboardGrabbedId.value === id) {
         keyboardGrabbedId.value = null;
-        announce(`${tpl.title} solto na posição ${idx + 1} de ${templates.value.length}.`);
+        announce(`${getLabel(item)} solto na posição ${idx + 1} de ${items.value.length}.`);
       } else {
         keyboardGrabbedId.value = id;
         keyboardOriginalIndex = idx;
         announce(
-          `${tpl.title} selecionado na posição ${idx + 1} de ${templates.value.length}. Use as setas para cima ou para baixo para mover, Espaço para soltar ou Esc para cancelar.`,
+          `${getLabel(item)} selecionado na posição ${idx + 1} de ${items.value.length}. Use as setas para cima ou para baixo para mover, Espaço para soltar ou Esc para cancelar.`,
         );
       }
       return;
@@ -454,13 +466,13 @@ export function useTemplateReorder({
 
     if (event.key === 'ArrowUp' && (keyboardGrabbedId.value === id || event.altKey)) {
       event.preventDefault();
-      await moveTemplateStep(id, -1);
+      await moveStep(id, -1);
       return;
     }
 
     if (event.key === 'ArrowDown' && (keyboardGrabbedId.value === id || event.altKey)) {
       event.preventDefault();
-      await moveTemplateStep(id, 1);
+      await moveStep(id, 1);
       return;
     }
 
@@ -470,19 +482,17 @@ export function useTemplateReorder({
       const origIdx = keyboardOriginalIndex;
       keyboardGrabbedId.value = null;
 
-      if (origIdx >= 0 && origIdx !== idx && origIdx < templates.value.length) {
+      if (origIdx >= 0 && origIdx !== idx && origIdx < items.value.length) {
         const beforeRects = captureRects();
-        const nextList = [...templates.value];
+        const nextList = [...items.value];
         const [moved] = nextList.splice(idx, 1);
         if (moved) {
           nextList.splice(origIdx, 0, moved);
-          templates.value = nextList;
+          items.value = nextList;
 
           isMovingFocus = true;
           await nextTick();
-          const card = listRef.value?.querySelector<HTMLElement>(
-            `.template-card[data-template-id="${CSS.escape(id)}"]`,
-          );
+          const card = findCardById(id);
           card?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
           card?.querySelector<HTMLElement>('.drag-handle')?.focus({ preventScroll: true });
           requestAnimationFrame(() => {
@@ -493,7 +503,7 @@ export function useTemplateReorder({
         }
       }
 
-      announce(`Reordenação cancelada. ${tpl.title} voltou para a posição ${origIdx + 1}.`);
+      announce(`Reordenação cancelada. ${getLabel(item)} voltou para a posição ${origIdx + 1}.`);
     }
   }
 

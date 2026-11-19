@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
-import { installReplyShortcut, matchShortcut } from '../utils/replyShortcut.ts';
-import { VARIABLES_KEY, SHORTCUT_KEY } from '../utils/settingsSchema.ts';
-import { STORAGE_KEY, HAS_INITIALIZED_KEY } from '../utils/templateStorage.ts';
+import { installReplyShortcut, matchShortcut } from '../services/octadesk/replyShortcut.ts';
+import { VARIABLES_KEY, SHORTCUT_KEY } from '../services/storage/settingsSchema.ts';
+import { STORAGE_KEY, HAS_INITIALIZED_KEY } from '../services/storage/templateStorage.ts';
 
 const templates = [
   { id: 'return', title: 'Retorno', content: 'Resposta pronta', updatedAt: 1 },
@@ -49,10 +49,37 @@ test('every shortcut result shows its own preview below the title in saved order
 
 test('shortcut matches only a standalone trigger before the caret', () => {
   assert.deepEqual(matchShortcut('Olá \\ret', '\\'), { query: 'ret', start: 4, end: 8 });
+  assert.deepEqual(matchShortcut('\\cobranca de', '\\'), { query: 'cobranca de', start: 0, end: 12 });
+  assert.equal(matchShortcut('\\ ', '\\'), null);
+  assert.equal(matchShortcut('\\\u00a0', '\\'), null);
+  assert.equal(matchShortcut('Sim / ', '/'), null);
+  assert.equal(matchShortcut('Sim / Não', '/'), null);
+  assert.equal(matchShortcut('\\cobranca  ', '\\'), null);
   assert.equal(matchShortcut('https://example.com', '/'), null);
   assert.equal(matchShortcut('C:\\folder', '\\'), null);
   assert.equal(matchShortcut('/ret\nnext', '/'), null);
   assert.equal(matchShortcut('/ret', ''), null);
+});
+
+test('typing a space immediately after the trigger closes the menu and preserves the character', async () => {
+  const dom = installDom('<section ticket-id="A"><textarea></textarea></section>');
+  const storage = installStorage({ [STORAGE_KEY]: templates, [HAS_INITIALIZED_KEY]: true, [SHORTCUT_KEY]: '/' });
+  const editor = dom.document.querySelector('textarea');
+  installReplyShortcut(dom.document, target => target === editor, () => true);
+  try {
+    editor.value = '/';
+    editor.setSelectionRange(1, 1);
+    editor.focus();
+    editor.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true }));
+    await settle();
+    assert.ok(dom.document.querySelector('[role="listbox"]'));
+    editor.value = '/ ';
+    editor.setSelectionRange(2, 2);
+    editor.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true }));
+    await settle();
+    assert.equal(dom.document.querySelector('[role="listbox"]'), null);
+    assert.equal(editor.value, '/ ');
+  } finally { storage.restore(); dom.restore(); }
 });
 
 for (const tag of ['textarea', 'input', 'div']) {

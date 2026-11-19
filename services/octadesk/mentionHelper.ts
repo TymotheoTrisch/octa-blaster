@@ -1,4 +1,4 @@
-import { mentionNamePattern } from './settingsSchema';
+import { DEFAULT_MENTION_TARGETS, mentionExactNamePattern, mentionNamePattern } from '../storage/settingsSchema';
 import {
   getScopedTicketContainer,
   getTicketIdentity,
@@ -6,7 +6,7 @@ import {
   isTicketElementVisible,
 } from './licenseDetector';
 import { insertTextIntoElement } from './insertText';
-import { loadSettings, saveSettings } from './settingsStorage';
+import { loadSettings, saveSettings } from '../storage/settingsStorage';
 import { readTicketLicenseRequest, formatLicenseRequest } from './licenseRequest';
 import type { MentionTarget } from '@/types/template';
 
@@ -16,8 +16,12 @@ export async function loadMentionTargets(): Promise<MentionTarget[]> {
   return (await loadSettings()).targets;
 }
 
-export async function saveMentionTargets(targets: MentionTarget[], base?: MentionTarget[]): Promise<void> {
-  await saveSettings({ targets }, base ? { targets: base } : undefined);
+export async function saveMentionTargets(targets: MentionTarget[], base?: MentionTarget[]): Promise<MentionTarget[]> {
+  return (await saveSettings({ targets }, base ? { targets: base } : undefined)).targets;
+}
+
+export async function resetMentionTargets(base?: MentionTarget[]): Promise<MentionTarget[]> {
+  return saveMentionTargets(DEFAULT_MENTION_TARGETS.map(target => ({ ...target })), base);
 }
 
 function sleep(ms: number) {
@@ -267,8 +271,55 @@ export async function waitForInternalNoteEditor(
  * Aguarda e seleciona uma pessoa no popover de menção do Octadesk
  * (<div class="popover-content note-children-container">...<span class="ng-binding">Nome</span>...)
  */
+function stripAccents(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function normalizeLabel(text: string): string {
+  return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function toExactPattern(source: string): RegExp {
+  return new RegExp(`^(?:${source})$`, 'i');
+}
+
+function extractPopoverNameCandidates(item: HTMLElement): string[] {
+  const candidates = new Set<string>();
+  const add = (raw: string | null | undefined) => {
+    const clean = normalizeLabel(raw || '');
+    if (clean) candidates.add(clean);
+  };
+
+  const clone = item.cloneNode(true) as HTMLElement;
+  clone
+    .querySelectorAll('img, svg, bexs-thumb, .disc, [class*="avatar"], [class*="initial"], [class*="photo"], [class*="icon"], [aria-hidden="true"]')
+    .forEach(el => el.remove());
+  add(clone.textContent);
+
+  for (const el of item.querySelectorAll<HTMLElement>('.ng-binding, .person-name, .user-name, .name, [ng-bind]')) {
+    add(el.textContent);
+  }
+
+  for (const line of (item.innerText || '').split(/\r?\n/)) {
+    add(line);
+  }
+
+  const containers = [item, ...Array.from(item.querySelectorAll<HTMLElement>('.person-item'))];
+  for (const container of containers) {
+    for (const child of Array.from(container.children)) {
+      if (child instanceof HTMLElement && !child.matches('b, strong, em, i, mark, u')) {
+        add(child.textContent);
+      }
+    }
+  }
+
+  add(item.innerText || item.textContent);
+  return [...candidates];
+}
+
 function matchesMentionName(text: string, pattern: RegExp, accentInsensitivePattern?: RegExp): boolean {
-  return pattern.test(text) || !!accentInsensitivePattern?.test(text.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  const clean = normalizeLabel(text);
+  return pattern.test(clean) || !!accentInsensitivePattern?.test(stripAccents(clean));
 }
 
 const SUGGESTION_SELECTOR = '.note-hint-popover, .note-children-container, .person-item, .note-hint-item, .popover-content, [role="listbox"], .octablaster-floating-widget';
@@ -303,7 +354,7 @@ function countNamedMentions(editor: HTMLElement, name: string): number {
   return [...normalizedText.matchAll(expression)].length;
 }
 
-function hasMentionMarker(editor: HTMLElement, pattern: RegExp, query: string, accentInsensitivePattern?: RegExp): boolean {
+function hasMentionMarker(editor: HTMLElement, pattern: RegExp, _query: string, accentInsensitivePattern?: RegExp): boolean {
   const area = getMentionArea(editor);
   const people = area.querySelectorAll<HTMLElement>('person');
   // O personid é a confirmação nativa do Octadesk, inclusive em tokens sem caixa própria.
@@ -316,20 +367,19 @@ function hasMentionMarker(editor: HTMLElement, pattern: RegExp, query: string, a
         if (element === area) break;
       }
       const text = (person.innerText || person.textContent || '').trim();
-      const name = text.replace(/^@\s*/, '');
-      return matchesMentionName(name, pattern, accentInsensitivePattern) || text.toLocaleLowerCase('pt-BR') === query.toLocaleLowerCase('pt-BR');
+      const name = normalizeLabel(text.replace(/^@\s*/, ''));
+      return matchesMentionName(name, pattern, accentInsensitivePattern);
     });
   }
   const markers = area.querySelectorAll<HTMLElement>('*');
   return Array.from(markers).some(marker => {
     if (marker === editor || marker.contains(editor) || marker.closest(SUGGESTION_SELECTOR) || !isElementVisible(marker)) return false;
     const text = (marker.innerText || marker.textContent || marker.getAttribute('aria-label') || '').trim();
-    const queryMatches = text.toLocaleLowerCase('pt-BR') === query.toLocaleLowerCase('pt-BR');
-    if (marker.matches(MARKER_SELECTOR)) return matchesMentionName(text, pattern, accentInsensitivePattern) || queryMatches;
+    const clean = normalizeLabel(text.replace(/^@\s*/, '').replace(/[×✕]\s*$/, ''));
+    if (marker.matches(MARKER_SELECTOR)) return matchesMentionName(clean, pattern, accentInsensitivePattern);
     if (!text.startsWith('@')) return false;
-    const name = text.slice(1).replace(/[×✕]\s*$/, '').trim();
-    const match = pattern.exec(name) || accentInsensitivePattern?.exec(name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
-    if (!queryMatches && (!match || match.index !== 0 || match[0].length !== name.length)) return false;
+    const name = normalizeLabel(text.slice(1).replace(/[×✕]\s*$/, ''));
+    if (!matchesMentionName(name, pattern, accentInsensitivePattern)) return false;
     const background = marker.ownerDocument.defaultView?.getComputedStyle(marker).backgroundColor;
     return !!background && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)';
   });
@@ -353,7 +403,10 @@ async function waitForMentionConfirmation(
     const nativeMention = !!getMentionArea(editor).querySelector('person');
     if (!nativeMention && name && countNamedMentions(editor, name) > previousCount) return true;
     // Editores simples confirmam a escolha substituindo a busca pelo nome.
-    if (!nativeMention && input && input.value !== before && matchesMentionName(input.value, pattern, accentInsensitivePattern)) return true;
+    if (!nativeMention && input && input.value !== before) {
+      const cleanValue = normalizeLabel(input.value.replace(/^@\s*/, ''));
+      if (matchesMentionName(cleanValue, pattern, accentInsensitivePattern)) return true;
+    }
     await sleep(75);
   }
   return false;
@@ -412,8 +465,8 @@ async function selectPersonFromPopover(
           (item.closest('.note-hint-item') as HTMLElement) || item;
         if (!isElementVisible(targetItem, 10, 10)) continue;
 
-        const text = (targetItem.innerText || targetItem.textContent || '').trim();
-        if (matchesMentionName(text, namePattern, accentInsensitivePattern)) {
+        const candidates = extractPopoverNameCandidates(targetItem);
+        if (candidates.some((candidate) => matchesMentionName(candidate, namePattern, accentInsensitivePattern))) {
           if (!editor) return false;
           const beforeCount = countNamedMentions(editor, name);
           const confirmed = () => hasMentionMarker(editor, namePattern, query, accentInsensitivePattern) ||
@@ -465,18 +518,20 @@ export async function insertMentionForTarget(
     targetEditor.focus();
   }
 
+  const rawSource = target.pattern.trim() || mentionExactNamePattern(target.name);
   let pattern: RegExp;
   try {
-    pattern = new RegExp(target.pattern, 'i');
+    pattern = toExactPattern(rawSource);
   } catch {
-    pattern = new RegExp(
-      target.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-      'i',
-    );
+    pattern = toExactPattern(mentionNamePattern(target.name));
   }
 
-  const accentPattern = pattern.source.toLowerCase() === mentionNamePattern(target.name).toLowerCase()
-    ? new RegExp(mentionNamePattern(target.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')), 'i')
+  const normalizedRaw = rawSource.toLowerCase();
+  const isDefaultNamePattern =
+    normalizedRaw === mentionNamePattern(target.name).toLowerCase() ||
+    normalizedRaw === mentionExactNamePattern(target.name).toLowerCase();
+  const accentPattern = isDefaultNamePattern
+    ? toExactPattern(mentionNamePattern(stripAccents(target.name)))
     : undefined;
   const query = target.query.startsWith('@') ? target.query : `@${target.query}`;
   if (hasMentionMarker(targetEditor, pattern, query, accentPattern)) return true;
@@ -510,7 +565,7 @@ export async function insertMentionForTarget(
     const marker = Array.from(targetEditor.querySelectorAll<HTMLElement>('person[personid]')).reverse().find(person => {
       const text = (person.innerText || person.textContent || '').trim();
       return !!person.getAttribute('personid')?.trim() &&
-        (matchesMentionName(text.replace(/^@\s*/, ''), pattern, accentPattern) || text.toLocaleLowerCase('pt-BR') === query.toLocaleLowerCase('pt-BR'));
+        matchesMentionName(normalizeLabel(text.replace(/^@\s*/, '')), pattern, accentPattern);
     });
     if (marker) marker.after(space);
     else targetEditor.append(space);
@@ -683,7 +738,12 @@ export async function automateLicenseMentions(
         }
       }
     } else if (isCurrentTicket() && isElementVisible(targetEditor)) {
-      insertTextIntoElement(targetEditor, ' ', undefined, true);
+      const currentText = targetEditor.matches('input, textarea')
+        ? (targetEditor as HTMLInputElement).value
+        : targetEditor.textContent || '';
+      if (currentText && !/[\s\u00a0]$/.test(currentText)) {
+        insertTextIntoElement(targetEditor, ' ', undefined, true);
+      }
     }
 
     return {

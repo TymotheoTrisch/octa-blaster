@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installStorage, installDom } from './helpers.mjs';
-import { loadSettings } from '../utils/settingsStorage.ts';
-import { saveVariables, loadVariables, saveShortcutTrigger, saveReplySettings } from '../utils/templateVariables.ts';
-import { VARIABLES_KEY, SHORTCUT_KEY } from '../utils/settingsSchema.ts';
-import { saveMentionTargets, loadMentionTargets } from '../utils/mentionHelper.ts';
-import { MENTION_TARGETS_STORAGE_KEY } from '../utils/settingsSchema.ts';
-import { exportTemplatesToJson, parseTemplateBackup, mergeImportedTemplates, loadStoredTemplates, STORAGE_KEY, HAS_INITIALIZED_KEY } from '../utils/templateStorage.ts';
-import { TAGS_KEY } from '../utils/templateTagSchema.ts';
+import { loadSettings } from '../services/storage/settingsStorage.ts';
+import { saveVariables, loadVariables, saveShortcutTrigger, saveReplySettings } from '../services/templates/templateVariables.ts';
+import { VARIABLES_KEY, SHORTCUT_KEY } from '../services/storage/settingsSchema.ts';
+import { saveMentionTargets, loadMentionTargets } from '../services/octadesk/mentionHelper.ts';
+import { MENTION_TARGETS_STORAGE_KEY } from '../services/storage/settingsSchema.ts';
+import { exportTemplatesToJson, parseTemplateBackup, mergeImportedTemplates, loadStoredTemplates, STORAGE_KEY, HAS_INITIALIZED_KEY } from '../services/storage/templateStorage.ts';
+import { TAGS_KEY } from '../services/storage/templateTagSchema.ts';
 
 const variable = (name, value = name) => ({ name, value, mode: 'saved' });
 const target = id => ({ id, name: `Técnico ${id}`, query: `@${id}`, pattern: '', enabled: true });

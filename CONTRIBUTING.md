@@ -56,10 +56,10 @@ pnpm install --frozen-lockfile
 Consulte também [docs/ARQUITETURA.md](docs/ARQUITETURA.md) antes de adicionar módulos:
 
 - **Separação de responsabilidades:**
-  - `entrypoints/popup/` e `entrypoints/sidepanel/`: interface Vue 3 (`<script setup lang="ts">`) e estilos locais;
-  - `entrypoints/content.ts`: integração com o DOM do Octadesk e widget flutuante por ticket;
-  - `entrypoints/background.ts`: coordenação em segundo plano, roteamento por frame/token e fila serializada de gravações;
-  - `utils/` e `types/`: regras de negócio, validadores sem dependência de DOM, armazenamento e contratos TypeScript.
+  - `entrypoints/popup/` e `entrypoints/sidepanel/`: orquestradores Vue 3 (`App.vue`) e estilos globais;
+  - `components/` e `composables/`: componentes Vue modulares (`layout/`, `templates/`, `settings/`, `modals/`) e lógica reativa reutilizável;
+  - `entrypoints/content.ts` e `entrypoints/background.ts`: pontos de entrada enxutos que delegam para `services/octadesk/` e `services/background/`;
+  - `services/` e `types/`: regras de negócio, validadores sem dependência de DOM, armazenamento (`services/storage/`) e contratos TypeScript.
 - **Segurança e isolamento no Octadesk:**
   - Sempre isole leituras e ações no escopo do ticket/frame ativo — nunca leia ou escreva no rascunho de outro ticket aberto.
   - Em operações assíncronas no DOM, revalide que o editor e o ticket continuam ativos antes de inserir texto.

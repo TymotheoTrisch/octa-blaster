@@ -1,20 +1,22 @@
 # Arquitetura e pontos de extensão
 
-O projeto mantém WXT, Vue 3 e TypeScript, sem backend adicional. A estrutura segue os diretórios já usados pelo projeto: pontos de entrada em `entrypoints`, serviços e regras em `utils`, contratos em `types` e documentação em `docs`.
+O projeto mantém WXT, Vue 3 e TypeScript, sem backend adicional. A estrutura é organizada por domínio: pontos de entrada enxutos em `entrypoints/`, componentes Vue modulares em `components/`, composables em `composables/`, serviços e regras em `services/`, contratos em `types/` e documentação em `docs/`.
 
 ## Responsabilidades
 
 | Camada | Arquivos | Responsabilidade |
 | --- | --- | --- |
-| Interface | `entrypoints/popup/App.vue`, `VariablesView.vue`, `TagsView.vue`, `ShortcutsView.vue` | Formulários, navegação, filtros, seleção e mensagens de resultado. O painel lateral reutiliza o mesmo aplicativo Vue. |
-| Integração com o Octadesk | `entrypoints/content.ts` | Registro dos editores, widget, tratamento de comandos e validação do destino. |
-| Coordenação | `entrypoints/background.ts` | Roteamento por aba/frame e fila compartilhada de operações de armazenamento. |
-| Modelos e validação | `settingsSchema.ts`, `templateTagSchema.ts`, `types/template.ts` | Contratos, valores padrão, normalização e validação sem acessar DOM ou armazenamento. |
-| Persistência | `storage.ts`, `templateStorage.ts`, `templateTags.ts`, `settingsStorage.ts` | Adaptação das APIs, migrações, mesclagem de alterações, conflitos e backup. |
-| Respostas | `templateResolver.ts`, `templateVariables.ts`, `replyList.ts`, `replyShortcut.ts` | Resolução de variáveis, formulário de valores pendentes, lista compartilhada e navegação pelo teclado. |
-| Automação | `licenseDetector.ts`, `licenseRequest.ts`, `mentionHelper.ts`, `insertText.ts` | Escopo do ticket, interpretação do e-mail, menções e escrita no rascunho. |
+| Pontos de entrada | `entrypoints/popup/App.vue`, `entrypoints/content.ts`, `entrypoints/background.ts` | Orquestração enxuta de interface, content script e service worker/background. |
+| Componentes de layout & UI | `components/layout/`, `components/templates/`, `components/modals/` | Cabeçalho, rodapé, lista, cards, formulário de respostas e modais de confirmação/atualização. |
+| Telas de gestão | `components/settings/` (`VariablesView`, `TagsView`, `ShortcutsView`, `TechniciansView`) | Cadastros dedicados de variáveis, tags, atalhos do editor e técnicos das licenças. |
+| Composables | `composables/useTemplateReorder.ts` | Lógica reativa reutilizável (drag-and-drop e reordenação por teclado). |
+| Background | `services/background/` (`storageQueue.ts`, `ticketRouter.ts`) | Fila serializada de gravações e roteamento seguro por aba/frame e token. |
+| Modelos e persistência | `services/storage/` (`rawStorage.ts`, `settingsSchema.ts`, `settingsStorage.ts`, `templateTagSchema.ts`, `templateTags.ts`, `templateStorage.ts`) | Adaptação das APIs, contratos, validações, migrações, conflitos e backup. |
+| Respostas & modal | `services/templates/` (`templateResolver.ts`, `templateVariables.ts`, `variablePromptModal.ts`, `replyList.ts`) | Resolução de variáveis, modal estilizado de preenchimento e lista compartilhada. |
+| Automação Octadesk | `services/octadesk/` (`editorContext.ts`, `ticketWidget.ts`, `licenseDetector.ts`, `licenseRequest.ts`, `mentionHelper.ts`, `insertText.ts`, `replyShortcut.ts`) | Registro de editores, widget flutuante, escopo do ticket, e-mail, menções e atalho no editor. |
+| Atualizações | `services/updates/updateChecker.ts` | Consulta oficial de releases no GitHub. |
 
-Os nomes de arquivo sem diretório na tabela pertencem a `utils/`. Os consumidores importam modelos e validadores diretamente dos esquemas e as operações de gravação dos respectivos serviços. Cada símbolo tem uma única exportação, evitando conflitos com a descoberta automática de imports do WXT.
+Os consumidores importam modelos e validadores diretamente dos esquemas e as operações de gravação dos respectivos serviços. Cada símbolo tem uma única exportação, evitando conflitos com a descoberta automática de imports do WXT.
 
 ## Direção das dependências
 

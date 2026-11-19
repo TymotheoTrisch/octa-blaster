@@ -1,6 +1,6 @@
-import { createReplyListItem, loadReplyList } from './replyList';
-import { loadReplySettings, prepareTemplate } from './templateVariables';
-import type { TemplateTag } from './templateTagSchema';
+import { createReplyListItem, loadReplyList } from '../templates/replyList';
+import { loadReplySettings, prepareTemplate } from '../templates/templateVariables';
+import type { TemplateTag } from '../storage/templateTagSchema';
 import { insertTextIntoElement } from './insertText';
 import { getScopedTicketContainer, getTicketIdentity } from './licenseDetector';
 import type { QuickReplyTemplate } from '@/types/template';
@@ -19,7 +19,7 @@ export function matchShortcut(
   const start = text.lastIndexOf(trigger);
   if (start < 0 || (start > 0 && !/\s/.test(text[start - 1]!))) return null;
   const query = text.slice(start + 1);
-  if (/[\r\n\\/]/.test(query)) return null;
+  if (/^\s|\s{2}|[\r\n\\/]/.test(query)) return null;
   return { query, start, end: text.length };
 }
 function isTextInput(
@@ -147,14 +147,21 @@ export function installReplyShortcut(
   function render() {
     if (!menu) return;
     menu.replaceChildren();
+    const header = doc.createElement('div');
+    header.style.cssText = 'padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;background:#f7f8f9;border-bottom:1px solid #dee0e4;color:#5b5f63';
+    header.textContent = 'Respostas rápidas';
+    menu.append(header);
     if (!choices.length) {
-      menu.textContent = 'Nenhuma resposta encontrada';
+      const empty = doc.createElement('div');
+      empty.style.cssText = 'padding:14px 12px;text-align:center;font-size:12px;color:#5b5f63;background:#ffffff';
+      empty.textContent = 'Nenhuma resposta encontrada';
+      menu.append(empty);
       return;
     }
     const list = doc.createElement('div');
     list.setAttribute('role', 'listbox');
     list.setAttribute('aria-label', 'Respostas rápidas');
-    list.style.cssText = 'max-height:min(260px, 50vh);overflow:auto';
+    list.style.cssText = 'max-height:min(260px, 50vh);overflow:auto;scrollbar-width:thin;scrollbar-color:#cbd5e1 #f7f8f9';
     choices.forEach((template, index) => {
       const button = createReplyListItem(doc, template, tags);
       button.setAttribute('role', 'option');
@@ -217,7 +224,7 @@ export function installReplyShortcut(
         const height = doc.documentElement.clientHeight || doc.defaultView?.innerHeight || 600;
         const menuWidth = Math.min(360, width - 16);
         const menuHeight = Math.min(300, height - 16);
-        menu.style.cssText = `position:fixed;left:${Math.max(8, Math.min(rect.left, width - menuWidth - 8))}px;top:${Math.max(8, Math.min(rect.bottom + 4, height - menuHeight - 8))}px;z-index:2147483646;width:${menuWidth}px;max-height:${menuHeight}px;overflow:auto;border:1px solid #aaa;border-radius:8px;background:white;color:#222;padding:6px;box-shadow:0 4px 16px #0003;font:14px system-ui`;
+        menu.style.cssText = `position:fixed;left:${Math.max(8, Math.min(rect.left, width - menuWidth - 8))}px;top:${Math.max(8, Math.min(rect.bottom + 4, height - menuHeight - 8))}px;z-index:2147483646;width:${menuWidth}px;max-height:${menuHeight}px;overflow:hidden;border:1px solid #3c3f43;border-radius:8px;background:#ffffff;color:#1c1b1c;padding:0;box-shadow:0 4px 20px rgba(0,0,0,0.14),0 1px 3px rgba(0,0,0,0.06);font:13px 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif`;
         doc.body.append(menu);
         render();
       } catch {
