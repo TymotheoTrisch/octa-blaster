@@ -75,3 +75,42 @@ test('network and timeout errors are classified without retaining raw exception 
     await assert.rejects(runFictionalTest('secret', 'fake-model', async () => { const error = new Error('secret and private network data'); error.name = name; throw error; }), error => error.code === expected && error.diagnostic.stage === 'responses' && !JSON.stringify(error).includes('private network'));
   }
 });
+
+for (const contentType of ['application/octet-stream', 'Text/Event-Stream', null]) {
+  test(`valid SSE is decoded from its body with Content-Type ${contentType ?? 'missing'}`, async () => {
+    const result = await runFictionalTest('fake', 'fake-model', async () => new Response(stream([
+      { type: 'response.output_text.delta', delta: 'Recebido.' },
+      { type: 'response.completed', response: { status: 'completed' } },
+    ], true), { headers: contentType ? { 'Content-Type': contentType } : {} }));
+    assert.equal(result.text, 'Recebido.');
+    assert.equal(result.transport, 'sse');
+  });
+}
+
+test('a complete JSON Responses object is accepted without another request or changing stream:true', async () => {
+  let calls = 0;
+  const result = await runFictionalTest('fake', 'fake-model', async (_url, options) => {
+    calls++;
+    assert.equal(JSON.parse(options.body).stream, true);
+    return Response.json({ id: 'resp_fictional', object: 'response', status: 'completed',
+      output: [{ type: 'message', content: [{ type: 'output_text', text: 'Solicitação fictícia recebida.' }] }], usage: { total_tokens: 20 } });
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.transport, 'json');
+  assert.equal(result.text, 'Solicitação fictícia recebida.');
+  assert.equal(result.usage.total_tokens, 20);
+});
+
+test('HTTP 200 incomplete JSON or unrelated objects never approve partial text', async () => {
+  for (const payload of [
+    { id: 'resp_fictional', object: 'response', status: 'in_progress', output: [{ content: [{ type: 'output_text', text: 'Não aprovar' }] }] },
+    { id: 'resp_fictional', object: 'response', status: 'incomplete', output: [] },
+    { object: 'unrelated', status: 'completed', text: 'Não aprovar' },
+    { object: 'response', status: 'completed', output: [] },
+  ]) await assert.rejects(runFictionalTest('fake', 'fake-model', async () => Response.json(payload)), error => error.code === 'invalid_stream' && error.diagnostic.httpStatus === 200 && error.diagnostic.contentType.includes('application/json'));
+});
+
+test('HTTP 200 JSON errors and HTML pages produce safe diagnostics, not successful drafts', async () => {
+  await assert.rejects(runFictionalTest('fake-secret', 'fake-model', async () => Response.json({ error: { code: 'subscription_sharing_usage_unavailable', message: 'Unavailable fake-secret' } })), error => error.code === 'usage_unavailable' && !JSON.stringify(error.diagnostic).includes('fake-secret'));
+  await assert.rejects(runFictionalTest('fake', 'fake-model', async () => new Response('<html>Do not log this raw body</html>', { headers: { 'Content-Type': 'text/html' } })), error => error.code === 'invalid_stream' && error.diagnostic.bodyShape === 'html_or_xml' && !JSON.stringify(error.diagnostic).includes('raw body'));
+});

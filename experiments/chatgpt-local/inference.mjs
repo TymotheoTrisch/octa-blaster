@@ -56,38 +56,58 @@ export async function listModels(accessToken, fetcher = fetch) {
   return result.models.filter(model => model.visibility === 'list' && typeof model.slug === 'string' && typeof model.display_name === 'string').map(model => ({ slug: model.slug, name: model.display_name }));
 }
 
+function completedResult(response, fallback = '', transport = 'sse') {
+  if (response?.error || (response?.status && response.status !== 'completed')) throw new PrototypeError('inference_failed', { stage: transport });
+  const finalText = (Array.isArray(response?.output) ? response.output : []).flatMap(item => Array.isArray(item.content) ? item.content : []).filter(item => item.type === 'output_text' && typeof item.text === 'string').map(item => item.text).join('');
+  const text = finalText || fallback;
+  if (!text) throw new PrototypeError('empty_response', { stage: transport });
+  const usage = response?.usage ?? {};
+  return { text, transport, usage: Object.fromEntries(['input_tokens', 'output_tokens', 'total_tokens'].filter(key => Number.isFinite(usage[key])).map(key => [key, usage[key]])) };
+}
+
+function responseFailure(payload, secrets, extra) {
+  const code = payload?.response?.error?.code || payload?.error?.code || payload?.code;
+  return new PrototypeError(['subscription_sharing_usage_limit_exceeded', 'subscription_sharing_usage_unavailable'].includes(code) ? 'usage_unavailable' : 'inference_failed', providerDiagnostic(payload, extra.stage, secrets, extra));
+}
+
 export async function collectResponse(body, secrets = []) {
   if (!body) throw new PrototypeError('stream_missing');
-  let buffer = '', text = '', bytes = 0;
+  let buffer = '', text = '', bytes = 0, raw = '', sawData = false;
   const decoder = new TextDecoder();
   for await (const chunk of body) {
     bytes += chunk.byteLength;
     if (bytes > 512_000) throw new PrototypeError('stream_too_large');
-    buffer += decoder.decode(chunk, { stream: true });
+    const decoded = decoder.decode(chunk, { stream: true });
+    buffer += decoded;
+    if (!sawData) raw += decoded;
     let match;
     while ((match = /\r?\n\r?\n/.exec(buffer))) {
       const frame = buffer.slice(0, match.index);
       buffer = buffer.slice(match.index + match[0].length);
       const data = frame.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
       if (!data || data === '[DONE]') continue;
+      sawData = true;
+      raw = '';
       let event;
       try { event = JSON.parse(data); } catch { throw new PrototypeError('invalid_stream'); }
       if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') text += event.delta;
       if (['error', 'response.failed', 'response.incomplete'].includes(event.type)) {
-        const code = event.response?.error?.code || event.error?.code || event.code;
-        const diagnostic = providerDiagnostic(event, 'stream', secrets, { event: event.type });
-        if (['subscription_sharing_usage_limit_exceeded', 'subscription_sharing_usage_unavailable'].includes(code)) throw new PrototypeError('usage_unavailable', diagnostic);
-        throw new PrototypeError('inference_failed', diagnostic);
+        throw responseFailure(event, secrets, { stage: 'stream', event: event.type });
       }
       if (event.type === 'response.completed') {
-        if (event.response?.status && event.response.status !== 'completed') throw new PrototypeError('inference_failed');
-        const finalText = (Array.isArray(event.response?.output) ? event.response.output : []).flatMap(item => Array.isArray(item.content) ? item.content : []).filter(item => item.type === 'output_text').map(item => item.text).join('');
-        const output = finalText || text;
-        if (!output) throw new PrototypeError('empty_response');
-        const usage = event.response?.usage ?? {};
-        return { text: output, usage: Object.fromEntries(['input_tokens', 'output_tokens', 'total_tokens'].filter(key => Number.isFinite(usage[key])).map(key => [key, usage[key]])) };
+        return completedResult(event.response, text);
       }
     }
+  }
+  // Alguns intermediários alteram o Content-Type ou entregam o objeto final em JSON.
+  // HTTP 200 sozinho nunca confirma sucesso: exige o objeto Responses concluído.
+  if (!sawData) {
+    let payload;
+    try { payload = JSON.parse(raw); } catch { throw new PrototypeError('invalid_stream', { stage: 'responses', bodyShape: /^\s*</.test(raw) ? 'html_or_xml' : 'non_json' }); }
+    const diagnostic = { stage: 'responses', bodyShape: payload?.object === 'response' ? 'response' : 'json_other', responseStatus: safeDiagnostic(payload?.status, secrets) };
+    if (payload?.error || payload?.detail) throw responseFailure(payload, secrets, diagnostic);
+    if (payload?.object === 'response' && typeof payload.id === 'string' && payload.id.trim() && payload.status === 'completed' && Array.isArray(payload.output)) return completedResult(payload, '', 'json');
+    throw new PrototypeError('invalid_stream', diagnostic);
   }
   throw new PrototypeError('stream_interrupted');
 }
@@ -98,10 +118,13 @@ export async function runFictionalTest(accessToken, model, fetcher = fetch) {
     method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({ model, input: [{ role: 'user', content: FICTIONAL_INPUT }], store: false, stream: true }),
   }, fetcher);
-  if (!response.headers.get('content-type')?.includes('text/event-stream')) throw new PrototypeError('invalid_stream', { stage: 'responses', httpStatus: response.status });
-  try { return await collectResponse(response.body, [accessToken]); }
+  // A validação usa o corpo e o estado terminal, sem depender apenas do cabeçalho.
+  try { return { ...await collectResponse(response.body, [accessToken]), contentType: safeDiagnostic(response.headers.get('content-type'), [accessToken]) || 'não informado' }; }
   catch (error) {
-    if (error instanceof PrototypeError) throw error;
+    if (error instanceof PrototypeError) {
+      error.diagnostic = { httpStatus: response.status, contentType: safeDiagnostic(response.headers.get('content-type'), [accessToken]) || 'não informado', ...error.diagnostic };
+      throw error;
+    }
     throw new PrototypeError('stream_interrupted', { stage: 'stream' });
   }
 }

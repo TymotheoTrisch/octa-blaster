@@ -5,7 +5,7 @@ async function refresh() {
   byId('identity').textContent = status.connected
     ? `Conta: ${status.identity.name || 'Nome não informado'}\nE-mail: ${status.identity.email || 'Não informado'}\nIdentificador: ${status.identity.subject}\nFranquia autorizada: ${status.planAuthorized ? 'sim' : 'NÃO'}\nSessão expirada: ${status.expired ? 'sim' : 'não'}`
     : 'Sem login.';
-  if (status.result) byId('result').textContent = `${status.result.text}\n\nUso informado na resposta: ${JSON.stringify(status.result.usage)}\nConsumo na conta e ausência de cobrança: conferir no ChatGPT.`;
+  if (status.result) byId('result').textContent = `${status.result.text}\n\nFormato recebido: ${status.result.transport || 'não informado'} (${status.result.contentType || 'cabeçalho não informado'})\nUso informado na resposta: ${JSON.stringify(status.result.usage)}\nConsumo na conta e ausência de cobrança: conferir no ChatGPT.`;
   byId('message').textContent = status.lastError || '';
   showDiagnostic(status.lastDiagnostic);
   update();

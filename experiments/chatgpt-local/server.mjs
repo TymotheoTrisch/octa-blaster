@@ -25,7 +25,7 @@ const messages = {
   provider_request_failed: 'A OpenAI recusou ou não conseguiu processar a solicitação. Confira o diagnóstico abaixo.',
   network_error: 'Não foi possível estabelecer a conexão com a OpenAI. Nenhuma nova tentativa foi feita.',
   request_timeout: 'A OpenAI não respondeu dentro do tempo de espera. Nenhuma nova tentativa foi feita.',
-  invalid_stream: 'A resposta da OpenAI não veio no formato de streaming esperado.',
+  invalid_stream: 'A resposta recebida não contém um stream válido nem um objeto Responses concluído. Confira o formato no diagnóstico.',
   empty_response: 'A OpenAI concluiu a solicitação sem retornar texto.',
   invalid_model_catalog: 'A lista de modelos veio em um formato diferente do esperado.',
   invalid_body: 'A solicitação local é inválida ou excedeu o tamanho permitido.',

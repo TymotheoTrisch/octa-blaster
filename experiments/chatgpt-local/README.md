@@ -10,7 +10,7 @@ Consulta em **19/11/2026**:
 - O registro inicial usa `dynamic_agent_client`; o retorno fornece o identificador emitido para aquele registro. O protótipo usa esse identificador na troca do código, sem segredo de cliente e sem chave de API.
 - O retorno é HTTP em `127.0.0.1`, no caminho `/auth/callback`. A porta pode variar; o URI enviado no login e na troca do código precisa ser idêntico.
 - A identidade deve ser validada criptograficamente e o escopo `chatgpt.tokens.use.direct` precisa constar na resposta de tokens. Login e autorização de uso do plano são verificações separadas.
-- A inferência usa a rota pública `/v1/responses`, com `store: false`, `stream: true` e histórico em `input`. O protótipo aceita somente uma mensagem fictícia fixa. Uma chamada é aprovada apenas após `response.completed`.
+- A inferência usa a rota pública `/v1/responses`, com `store: false`, `stream: true` e histórico em `input`. O protótipo aceita somente uma mensagem fictícia fixa. No SSE, uma chamada é aprovada apenas após `response.completed`. Por compatibilidade de transporte, também reconhece um objeto Responses completo recebido como JSON, exigindo `object: response`, identificador, `status: completed`, saída válida e ausência de erro. Essa adaptação não muda a requisição nem executa outra chamada.
 - Esse login não fornece acesso às conversas nem memórias do ChatGPT. O histórico de respostas do Octadesk precisará de uma fonte separada em uma etapa futura.
 
 Fontes oficiais:
@@ -47,6 +47,8 @@ Nenhuma chamada de inferência é disparada ao abrir o programa ou ao concluir o
 Se uma tentativa falhar, a seção **Diagnóstico da tentativa** mostra etapa, status HTTP quando disponível, formato do erro e código/parâmetro retornados pelo provedor. O texto é sanitizado para remover a credencial utilizada, padrões de tokens e e-mails. O corpo bruto e os cabeçalhos de autenticação não são conservados. O diagnóstico fica apenas na memória, acessível na tela local; não há registro em arquivo ou envio automático. Ele permite distinguir recusa antes do stream, falha de rede e erro durante o stream, sem assumir que todo erro representa falta de franquia.
 
 ## Limites de comprovação
+
+O corpo da resposta é examinado mesmo quando o `Content-Type` está ausente ou diferente de `text/event-stream`. A tela informa o formato efetivamente decodificado. HTML, JSON incompleto, objetos não reconhecidos e falhas dentro de uma resposta HTTP 200 continuam sendo rejeitados. Isso evita confundir sucesso HTTP com conclusão da geração.
 
 Uma chamada concluída comprova a autorização técnica e o funcionamento da rota. **Ela não comprova sozinha ausência de cobrança, saldo ou consumo da franquia na conta.** As confirmações de crédito na tela são declarações manuais; não substituem a conferência no ChatGPT. O resultado mantém `billingVerified: false` e não existe uma rota para alterá-lo. Não use o protótipo como uma garantia financeira.
 

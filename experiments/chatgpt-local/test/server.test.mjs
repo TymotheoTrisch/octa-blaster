@@ -6,6 +6,7 @@ import { DIRECT_SCOPE } from '../auth.mjs';
 test('loopback UI authenticates local mutations, requires scope and confirmations, and never exposes tokens', async () => {
   const calls = [];
   let failNext = false;
+  let jsonMode = false;
   const app = await startPrototype({ hostId: 'urn:uuid:11111111-1111-4111-8111-111111111111',
     verifier: async () => ({ subject: 'fictional-account', email: 'test@example.invalid' }),
     fetcher: async (url) => {
@@ -13,6 +14,7 @@ test('loopback UI authenticates local mutations, requires scope and confirmation
       if (url.endsWith('/oauth/token')) return Response.json({ access_token: 'NEVER_EXPOSE_TOKEN', id_token: 'fake', token_type: 'Bearer', expires_in: 3600, scope: `${DIRECT_SCOPE} resource.invoke` });
       if (url.endsWith('/models')) return Response.json({ models: [{ slug: 'fictional-model', display_name: 'Fictício', visibility: 'list' }] });
       if (failNext) return Response.json({ error: { code: 'unsupported_parameter', param: 'temperature', message: 'Rejected: NEVER_EXPOSE_TOKEN' } }, { status: 400 });
+      if (jsonMode) return Response.json({ id: 'resp_fake', object: 'response', status: 'completed', output: [{ content: [{ type: 'output_text', text: 'Resposta JSON fictícia.' }] }] });
       return new Response(`data: ${JSON.stringify({ type: 'response.completed', response: { output: [{ content: [{ type: 'output_text', text: 'Rascunho fictício.' }] }], usage: { total_tokens: 25 } } })}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
     },
   });
@@ -50,6 +52,12 @@ test('loopback UI authenticates local mutations, requires scope and confirmation
     assert.equal(persisted.lastDiagnostic.param, 'temperature');
     assert.equal(persisted.result, null);
     assert.equal(calls.length, 4);
+    failNext = false; jsonMode = true;
+    const jsonResult = await (await post('/test', { model: 'fictional-model', confirmIdentity: true, confirmCredits: true })).json();
+    assert.equal(jsonResult.text, 'Resposta JSON fictícia.');
+    assert.equal(jsonResult.transport, 'json');
+    assert.equal(jsonResult.billingVerified, false);
+    assert.equal(calls.length, 5);
     await post('/disconnect');
     const disconnected = await (await fetch(`${app.origin}/status`, { headers: { cookie } })).json();
     assert.equal(disconnected.connected, false);
