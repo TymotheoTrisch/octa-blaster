@@ -20,25 +20,25 @@ export async function providerFetch(provider, config, path, body, { fetcher = fe
 
 const textResult = (text, id, usage) => { if (typeof text !== 'string' || !text.trim() || text.length > 100_000) throw new Error('O provedor não retornou texto válido.'); return { text, id, usage }; };
 export async function generateProvider(provider, config, payload, options) {
-  const { instructions, prompt, history, previousId, remoteStore } = payload;
+  const { instructions, prompt, history, previousId, remoteStore, maxOutputTokens = 2048 } = payload;
   if (provider === 'gateway') return providerFetch(provider, config, 'v1/generate', payload.input, options);
   if (provider === 'openai') {
-    const result = await providerFetch(provider, config, 'responses', { model: config.model, instructions, store: remoteStore, ...(previousId ? { previous_response_id: previousId } : {}), input: previousId ? [{ role: 'user', content: prompt }] : [...history, { role: 'user', content: prompt }], max_output_tokens: 4096 }, options);
+    const result = await providerFetch(provider, config, 'responses', { model: config.model, instructions, store: remoteStore, ...(previousId ? { previous_response_id: previousId } : {}), input: previousId ? [{ role: 'user', content: prompt }] : [...history, { role: 'user', content: prompt }], max_output_tokens: maxOutputTokens }, options);
     if (result.status !== 'completed' || result.error) throw new Error('A resposta foi interrompida ou não foi concluída.');
     return textResult(result.output?.flatMap(item => item.content || []).filter(item => item.type === 'output_text').map(item => item.text).join(''), result.id, result.usage);
   }
   if (provider === 'gemini') {
-    const result = await providerFetch(provider, config, 'interactions', { model: config.model, system_instruction: instructions, store: remoteStore, ...(previousId ? { previous_interaction_id: previousId } : {}), input: previousId ? prompt : JSON.stringify({ historico: history, pergunta_contexto: prompt }), generation_config: { max_output_tokens: 4096 } }, options);
+    const result = await providerFetch(provider, config, 'interactions', { model: config.model, system_instruction: instructions, store: remoteStore, ...(previousId ? { previous_interaction_id: previousId } : {}), input: previousId ? prompt : JSON.stringify({ historico: history, pergunta_contexto: prompt }), generation_config: { max_output_tokens: maxOutputTokens } }, options);
     if (result.status !== 'completed' || result.error) throw new Error('A interação não foi concluída.');
     const content = result.steps ? result.steps.filter(step => step.type === 'model_output').flatMap(step => step.content || []) : result.outputs || [];
     return textResult(content.filter(item => item.type === 'text').map(item => item.text).join(''), result.id, result.usage);
   }
   if (provider === 'claude') {
-    const result = await providerFetch(provider, config, 'messages', { model: config.model, max_tokens: 4096, system: [{ type: 'text', text: instructions, cache_control: { type: 'ephemeral' } }], messages: [...history, { role: 'user', content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }] }] }, options);
+    const result = await providerFetch(provider, config, 'messages', { model: config.model, max_tokens: maxOutputTokens, system: [{ type: 'text', text: instructions, cache_control: { type: 'ephemeral' } }], messages: [...history, { role: 'user', content: [{ type: 'text', text: prompt, cache_control: { type: 'ephemeral' } }] }] }, options);
     if (!['end_turn', 'stop_sequence'].includes(result.stop_reason) || result.error) throw new Error('A resposta foi interrompida ou não foi concluída.');
     return textResult(result.content?.filter(item => item.type === 'text').map(item => item.text).join(''), null, result.usage);
   }
-  const result = await providerFetch(provider, config, 'chat/completions', { model: config.model, messages: [{ role: 'system', content: instructions }, ...history, { role: 'user', content: prompt }], max_tokens: 4096, stream: false, chat_template_kwargs: { enable_thinking: false } }, options);
+  const result = await providerFetch(provider, config, 'chat/completions', { model: config.model, messages: [{ role: 'system', content: instructions }, ...history, { role: 'user', content: prompt }], max_tokens: maxOutputTokens, stream: false, chat_template_kwargs: { enable_thinking: false } }, options);
   if (result.choices?.[0]?.finish_reason !== 'stop' || result.error) throw new Error('A resposta foi interrompida ou não foi concluída.');
   return textResult(result.choices[0].message?.content, null, result.usage);
 }

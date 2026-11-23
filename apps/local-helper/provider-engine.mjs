@@ -35,11 +35,14 @@ export function createProviderEngine({ vault, fetcher = fetch, chatgpt, now = Da
   async function retire(session) {
     await vault.update(state => { const ai = aiSettings(state), refs = [...ai.pendingDeletes, ...(session.refs || []).map(ref => ({ ...ref, provider: session.provider, credentialId: session.credentialId }))]; return { ...state, ai: { ...ai, pendingDeletes: [...new Map(refs.map(ref => [`${ref.provider}:${ref.credentialId}:${ref.id}`, ref])).values()] } }; });
   }
-  async function cleanup() {
+  async function expireSessions(onlyKey) {
     const ai = aiSettings(vault.read());
-    for (const [key, session] of Object.entries(ai.sessions)) if (expired(session, ai.retention, now())) {
+    for (const [key, session] of Object.entries(ai.sessions)) if ((!onlyKey || key === onlyKey) && expired(session, ai.retention, now())) {
       await retire(session); await vault.update(state => { const settings = aiSettings(state), sessions = { ...settings.sessions }; delete sessions[key]; return { ...state, ai: { ...settings, sessions } }; });
     }
+  }
+  async function cleanup() {
+    await expireSessions();
     const pending = aiSettings(vault.read()).pendingDeletes;
     const deadline = AbortSignal.timeout(8000);
     for (const item of pending.slice(0, 100)) {
@@ -59,7 +62,7 @@ export function createProviderEngine({ vault, fetcher = fetch, chatgpt, now = Da
     cleanup: () => serialize(cleanup),
     forget(key) { return serialize(async () => { if (!/^[a-f0-9]{64}$/.test(key)) throw new Error('Ticket inválido.'); const session = aiSettings(vault.read()).sessions[key]; if (session) { await retire(session); await vault.update(state => { const ai = aiSettings(state), sessions = { ...ai.sessions }; delete sessions[key]; return { ...state, ai: { ...ai, sessions } }; }); } return cleanup(); }); },
     generate(input, signal) { return serialize(async () => {
-      const history = validateInput(input); await cleanup();
+      const history = validateInput(input); if (input.conversationKey) await expireSessions(input.conversationKey);
       const ai = aiSettings(vault.read()), provider = ai.provider, config = ai.providers[provider] || {};
       if ((input.memoryNamespace !== undefined && input.memoryNamespace !== publicSettings(vault.read()).historyNamespace) || (provider === 'gateway' && !input.memoryNamespace)) throw new Error('A conexão do histórico mudou. Abra as configurações de IA para atualizá-la e reabra a conversa do ticket.');
       if (provider !== 'chatgpt' && (!config.apiKey || (provider !== 'gateway' && !config.model))) throw new Error('Configure a credencial e o modelo do provedor selecionado.');
@@ -78,8 +81,9 @@ export function createProviderEngine({ vault, fetcher = fetch, chatgpt, now = Da
       const instructions = `${BASE}\nPerfil e exemplo somente para estilo, sem fatos de outros tickets:\n${persona}`;
       const prompt = JSON.stringify({ ...(previousId ? {} : { conversa_do_ticket: context }), pergunta: input.instruction });
       let result;
+      const maxOutputTokens = input.task === 'summary_latest' ? 768 : input.task === 'summary_full' ? 1536 : 2048;
       try {
-        result = provider === 'chatgpt' ? await chatgpt({ ...input, context, persona }, signal) : await generateProvider(provider, config, { instructions: provider === 'claude' ? `${instructions}\nDados do ticket atual:\n${context}` : instructions, prompt: provider === 'claude' ? input.instruction : prompt, history: previousId ? [] : history, previousId, remoteStore }, { fetcher, signal });
+        result = provider === 'chatgpt' ? await chatgpt({ ...input, context, persona }, signal) : await generateProvider(provider, config, { maxOutputTokens, instructions: provider === 'claude' ? `${instructions}\nDados do ticket atual:\n${context}` : instructions, prompt: provider === 'claude' ? input.instruction : prompt, history: previousId ? [] : history, previousId, remoteStore }, { fetcher, signal });
       } catch (error) {
         if (previousId && error.status === 404) { await retire(previous); await vault.update(state => { const settings = aiSettings(state), sessions = { ...settings.sessions }; delete sessions[key]; return { ...state, ai: { ...settings, sessions } }; }); }
         throw error;

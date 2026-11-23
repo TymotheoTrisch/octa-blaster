@@ -119,3 +119,14 @@ test('incomplete or truncated provider answers are rejected instead of saving pa
     await assert.rejects(generateProvider(provider, { model: 'test', apiKey: 'fake' }, { instructions: 'Teste', prompt: 'Teste', history: [], remoteStore: true }, { fetcher: async () => Response.json(result) }));
   }
 });
+
+test('generation does not wait for pending remote deletion and uses a smaller task-specific output budget', async () => {
+  const {engine,vault,calls}=await setup('openai');
+  await engine.generate(input);
+  const credentialId = aiSettings(vault.read()).sessions[key].credentialId; calls.length = 0;
+  await vault.update(state=>({...state,ai:{...state.ai,pendingDeletes:[{provider:'openai',credentialId,id:'old'}]}}));
+  await engine.generate({...input,task:'summary_latest',conversationKey:undefined});
+  assert.equal(calls.length,1);assert.equal(calls[0].init.method,'POST');assert.equal(calls[0].body.max_output_tokens,768);
+  await engine.generate(input);assert.equal(calls.at(-1).body.max_output_tokens,1536);
+  await engine.generate({...input,task:'chat',instruction:'Qual é a pendência?'});assert.equal(calls.at(-1).body.max_output_tokens,2048);
+});
