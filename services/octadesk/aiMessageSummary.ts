@@ -4,7 +4,6 @@ import { readAiMessage, getAiTicketIdentity } from './aiTicketContext';
 import { getScopedTicketContainer, isTicketElementVisible } from './licenseDetector';
 import { anchorSummaryPanel } from './aiSummaryPosition';
 import { aiIcons } from './aiIcons';
-import { attachStyleExample } from './aiStyleExample';
 
 export function attachMessageSummary(body: HTMLElement, host: HTMLElement, send?: SummarySend) {
   const doc = body.ownerDocument, scope = getScopedTicketContainer(body)!;
@@ -41,6 +40,5 @@ export function attachMessageSummary(body: HTMLElement, host: HTMLElement, send?
   });
   const actions = host.querySelector(':scope > .comment-actions');
   if (actions) actions.before(button); else host.append(button);
-  const stopStyleExample = attachStyleExample(body, host);
-  return { valid, dispose() { close(); stopStyleExample(); stopButtonTheme(); button.remove(); } };
+  return { valid, dispose() { close(); stopButtonTheme(); button.remove(); } };
 }

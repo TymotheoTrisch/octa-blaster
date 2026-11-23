@@ -23,12 +23,12 @@ async function setup(provider = 'openai', options = {}) {
 }
 const followup = (result, patch = {}) => ({ ...input, task: 'chat', instruction: 'O que falta?', history: [{ role: 'user', content: input.instruction }, { role: 'assistant', content: result.text }], ...patch });
 
-test('configuration preserves blank credentials, never returns keys and compiles a compact persona', async () => {
+test('configuration preserves credentials, redacts keys and excludes retired manual profiles from prompts', async () => {
   const { vault } = await setup(); let config = publicSettings(vault.read());
   assert.ok(!JSON.stringify(config).includes('fictional-provider-secret')); assert.equal(config.providers.openai.hasKey, true);
   config.profiles[0] = { ...config.profiles[0], name: 'Pessoa Teste', products: 'Produto fictício', aliases: ['Pessoa T.'], examples: ['Olá, agradeço o retorno. Vamos conferir os dados.'] };
   await vault.update(state => updateSettings(state, config));
-  assert.equal(aiSettings(vault.read()).providers.openai.apiKey, 'fictional-provider-secret'); assert.ok(personaPrompt(aiSettings(vault.read())).length <= 1800);
+  assert.equal(aiSettings(vault.read()).providers.openai.apiKey, 'fictional-provider-secret'); assert.equal(personaPrompt(aiSettings(vault.read())), '');
   assert.throws(() => addStyleExample(vault.read(), 'Outro agente', 'Texto'), /autoria/);
   await vault.update(state => addStyleExample(state, 'Pessoa T.', 'Exemplo revisado')); assert.equal(publicSettings(vault.read()).profiles[0].examples[0], 'Exemplo revisado');
 });

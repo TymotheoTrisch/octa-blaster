@@ -2,6 +2,15 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Respostas e tela simplificada — extensão 1.2.1 / auxiliar 0.3.1
+
+- 162 testes da extensão, 51 do auxiliar e 4 do gateway aprovados: 217 no total. TypeScript e builds Chrome/Firefox concluídos.
+- Regressões do resumo inicial: registro salvo vazio e falha ao recuperar armazenamento geram resumo automático, com aviso quando a conversa não pode ser salva.
+- Editor público: geração automática opt-in, uma geração por contexto, modo manual no widget, prévia flutuante, inserção explícita e preservação de rascunhos. Digitação cancela e descarta resposta tardia; anotação interna não dispara geração.
+- Aprendizado: somente publicação nova confirmada igual ao rascunho enviado; identidade do compositor obrigatória, isolamento por usuário/conexão e retenção de padrões numéricos por 90 dias. Nenhum exemplo de atendimento armazenado nesta memória.
+- Chromium com extensão real, fixture Angular e iframe confirmou resumo de mensagem flutuante, controle com 20px, chat persistente após reload, nova configuração sem formulário de perfil e sugestão automática com inserção explícita. Saídas de IA simuladas; sem inferência paga ou dados reais de clientes.
+- Referências do desenho e limites do aprendizado estão em docs/IA-LOCAL.md. Qualidade de respostas reais e integração com publicação no Octadesk real ainda exigem homologação no atendimento.
+
 ## Provedores, perfil e retenção — extensão 1.2.0 / auxiliar 0.3.0
 
 - **155 testes da extensão, 51 do auxiliar e 4 do gateway aprovados (210 no total)**. TypeScript e builds Chromium/Firefox concluídos; ZIP Firefox 1.2.0 gerado.

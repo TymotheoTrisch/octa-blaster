@@ -39,13 +39,7 @@ export function updateSettings(state, input) {
   return { ...state, ai };
 }
 
-export function personaPrompt(ai, question = '') {
-  const profile = ai.profiles.find(item => item.id === ai.profileId);
-  if (!profile) return '';
-  const words = new Set(question.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []);
-  const sample = [...profile.examples].sort((a, b) => [...words].filter(word => b.toLowerCase().includes(word)).length - [...words].filter(word => a.toLowerCase().includes(word)).length)[0];
-  return JSON.stringify({ perfil_de_escrita: { nome: profile.name, funcao: profile.role, produtos: profile.products, tom: profile.tone, preferencias: profile.preferences }, exemplo_apenas_de_estilo: sample?.slice(0, 800) || '' }).slice(0, 1800);
-}
+export function personaPrompt() { return ''; }
 
 export function addStyleExample(state, author, example) {
   const ai = aiSettings(state), profile = ai.profiles.find(item => item.id === ai.profileId);

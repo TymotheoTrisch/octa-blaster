@@ -1,3 +1,5 @@
+import { suggestTicketReply } from './aiReply';
+import { aiIcons } from './aiIcons';
 import { insertTextIntoElement } from './insertText';
 import {
   detectLicenseTicket,
@@ -334,6 +336,7 @@ function createWidgetElement(
           <span>Respostas</span>
         </button>
 
+        <button type="button" class="octa-action-btn octa-btn-ai" title="Sugerir resposta para este ticket">${aiIcons.sparkle}<span>Sugerir resposta</span></button>
         <button type="button" class="octa-min-btn octa-btn-minimize" title="Recolher">${ICONS.x}</button>
       </div>
 
@@ -346,6 +349,16 @@ function createWidgetElement(
     </div>
   `;
 
+  const aiButton = widget.querySelector<HTMLButtonElement>('.octa-btn-ai')!;
+  aiButton.addEventListener('mousedown', event => event.preventDefault());
+  aiButton.addEventListener('click', event => {
+    event.preventDefault(); event.stopPropagation();
+    const editor = editorContext.findEditorForWidget(container);
+    if (!editor || !editor.closest('[ng-if*="typeInteractionSelected == 2"], [ng-if*="typeInteractionSelected === 2"], [data-octa-public-reply]')) {
+      licenseFeedback.textContent = 'Abra a aba Resposta pública e selecione o campo de resposta para solicitar a sugestão.'; licenseFeedback.hidden = false; return;
+    }
+    licenseFeedback.hidden = true; void suggestTicketReply(editor).catch(() => { licenseFeedback.textContent = 'Não foi possível abrir a sugestão. Confira a conexão de IA.'; licenseFeedback.hidden = false; });
+  });
   const btnToggle = widget.querySelector('.octa-btn-toggle') as HTMLElement;
   const btnLicense = widget.querySelector('.octa-btn-license') as HTMLButtonElement;
   const btnReplies = widget.querySelector('.octa-btn-replies') as HTMLElement;

@@ -1,5 +1,6 @@
 import { initEditorContext } from '@/services/octadesk/editorContext';
 import { startTicketWidgetLifecycle } from '@/services/octadesk/ticketWidget';
+import { startReplyAssistance } from '@/services/octadesk/aiReply';
 import { startSummaryLifecycle } from '@/services/octadesk/aiSummaryLifecycle';
 
 export default defineContentScript({
@@ -12,5 +13,6 @@ export default defineContentScript({
     const editorContext = initEditorContext(document);
     startTicketWidgetLifecycle(editorContext, document);
     startSummaryLifecycle(document);
+    startReplyAssistance(document);
   },
 });

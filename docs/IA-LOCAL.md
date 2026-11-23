@@ -1,6 +1,6 @@
 # IA local — resumos do ticket
 
-Entrega proposta 1.2.0, auxiliar 0.3.0, sobre a release oficial v1.0.1 e `main` (`ff7752d`) incorporadas nesta branch. Inclui resumos, conversa persistente, APIs de diferentes provedores, perfil de escrita, exemplos revisados e retenção automática.
+Entrega proposta 1.2.1, auxiliar 0.3.1, sobre a release oficial v1.0.1 e `main` (`ff7752d`) incorporadas nesta branch. Inclui resumos, conversa persistente, APIs de diferentes provedores, aprendizado de padrões de escrita sem exemplos e retenção automática.
 
 ## Plano executado
 
@@ -11,7 +11,7 @@ Entrega proposta 1.2.0, auxiliar 0.3.0, sobre a release oficial v1.0.1 e `main` 
 
 ## Usar no Firefox
 
-Extraia o pacote `octablaster-local-helper-0.3.0-windows.zip` inteiro e abra **Instalar-IA-Firefox.exe** com dois cliques, também para atualizar uma versão anterior. A instalação tem janela própria e executa a preparação em segundo plano; não é necessário digitar comandos ou abrir CMD. Precisa de Node.js 22.22.2+ e pnpm 10+ instalados. O instalador não exige administrador: registra o host nativo somente para o usuário atual. Copia o runtime para `%LOCALAPPDATA%\OctaBlaster\Auxiliar` e registra `com.octablaster.ai` no Firefox, autorizado apenas para a extensão `octablaster@pulz.dev.br`.
+Extraia o pacote `octablaster-local-helper-0.3.1-windows.zip` inteiro e abra **Instalar-IA-Firefox.exe** com dois cliques, também para atualizar uma versão anterior. A instalação tem janela própria e executa a preparação em segundo plano; não é necessário digitar comandos ou abrir CMD. Precisa de Node.js 22.22.2+ e pnpm 10+ instalados. O instalador não exige administrador: registra o host nativo somente para o usuário atual. Copia o runtime para `%LOCALAPPDATA%\OctaBlaster\Auxiliar` e registra `com.octablaster.ai` no Firefox, autorizado apenas para a extensão `octablaster@pulz.dev.br`.
 
 Carregue `.output/firefox-mv2/manifest.json` em `about:debugging#/runtime/this-firefox` (ou extraia o ZIP Firefox e carregue seu manifesto). Recarregue os tickets abertos para substituir o content script antigo.
 
@@ -26,6 +26,8 @@ Os cinco minutos do desenho anterior eram a validade do código de pareamento, n
 A autorização pertence à conta ChatGPT selecionada. Access token, refresh token e registro por conta ficam protegidos pela DPAPI CurrentUser do Windows em `%LOCALAPPDATA%\OctaBlaster\ChatGPT-Local`. A renovação é serializada e salva o token substituto. Reiniciar o navegador ou o computador não apaga a sessão. Expiração definitiva, revogação ou uma permissão insuficiente podem exigir novo login.
 
 A validade é definida pelo provedor e não pode ser configurada como um tempo arbitrário. Esta autorização é própria do aplicativo: não copia cookies do navegador e não equivale ao estado de login do site ChatGPT. Para encerrar a sessão do auxiliar, use **Sair** na extensão. Confira também os controles de acesso/uso do aplicativo na conta ChatGPT. Cada resumo/pergunta consome o uso autorizado; não há chave de API tradicional nem alternativa paga automática.
+
+O resumo inicial é gerado automaticamente também quando o registro salvo está vazio. Falha ou espera superior a seis segundos ao carregar o histórico permite gerar nesta janela, com aviso de que ela não será salva.
 
 ## Resumir uma mensagem
 
@@ -43,21 +45,27 @@ O resumo tenta abrir **Todas as interações** antes da análise. Se o carregame
 
 Para perguntar, digite e pressione **Enter**; **Shift+Enter** quebra a linha. O histórico recente é enviado apenas nas perguntas de continuidade (até seis pares, 24.000 caracteres). A conversa completa e o texto ainda não enviado ficam no armazenamento privado local da extensão, separados por origem, workspace (quando disponível no shell) e número/identificador do ticket. Não são gravados no `localStorage` da página nem incluídos no backup de respostas rápidas. O conteúdo integral do e-mail não é arquivado: salva-se somente uma impressão SHA-256 do contexto junto das mensagens do chat e do rascunho da pergunta.
 
-Fechar salva o chat, cancela a solicitação em andamento e mantém a pergunta interrompida como texto para retomar. Ao reabrir ou recarregar a página/extensão/navegador, a conversa é recuperada sem gerar outro resumo nem consumir uma nova chamada de IA. Se o ticket recebeu novas informações, o chat anterior é mantido, a tela avisa e a próxima pergunta usa o conteúdo atualizado. Uma troca de ticket durante a análise ainda cancela respostas tardias.
+Fechar salva o chat, cancela a solicitação em andamento e mantém a pergunta interrompida como texto para retomar. Ao reabrir ou recarregar a página/extensão/navegador, uma conversa com respostas é recuperada sem gerar outro resumo nem consumir uma nova chamada de IA. Se o ticket recebeu novas informações, o chat anterior é mantido, a tela avisa e a próxima pergunta usa o conteúdo atualizado. Uma troca de ticket durante a análise ainda cancela respostas tardias.
 
 O armazenamento pertence ao perfil do navegador; não sincroniza com outro computador ou com o site ChatGPT. Limpar os dados da extensão ou removê-la pode apagar o histórico. O histórico de tickets pode conter dados do atendimento; não utiliza a DPAPI do auxiliar, que também protege perfis, referências remotas e notas curtas do contexto. Revisões e uma fila no background impedem que duas abas sobrescrevam silenciosamente a mesma conversa. Falha de gravação/quota é informada na conversa. O limite por conversa é de 1.000 mensagens e 1.000.000 de caracteres serializados, sujeito à política de retenção descrita abaixo.
 
-## Perfil e sugestões de resposta
+## Sugestões e aprendizado de escrita
 
-Em **Inteligência artificial → Meu perfil e estilo**, informe nome, função, produtos, tom, preferências e assinatura. Configure os nomes/abreviações usados nas suas mensagens. O perfil e exemplos ficam protegidos no auxiliar, fora do backup dos templates. O texto enviado ao modelo limita perfil e trecho de exemplo a 1.800 caracteres.
+Não há formulário de persona, produtos, preferências ou exemplos. As instruções manuais antigas não participam das novas gerações; salvar as configurações remove esses campos antigos do perfil ativo.
 
-O ícone de escrita no cabeçalho abre **Exemplo do meu estilo**. A autoria deve coincidir com o perfil. Citações são excluídas e alguns formatos de e-mail/link/número são ocultados, mas essa ocultação é incompleta: revise e retire dados de clientes. Guardam-se até 3 exemplos de 2.000 caracteres, substituindo os mais antigos. Não há coleta automática de mensagens.
+Em **Inteligência artificial → Respostas no editor**, habilite **Sugerir automaticamente ao entrar no campo de resposta** e salve. O padrão é somente quando solicitado. Ao focar/clicar no editor de resposta pública vazio, aparece uma sugestão flutuante para revisão. **Sugerir resposta**, junto de **Marcar Licenças** e **Respostas**, permite solicitar manualmente. O chat de resumo não tem mais esse botão. O texto só entra no editor por **Usar no rascunho** e apenas se ele continuar vazio; nada é enviado ao cliente.
 
-No chat, **Sugerir resposta no meu estilo** pede um texto para revisão, usando o perfil e os fatos do ticket atual. Não altera o rascunho nem envia ao cliente. Isso não treina permanentemente o modelo e não importa memórias do site ChatGPT.
+O mesmo contexto não dispara gerações repetidas ao refocar o editor. Falha permite nova tentativa. Digitação, troca de ticket ou mudança das mensagens descarta a resposta tardia. Anotação interna não dispara a geração automática.
+
+**Aprender com minhas respostas enviadas** guarda somente médias numéricas de extensão, quantidade de parágrafos e frequência de saudação/encerramento. O aprendizado exige identidade no avatar do compositor e confirmação de um comentário novo igual ao rascunho submetido no mesmo ticket; clicar em Enviar sem confirmação não ensina. A versão final editada pelo usuário é a referência. Não arquiva exemplos nem nomes/dados do texto. Após três respostas confirmadas, usa uma instrução curta só nas sugestões. Falta de autoria ou publicação confirmada significa ausência de aprendizado.
+
+Os padrões ficam no armazenamento privado da extensão, separados por workspace, atendente e conexão da equipe, fora do backup de respostas rápidas. Limitados a 20 identidades, com exclusão de padrões sem novas respostas por 90 dias na inicialização, periodicamente e nas consultas. Desligar e salvar apaga os padrões; **Apagar aprendizado de escrita** redefine imediatamente. Não é ajuste dos pesos do modelo nem memória do site ChatGPT. O reconhecimento de preferências semânticas/vocabulário ainda não é implementado.
+
+A pesquisa de referência recomenda contexto relevante e compacto: [OpenAI](https://developers.openai.com/api/docs/guides/prompt-engineering) e [Anthropic](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents). Essas referências orientam o desenho, não comprovam a qualidade do aprendizado desta extensão.
 
 ## Conexões, contexto e cobrança
 
-Atualize com o pacote `octablaster-local-helper-0.3.0-windows.zip`: extraia inteiro e abra **Instalar-IA-Firefox.exe**. Na extensão, escolha conexão/modelo e salve. Campo de chave vazio mantém a existente; há ação explícita de remover. Salvar não executa inferência nem comprova acesso ao modelo. Credenciais são protegidas com DPAPI e não são devolvidas à interface, incluídas em backups ou registradas em logs.
+Atualize com o pacote `octablaster-local-helper-0.3.1-windows.zip`: extraia inteiro e abra **Instalar-IA-Firefox.exe**. Na extensão, escolha conexão/modelo e salve. Campo de chave vazio mantém a existente; há ação explícita de remover. Salvar não executa inferência nem comprova acesso ao modelo. Credenciais são protegidas com DPAPI e não são devolvidas à interface, incluídas em backups ou registradas em logs.
 
 | Conexão | Continuação |
 | --- | --- |

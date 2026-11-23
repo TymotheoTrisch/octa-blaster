@@ -1,25 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { AI_BEHAVIOR_KEY, AI_WRITING_KEY, readAiBehavior } from '@/services/ai/writingMemory';
 import { aiLocalMessage } from '@/services/ai/localClient';
 import type { AiConfig, AiProvider } from '@/types/ai';
 const emit = defineEmits<{ configured: [] }>();
 const config = ref<AiConfig | null>(null), key = ref(''), busy = ref(false), feedback = ref('');
-const aliases = ref(''), examples = ref('');
+const behavior = ref({ automaticReplies: false, learnWriting: true });
+async function resetWriting() { await browser.storage.local.remove(AI_WRITING_KEY); feedback.value = 'Padrões de escrita apagados.'; }
 const selected = computed(() => config.value?.providers[config.value.provider]);
-const profile = computed(() => config.value?.profiles.find(item => item.id === config.value?.profileId));
 const choices: { id: AiProvider; name: string }[] = [{ id: 'chatgpt', name: 'Login ChatGPT' }, { id: 'openai', name: 'OpenAI — chave de API' }, { id: 'gemini', name: 'Google Gemini — chave de API' }, { id: 'claude', name: 'Anthropic Claude — chave de API' }, { id: 'nvidia', name: 'NVIDIA Nemotron — chave de API' }, { id: 'gateway', name: 'Servidor da equipe' }];
-function loadProfile() { aliases.value = profile.value?.aliases.join('\n') || ''; examples.value = profile.value?.examples.join('\n---\n') || ''; }
-async function refresh() { try { const result = await aiLocalMessage('AI_CONFIG'); if (!result?.providers || !Array.isArray(result.profiles) || !result.retention) throw new Error('Configuração indisponível.'); config.value = result; loadProfile(); } catch { feedback.value = 'Não foi possível ler as configurações. Confira a conexão e atualize o auxiliar para configurar provedores, perfil e retenção.'; } }
+async function refresh() { try { const result = await aiLocalMessage('AI_CONFIG'); if (!result?.providers || !Array.isArray(result.profiles) || !result.retention) throw new Error('Configuração indisponível.'); config.value = result; behavior.value = await readAiBehavior(); } catch { feedback.value = 'Não foi possível ler as configurações. Confira a conexão e atualize o auxiliar para configurar a conexão e a retenção.'; } }
 async function save(removeKey = false) {
-  if (!config.value || !profile.value) return;
+  if (!config.value) return;
   busy.value = true; feedback.value = '';
   try {
-    profile.value.aliases = aliases.value.split('\n').map(value => value.trim()).filter(Boolean);
-    profile.value.examples = examples.value.split(/\n---\n/).map(value => value.trim()).filter(Boolean);
     const payload = JSON.parse(JSON.stringify(config.value));
+    payload.profiles = [{ id: 'default', name: '', role: '', products: '', tone: '', preferences: '', aliases: [], examples: [] }]; payload.profileId = 'default';
     if (payload.provider !== 'chatgpt') { if (key.value) payload.providers[payload.provider].apiKey = key.value.trim(); if (removeKey) payload.providers[payload.provider].removeKey = true; }
-    config.value = await aiLocalMessage('AI_CONFIG_SAVE', { config: payload }); key.value = ''; loadProfile();
-    feedback.value = 'Configurações salvas. As próximas solicitações usarão esta conexão e este perfil.'; emit('configured');
+    config.value = await aiLocalMessage('AI_CONFIG_SAVE', { config: payload }); key.value = '';
+    await browser.storage.local.set({ [AI_BEHAVIOR_KEY]: { ...behavior.value } });
+    if (!behavior.value.learnWriting) await browser.storage.local.remove(AI_WRITING_KEY);
+    feedback.value = 'Configurações salvas. As próximas solicitações usarão estas configurações.'; emit('configured');
   } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível salvar.'; }
   finally { busy.value = false; }
 }
@@ -28,8 +29,8 @@ onMounted(refresh);
 </script>
 
 <template>
-  <article class="ai-provider-card" aria-label="Provedor, perfil e memória">
-    <h3>Conexão, perfil e memória</h3>
+  <article class="ai-provider-card" aria-label="Conexão e comportamento">
+    <h3>Conexão da IA</h3>
     <template v-if="config">
       <label>Conexão<select v-model="config.provider" :disabled="busy" @change="key = ''"><option v-for="choice in choices" :key="choice.id" :value="choice.id">{{ choice.name }}</option></select></label>
       <template v-if="config.provider !== 'chatgpt' && selected">
@@ -44,17 +45,14 @@ onMounted(refresh);
         <p v-if="config.provider === 'claude' || config.provider === 'nvidia'">Esta conexão usa contexto compacto do ticket. Cache não equivale a uma conversa permanente no provedor.</p>
         <template v-if="config.provider === 'nvidia'"><p>O endpoint NVIDIA Build é de prototipagem e restringe dados pessoais/confidenciais. Para produção, use um serviço aprovado ou o servidor da equipe.</p><label class="ai-check"><input v-model="selected.approvedData" type="checkbox">Meu acordo com este endpoint permite os dados de atendimento que vou enviar</label></template>
       </template>
-      <p v-else>O login ChatGPT exige contexto enviado a cada chamada. A conversa continua salva no OctaBlaster; o perfil e o recorte do ticket ajudam a reduzir a entrada.</p>
-      <details v-if="profile"><summary>Meu perfil e estilo</summary>
-        <label>Nome<input v-model="profile.name" maxlength="120" autocomplete="name"></label>
-        <label>Função<input v-model="profile.role" maxlength="160"></label>
-        <label>Produtos e áreas em que trabalho<input v-model="profile.products" maxlength="300"></label>
-        <label>Tom das respostas<input v-model="profile.tone" maxlength="200"></label>
-        <label>Preferências de escrita e assinatura<textarea v-model="profile.preferences" maxlength="600" rows="3"></textarea></label>
-        <label>Meu nome nos cabeçalhos do Octadesk — um por linha<textarea v-model="aliases" maxlength="480" rows="2" placeholder="Nome completo&#10;Nome abreviado"></textarea></label>
-        <label>Até 3 exemplos revisados — separe com uma linha ---<textarea v-model="examples" maxlength="6008" rows="5"></textarea></label>
-        <p>Guarde exemplos sem dados de clientes. O modelo recebe somente o perfil compacto e um trecho de exemplo; fatos de outros tickets não fazem parte do perfil.</p>
-      </details>
+      <p v-else>O login ChatGPT exige contexto enviado a cada chamada. A conversa continua salva no OctaBlaster; um recorte do ticket ajuda a reduzir a entrada.</p>
+      <div class="ai-behavior-section"><h4>Respostas no editor</h4>
+        <label class="ai-check"><input v-model="behavior.automaticReplies" type="checkbox">Sugerir automaticamente ao entrar no campo de resposta</label>
+        <p>A sugestão aparece para revisão quando o campo está vazio. Você também pode solicitar pelo botão junto de Marcar Licenças e Respostas. Nada é enviado ao cliente.</p>
+        <label class="ai-check"><input v-model="behavior.learnWriting" type="checkbox">Aprender com minhas respostas enviadas</label>
+        <p>Após a publicação ser confirmada no ticket, aprende apenas padrões como extensão, parágrafos e saudação. Não guarda textos de exemplo ou dados de clientes. Usado após três respostas confirmadas; apagado após 90 dias sem novas respostas.</p>
+        <button type="button" class="ai-text-action" :disabled="busy" @click="resetWriting">Apagar aprendizado de escrita</button>
+      </div>
       <details><summary>Retenção do histórico</summary>
         <label>Apagar após quantos dias sem uso?<input v-model.number="config.retention.idleDays" type="number" min="1" max="365"></label>
         <label>Idade máxima dos dados, em dias<input v-model.number="config.retention.maxDays" type="number" :min="config.retention.idleDays" max="365"></label>
@@ -62,12 +60,13 @@ onMounted(refresh);
         <button type="button" class="ai-text-action" :disabled="busy" @click="cleanup">Limpar dados expirados agora</button>
         <p v-if="config.pendingDeletes">{{ config.pendingDeletes }} exclusão(ões) remota(s) aguardando confirmação.</p>
       </details>
-      <button type="button" class="ai-save-config" :disabled="busy" @click="save(false)">Salvar conexão, perfil e memória</button>
+      <button type="button" class="ai-save-config" :disabled="busy" @click="save(false)">Salvar configurações</button>
     </template>
     <p role="status">{{ feedback }}</p>
   </article>
 </template>
 
 <style scoped>
-.ai-provider-card{padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);margin-bottom:16px}.ai-provider-card h3{font-size:15px;margin:0 0 12px}.ai-provider-card label{display:block;font-size:12px;margin-top:12px}.ai-provider-card input:not([type=checkbox]),.ai-provider-card select,.ai-provider-card textarea{display:block;box-sizing:border-box;width:100%;margin-top:6px;padding:9px;border:1px solid var(--border);border-radius:7px;background:var(--bg-input);color:var(--text-primary);font:12px/1.5 system-ui}.ai-provider-card p{font-size:11px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap}.ai-provider-card .ai-check{display:flex;gap:8px;align-items:flex-start;line-height:1.5}.ai-provider-card details{margin-top:18px;font-size:12px}.ai-provider-card summary{cursor:pointer;font-weight:600}.ai-save-config{width:100%;padding:10px;margin-top:18px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-text);font:600 12px system-ui;cursor:pointer}.ai-text-action{border:0;background:transparent;color:var(--text-secondary);text-decoration:underline;font:12px system-ui;cursor:pointer}.ai-provider-card button:disabled{opacity:.5}
+.ai-provider-card{padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);margin-bottom:16px}.ai-provider-card h3{font-size:13px;margin:0 0 12px}.ai-provider-card label{display:block;font-size:12px;margin-top:12px}.ai-provider-card input:not([type=checkbox]),.ai-provider-card select,.ai-provider-card textarea{display:block;box-sizing:border-box;width:100%;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-input);color:var(--text-primary);font:12px/1.5 system-ui}.ai-provider-card p{font-size:11px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap}.ai-provider-card .ai-check{display:flex;gap:8px;align-items:flex-start;line-height:1.5}.ai-provider-card details{margin-top:18px;font-size:12px}.ai-provider-card summary{cursor:pointer;font-weight:600}.ai-save-config{width:100%;padding:10px;margin-top:18px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-text);font:600 12px system-ui;cursor:pointer}.ai-text-action{border:0;background:transparent;color:var(--text-secondary);text-decoration:underline;font:12px system-ui;cursor:pointer}.ai-provider-card button:disabled{opacity:.5}
+.ai-behavior-section{margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}.ai-behavior-section h4{margin:0;font-size:12px;font-weight:600}.ai-provider-card input:focus,.ai-provider-card select:focus{outline:2px solid var(--accent-ring);border-color:var(--accent-border)}.ai-provider-card input[type=checkbox]{accent-color:var(--accent);margin:2px 0 0}.ai-provider-card details{padding-top:14px;border-top:1px solid var(--border)}
 </style>

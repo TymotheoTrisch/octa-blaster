@@ -1,14 +1,15 @@
+import { cleanupWriting, rememberWritingLocally } from '@/services/ai/writingMemory';
 import { createNativeAiClient } from '@/services/ai/nativeClient';
 import { createTicketChatStore, AI_RETENTION_KEY } from '@/services/storage/aiChatStorage';
 
-const actions = ['AI_STATUS', 'AI_CONNECT', 'AI_ACCOUNTS', 'AI_SELECT_ACCOUNT', 'AI_DISCONNECT', 'AI_MODELS', 'AI_PREFERENCES', 'AI_GENERATE', 'AI_CANCEL', 'AI_CHAT_LOAD', 'AI_CHAT_SAVE', 'AI_CONFIG', 'AI_CONFIG_SAVE', 'AI_PROFILE', 'AI_STYLE_SAVE', 'AI_CLEANUP'];
+const actions = ['AI_WRITING_LEARN', 'AI_STATUS', 'AI_CONNECT', 'AI_ACCOUNTS', 'AI_SELECT_ACCOUNT', 'AI_DISCONNECT', 'AI_MODELS', 'AI_PREFERENCES', 'AI_GENERATE', 'AI_CANCEL', 'AI_CHAT_LOAD', 'AI_CHAT_SAVE', 'AI_CONFIG', 'AI_CONFIG_SAVE', 'AI_PROFILE', 'AI_STYLE_SAVE', 'AI_CLEANUP'];
 export function createAiRouter(client = createNativeAiClient()) {
   const chats = createTicketChatStore();
   const pending = new Map<string, string>();
   const cancelled = new Set<string>();
   const ownerOf = (sender: any) => `${sender.tab?.id ?? 'ui'}:${sender.frameId ?? 0}`;
   return {
-    cleanup: () => chats.cleanup(),
+    cleanup: async () => { await cleanupWriting(); return chats.cleanup(); },
     canHandle: (action: string) => actions.includes(action),
     clearTab(tabId: number) { for (const [id, owner] of pending) if (owner.startsWith(`${tabId}:`)) { cancelled.add(id); void client.call('cancel', { requestId: id }).catch(() => {}); } },
     handleMessage(message: any, sender: any, respond: (value: unknown) => void) {
@@ -16,6 +17,10 @@ export function createAiRouter(client = createNativeAiClient()) {
       const ticketPage = (() => { try { const url = new URL(sender.tab?.url); return url.protocol === 'https:' && (url.hostname === 'app.octadesk.com' || url.hostname.endsWith('.octadesk.com')); } catch { return false; } })();
       if (!extensionPage && !ticketPage) { respond({ success: false, error: 'Origem não autorizada.' }); return true; }
       void (async () => {
+        if (message.action === 'AI_WRITING_LEARN') {
+          if (!ticketPage || typeof message.identity !== 'string' || !/^[a-f0-9]{64}$/.test(message.identity) || typeof message.text !== 'string' || message.text.length > 50000) throw new Error('Aprendizado de escrita inválido.');
+          await rememberWritingLocally(message.identity, message.text); return { saved: true };
+        }
         if (['AI_CONFIG', 'AI_CONFIG_SAVE', 'AI_CLEANUP'].includes(message.action) && !extensionPage) throw new Error('Abra as configurações de IA na extensão.');
         if (message.action === 'AI_CONFIG') { const result = await client.call('config'); await browser.storage.local.set({ octablaster_ai_history_namespace: result.historyNamespace || 'local' }); return result; }
         if (message.action === 'AI_CONFIG_SAVE') { const result = await client.call('configure', { config: message.config }); await browser.storage.local.set({ [AI_RETENTION_KEY]: result.retention, octablaster_ai_history_namespace: result.historyNamespace || 'local' }); await chats.cleanup(); return result; }
