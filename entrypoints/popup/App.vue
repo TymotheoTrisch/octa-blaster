@@ -91,7 +91,11 @@ const isSidebar = computed(() => {
 });
 
 let aiWindowId = 0;
-const panelNotification = (message: any) => { if (isSidebar.value && message.action === 'AI_PANEL_CHANGED' && message.reveal && message.windowId === aiWindowId) currentView.value = 'ai-chat'; };
+async function revealRequestedChat() {
+  const result = await browser.runtime.sendMessage({ action: 'AI_PANEL_REVEAL', windowId: aiWindowId });
+  if (result?.success && result.data) currentView.value = 'ai-chat';
+}
+const panelNotification = (message: any) => { if (isSidebar.value && message.action === 'AI_PANEL_CHANGED' && message.reveal && message.windowId === aiWindowId) void revealRequestedChat().catch(() => {}); };
 
 function setStatus(msg: string, type: 'success' | 'error' | 'info' = 'info') {
   statusMessage.value = msg;
@@ -523,7 +527,7 @@ onMounted(() => {
   void checkSidebarSupport();
   if (isSidebar.value) {
     browser.runtime.onMessage.addListener(panelNotification);
-    void browser.windows.getCurrent().then(async win => { aiWindowId = win.id!; const result = await browser.runtime.sendMessage({ action: 'AI_PANEL_GET', windowId: aiWindowId }); if (result?.success && result.data) currentView.value = 'ai-chat'; }).catch(() => {});
+    void browser.windows.getCurrent().then(async win => { aiWindowId = win.id!; await revealRequestedChat(); }).catch(() => {});
   }
   document.addEventListener('keydown', handleEscape);
 });
@@ -557,7 +561,6 @@ onUnmounted(() => {
       @open-discussions="openExternalUrl(GITHUB_DISCUSSIONS_URL)"
     />
 
-    <nav v-if="isSidebar && (currentView === 'templates' || currentView === 'ai-chat')" class="ai-side-tabs" aria-label="Seções do painel"><button type="button" :class="{active:currentView==='templates'}" @click="currentView='templates'">Respostas</button><button type="button" :class="{active:currentView==='ai-chat'}" @click="currentView='ai-chat'">Chat IA</button></nav>
     <transition name="fade">
       <div v-if="statusMessage" :class="['status-banner', `status-${statusType}`]">
         <span class="status-icon">
@@ -584,7 +587,7 @@ onUnmounted(() => {
       @back="returnToPreviousView"
       @changed="refreshCatalogs"
     />
-    <AiChatPanel v-else-if="currentView === 'ai-chat'" @settings="openView('ai')" />
+    <AiChatPanel v-else-if="currentView === 'ai-chat'" @back="currentView = 'templates'" @settings="openView('ai')" />
     <AiSettingsView v-else-if="currentView === 'ai'" @back="returnToPreviousView" />
     <TechniciansView
       v-else-if="currentView === 'technicians'"
@@ -664,7 +667,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.ai-side-tabs{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid var(--border);flex-shrink:0}.ai-side-tabs button{flex:1;padding:7px;border:0;border-radius:5px;background:transparent;color:var(--text-secondary);font:500 12px system-ui;cursor:pointer}.ai-side-tabs button.active{background:var(--accent-soft);color:var(--accent-soft-text)}
 .popup-container {
   display: flex;
   flex-direction: column;

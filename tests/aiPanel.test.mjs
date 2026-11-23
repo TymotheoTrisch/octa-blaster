@@ -70,3 +70,18 @@ test('cancelled or invalidated queries never append their late result',async()=>
     const state=await f.get();assert.equal(state.busy,false);assert.equal(state.ready,false);assert.ok(!JSON.stringify(state.messages).includes('RESPOSTA TARDIA'));assert.ok(f.calls.some(x=>x.action==='AI_CANCEL'));
   }finally{f.storage.restore();}
 });
+
+test('sidebar reveals chat only once per explicit ticket action, never just because a conversation exists', async () => {
+  const f = setup(); try {
+    const reveal = () => f.call({action:'AI_PANEL_REVEAL',windowId:9});
+    assert.equal((await reveal()).data,false);
+    await f.open(); await f.done();
+    assert.equal((await f.call({action:'AI_PANEL_REVEAL',windowId:9},source)).success,false);
+    assert.equal((await reveal()).data,true);
+    assert.equal((await reveal()).data,false);
+    assert.ok((await f.get()).messages.length);
+    await f.open('again'); await f.done();
+    assert.equal((await reveal()).data,true);
+    assert.equal((await reveal()).data,false);
+  } finally { f.storage.restore(); }
+});

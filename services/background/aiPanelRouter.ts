@@ -19,6 +19,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
   throw new Error('O navegador não disponibilizou o painel lateral.');
 }) {
   const sessions = new Map<number, Session>();
+  const pendingReveal = new Map<number, number>();
   const cache = new Map<string, { text: string; at: number }>();
   const changed = (windowId: number, reveal = false) => { void browser.runtime.sendMessage({ action: 'AI_PANEL_CHANGED', windowId, reveal }).catch(() => {}); };
   const active = (windowId: number, session: Session) => sessions.get(windowId) === session && !session.cancelled;
@@ -89,9 +90,9 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
     finally { session.request = undefined; if (active(windowId, session)) { session.state.busy = false; changed(windowId); } }
   }
   return {
-    clearTab(tabId: number) { for (const [windowId, session] of sessions) if (session.sender.tab.id === tabId) { cancel(session); sessions.delete(windowId); changed(windowId); } },
+    clearTab(tabId: number) { for (const [windowId, session] of sessions) if (session.sender.tab.id === tabId) { cancel(session); sessions.delete(windowId); pendingReveal.delete(windowId); changed(windowId); } },
     handleMessage(message: any, sender: any, respond: (value: any) => void): boolean | undefined {
-      if (!['AI_PANEL_OPEN', 'AI_PANEL_CONTEXT', 'AI_PANEL_GET', 'AI_PANEL_SEND', 'AI_PANEL_DRAFT', 'AI_PANEL_INSERT', 'AI_PANEL_CANCEL'].includes(message.action)) return;
+      if (!['AI_PANEL_OPEN', 'AI_PANEL_CONTEXT', 'AI_PANEL_GET', 'AI_PANEL_REVEAL', 'AI_PANEL_SEND', 'AI_PANEL_DRAFT', 'AI_PANEL_INSERT', 'AI_PANEL_CANCEL'].includes(message.action)) return;
       const content = !!sender.tab && allowed(sender.tab.url) && allowed(sender.url || sender.tab.url);
       const extension = !sender.tab || sender.url?.startsWith(browser.runtime.getURL('/'));
       const respondError = (error: unknown) => respond({ success: false, error: error instanceof Error ? error.message : 'Falha no painel de IA.' });
@@ -102,7 +103,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           const opened = openSidebar(sender.tab.windowId, message.alreadyOpened === true);
           const old = sessions.get(sender.tab.windowId); const previousSave = old ? persist(old).catch(() => {}) : Promise.resolve(); if (old) cancel(old);
           const session: Session = { state: { id: message.id, title: 'Conversa do ticket', messages: [], draft: '', busy: false, ready: false, status: 'Carregando o ticket…', error: '' }, sender, identity: message.identity, task: message.task, revision: null, save: previousSave, insertions: new Map(), cancelled: false };
-          sessions.set(sender.tab.windowId, session); changed(sender.tab.windowId, true);
+          sessions.set(sender.tab.windowId, session); pendingReveal.set(sender.tab.windowId, Date.now()); changed(sender.tab.windowId, true);
           Promise.resolve(opened).then(() => respond({ success: true }), respondError);
         } catch (error) { respondError(error); }
         return true;
@@ -111,6 +112,11 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
         const windowId = content ? sender.tab.windowId : message.windowId;
         if (!content && !extension) throw new Error('Origem não autorizada.');
         const session = sessions.get(windowId);
+        if (message.action === 'AI_PANEL_REVEAL') {
+          if (!extension) throw new Error('Abra o painel da extensão.');
+          const requestedAt = pendingReveal.get(windowId); pendingReveal.delete(windowId);
+          return !!session && requestedAt !== undefined && Date.now() - requestedAt < 15000;
+        }
         if (message.action === 'AI_PANEL_GET') { if (!extension) throw new Error('Abra o painel da extensão.'); return session?.state || null; }
         if (!session || session.state.id !== message.id) throw new Error('A conversa mudou. Abra pelo ticket novamente.');
         if (message.action === 'AI_PANEL_CONTEXT') {

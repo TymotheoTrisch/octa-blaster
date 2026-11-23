@@ -1,5 +1,7 @@
 # IA no painel lateral — proposta 1.3.0
 
+O painel lateral abre nas respostas rápidas, sem abas extras. O chat de IA só aparece após acioná-lo no ticket; a seta de voltar retorna às respostas rápidas. Reabrir a lateral não revela conversas antigas automaticamente.
+
 A integração opcional usa o painel lateral nativo da extensão para resumos, perguntas e respostas. Não abre modais ou campos extras na página do ticket. Auxiliar Windows 0.3.3; versão sujeita à aprovação da PR, sem release/tag publicada.
 
 ## Usar e atualizar
