@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ArrowLeft, Monitor, Sun, Moon, RotateCcw } from 'lucide-vue-next';
 import {
   BRAND_COLOR_PRESETS,
@@ -37,6 +37,9 @@ let appearanceBase: AppearanceSettings = { ...props.currentAppearance };
 const status = ref('');
 const statusIsError = ref(false);
 const busy = ref(false);
+let pendingSave: { appearance: AppearanceSettings; message: string } | null = null;
+let previewPersistTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingPreviewMessage: string | null = null;
 
 const themeOptions: ReadonlyArray<{ value: ThemeMode; label: string; icon: typeof Monitor }> = [
   { value: 'system', label: 'Sistema', icon: Monitor },
@@ -54,11 +57,10 @@ const isDefaultAppearance = computed(
 watch(
   () => props.currentAppearance,
   (next) => {
-    if (busy.value) return;
+    if (busy.value || pendingSave || previewPersistTimer !== null) return;
     theme.value = next.theme;
     brandColor.value = next.brandColor;
     logoInnerColor.value = next.logoInnerColor ?? '';
-    appearanceBase = { ...next };
   },
   { deep: true },
 );
@@ -76,6 +78,53 @@ onMounted(async () => {
     status.value = error instanceof Error ? error.message : 'Falha ao carregar aparência.';
   }
 });
+
+function clearPreviewPersistTimer() {
+  if (previewPersistTimer !== null) {
+    clearTimeout(previewPersistTimer);
+    previewPersistTimer = null;
+  }
+  pendingPreviewMessage = null;
+}
+
+function schedulePreviewPersist(message = 'Aparência salva.') {
+  if (previewPersistTimer !== null) {
+    clearTimeout(previewPersistTimer);
+  }
+  pendingPreviewMessage = message;
+  previewPersistTimer = setTimeout(() => {
+    previewPersistTimer = null;
+    const msg = pendingPreviewMessage ?? message;
+    pendingPreviewMessage = null;
+    void persistAppearance(theme.value, brandColor.value, logoInnerColor.value, msg);
+  }, 180);
+}
+
+async function flushAppearanceSave() {
+  busy.value = true;
+  statusIsError.value = false;
+  try {
+    while (pendingSave) {
+      const current = pendingSave;
+      pendingSave = null;
+      const saved = await saveAppearance(current.appearance, appearanceBase);
+      appearanceBase = { ...saved };
+      if (!pendingSave) {
+        theme.value = saved.theme;
+        brandColor.value = saved.brandColor;
+        logoInnerColor.value = saved.logoInnerColor ?? '';
+        status.value = current.message;
+        emit('changed', saved);
+      }
+    }
+  } catch (error) {
+    pendingSave = null;
+    statusIsError.value = true;
+    status.value = error instanceof Error ? error.message : 'Falha ao salvar aparência.';
+  } finally {
+    busy.value = false;
+  }
+}
 
 async function persistAppearance(
   nextTheme: ThemeMode,
@@ -111,26 +160,19 @@ async function persistAppearance(
   };
   emit('preview', next);
 
-  if (busy.value) return;
-  busy.value = true;
-  statusIsError.value = false;
-  try {
-    const saved = await saveAppearance(next, appearanceBase);
-    appearanceBase = { ...saved };
-    theme.value = saved.theme;
-    brandColor.value = saved.brandColor;
-    logoInnerColor.value = saved.logoInnerColor ?? '';
+  if (JSON.stringify(next) === JSON.stringify(appearanceBase) && !busy.value && !pendingSave) {
+    statusIsError.value = false;
     status.value = message;
-    emit('changed', saved);
-  } catch (error) {
-    statusIsError.value = true;
-    status.value = error instanceof Error ? error.message : 'Falha ao salvar aparência.';
-  } finally {
-    busy.value = false;
+    return;
   }
+
+  pendingSave = { appearance: next, message };
+  if (busy.value) return;
+  await flushAppearanceSave();
 }
 
 function selectTheme(nextTheme: ThemeMode) {
+  clearPreviewPersistTimer();
   void persistAppearance(nextTheme, brandColor.value, logoInnerColor.value);
 }
 
@@ -143,9 +185,11 @@ function handleBrandPreview(color: string) {
     brandColor: normalized,
     ...(logoInnerColor.value ? { logoInnerColor: logoInnerColor.value } : {}),
   });
+  schedulePreviewPersist();
 }
 
 function handleBrandCommit(color: string) {
+  clearPreviewPersistTimer();
   void persistAppearance(theme.value, color, logoInnerColor.value);
 }
 
@@ -153,6 +197,7 @@ function handleLogoInnerPreview(color: string) {
   if (!color.trim()) {
     logoInnerColor.value = '';
     emit('preview', { theme: theme.value, brandColor: brandColor.value });
+    schedulePreviewPersist();
     return;
   }
   const normalized = normalizeHexColor(color);
@@ -163,18 +208,22 @@ function handleLogoInnerPreview(color: string) {
     brandColor: brandColor.value,
     logoInnerColor: normalized,
   });
+  schedulePreviewPersist();
 }
 
 function handleLogoInnerCommit(color: string) {
+  clearPreviewPersistTimer();
   void persistAppearance(theme.value, brandColor.value, color);
 }
 
 function handleInvalidHex() {
+  clearPreviewPersistTimer();
   statusIsError.value = true;
   status.value = 'Código hexadecimal inválido. Ex.: #ffc600';
 }
 
 function resetDefaults() {
+  clearPreviewPersistTimer();
   void persistAppearance(
     DEFAULT_APPEARANCE.theme,
     DEFAULT_BRAND_COLOR,
@@ -182,6 +231,14 @@ function resetDefaults() {
     'Aparência padrão restaurada.',
   );
 }
+
+onBeforeUnmount(() => {
+  if (previewPersistTimer !== null) {
+    const msg = pendingPreviewMessage ?? 'Aparência salva.';
+    clearPreviewPersistTimer();
+    void persistAppearance(theme.value, brandColor.value, logoInnerColor.value, msg);
+  }
+});
 </script>
 
 <template>
@@ -241,7 +298,6 @@ function resetDefaults() {
         <ColorSwatchPicker
           :model-value="brandColor"
           :presets="BRAND_COLOR_PRESETS"
-          :disabled="busy"
           :fallback-picker-color="DEFAULT_BRAND_COLOR"
           placeholder="#ffc600"
           aria-label="Cores sugeridas para a marca"
@@ -262,7 +318,6 @@ function resetDefaults() {
           :presets="LOGO_INNER_COLOR_PRESETS"
           :allow-clear="true"
           clear-label="Automático (tema)"
-          :disabled="busy"
           fallback-picker-color="#ffffff"
           placeholder="Automático (tema)"
           aria-label="Cores sugeridas para a cor secundária"
