@@ -9,6 +9,7 @@ export default defineConfig({
     description: 'Respostas prontas automatizadas, injeção rápida de texto e automação de licenças para tickets no Octadesk',
     version: packageInfo.version,
     permissions: ['storage', 'activeTab', 'tabs', 'nativeMessaging', 'clipboardWrite'],
+    web_accessible_resources: [{ resources: ['ai-trigger.html', 'chunks/*', 'assets/*'], matches: ['*://*.octadesk.com/*'] }],
     host_permissions: ['*://app.octadesk.com/*', '*://*.octadesk.com/*'],
     browser_specific_settings: {
       gecko: {

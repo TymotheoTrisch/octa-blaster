@@ -27,7 +27,7 @@ import {
 } from '@/services/appearance/iconGeometry';
 import type { ThemeMode } from '@/services/storage/settingsSchema';
 
-export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians' | 'appearance' | 'ai';
+export type PopupView = 'templates' | 'variables' | 'tags' | 'shortcuts' | 'technicians' | 'appearance' | 'ai' | 'ai-chat';
 
 defineProps<{
   isSidebar: boolean;

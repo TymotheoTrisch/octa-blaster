@@ -47,8 +47,7 @@ onMounted(refresh);
       </template>
       <p v-else>O login ChatGPT exige contexto enviado a cada chamada. A conversa continua salva no OctaBlaster; um recorte do ticket ajuda a reduzir a entrada.</p>
       <div class="ai-behavior-section"><h4>Respostas no editor</h4>
-        <label class="ai-check"><input v-model="behavior.automaticReplies" type="checkbox">Abrir orientação de resposta ao entrar no editor</label>
-        <p>Ao entrar no editor vazio, abre e foca o campo para você explicar como responder. A IA só gera após enviar essa orientação. Você também pode abrir pelo botão Sugerir resposta. Nada é enviado ao cliente.</p>
+        <p>Digite no próprio editor o que deseja responder. O ícone de IA aparece no canto superior direito quando há texto; clique para gerar no chat lateral. Cada mensagem da IA pode ser inserida no ticket para revisão.</p>
         <label class="ai-check"><input v-model="behavior.learnWriting" type="checkbox">Adaptar o estilo com minhas respostas enviadas</label>
         <p>Após confirmar a publicação, guarda apenas médias de tamanho, parágrafos e uso de saudação/encerramento. Não aprende assinaturas, nomes ou empresas e não treina o modelo. Usado após três respostas confirmadas; apagado após 90 dias sem novas respostas.</p>
         <button type="button" class="ai-text-action" :disabled="busy" @click="resetWriting">Apagar aprendizado de escrita</button>

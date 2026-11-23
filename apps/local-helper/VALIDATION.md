@@ -2,6 +2,17 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Painel lateral e orientação no editor — extensão 1.3.0 / auxiliar 0.3.3
+
+- 146 testes da extensão, 54 do auxiliar e 4 do gateway aprovados; TypeScript e builds Chrome/Firefox verificados nesta entrega.
+- Firefox real, perfil isolado e ticket fictício em HTTPS: clique no botão embarcado da extensão abre o painel lateral nativo. O botão envia o gesto de uma página da extensão ao background; um clique comum do content script não habilita essa API no Firefox. Teste sem permissão Native Messaging e sem inferência.
+- Chromium com extensão real e fixture Angular em iframe: abertura do painel nativo, chat compartilhado, inserção por mensagem no editor público correto, ícone no canto do editor, nenhuma consulta ao digitar, substituição protegida do rascunho, ausência de modal e cache de resumo. Transporte de IA e respostas fictícios.
+- Auxiliar 0.3.3 instalado neste computador, preservando as credenciais. Firefox real confirmou leitura de configuração pública via Native Messaging; credenciais permaneceram mascaradas e nenhuma inferência foi executada.
+- Testes de roteamento cobrem histórico/rascunho persistentes, isolamento por ticket/frame, edição de perguntas, conteúdo/configuração como chave de cache, assinatura do destinatário e descarte de retorno após cancelamento ou troca de contexto.
+- Auxiliar: saída limitada por tarefa nas APIs (768/1536/2048 tokens) e geração sem aguardar DELETE remoto pendente. Limpeza por expiração continua executada na manutenção e para a sessão consultada.
+- Não foi medida latência de modelo real nem qualidade do atendimento no Octadesk de produção. O contador mostra tempo da consulta inteira. Não há streaming de tokens nesta entrega; o painel exibe o resultado quando a consulta termina.
+- Os registros abaixo documentam versões anteriores; os antigos modais e campos separados foram removidos em 1.3.0.
+
 ## Continuidade do e-mail e orientação antes da geração — extensão 1.2.3
 
 - 170 testes da extensão aprovados, TypeScript e builds Chrome/Firefox concluídos. Auxiliar 0.3.2 e gateway sem alterações nesta entrega; suas suítes anteriores continuam com 53 e 4 testes, respectivamente.

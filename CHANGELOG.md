@@ -8,14 +8,15 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ## [Não lançado]
 
 ### Adicionado
-- Proposta 1.2.0 / auxiliar 0.3.0: APIs OpenAI, Gemini, Claude, NVIDIA e servidor da equipe, com credenciais protegidas, continuação remota quando suportada e contexto compacto nos demais casos.
-- Perfil de escrita e até 3 exemplos revisados a partir do HTML, com autoria conferida. Botão para sugerir uma resposta no chat sem alterar ou enviar o rascunho do atendente.
-- Retenção configurável (30 dias sem uso/90 dias de idade máxima por padrão), limpeza local e tentativas de exclusão remota com pendências visíveis. Backend opcional com credenciais individuais, quotas persistentes e estado criptografado.
-- Resumos de mensagens flutuantes com rolagem, margem, sombra e dimensões que acompanham o corpo do e-mail, sem alterar o HTML original; botões menores com tema e cores da extensão. “Resumir ticket” junto ao número, com cópia de respostas completas e edição das próprias perguntas. Versão proposta: 1.2.0, sobre a release oficial 1.0.1, para avaliação dos mantenedores.
-- Histórico do chat e perguntas não enviadas salvos por ticket no armazenamento privado da extensão. Fechar/reabrir ou recarregar recupera a conversa sem outra inferência; novas mensagens atualizam o contexto das perguntas seguintes. Gravações concorrentes detectam conflito em vez de sobrescrever a conversa de outra aba.
-- Login ChatGPT persistente com renovação e credenciais DPAPI no Windows; inicialização automática via Native Messaging no Firefox após instalação única, sem testes ou códigos manuais.
-- Instalador Windows com janela própria, sem comandos manuais; recuperação de locks antigos confere o nascimento do processo para não confundir PIDs reutilizados nem perder o login salvo.
-- Carregamento das interações intermediárias antes do resumo geral, indicação de cobertura/truncamento e descarte de respostas canceladas ou de outro ticket. O compositor anterior de geração/inserção de e-mails foi removido nesta etapa.
+- Proposta 1.3.0 / auxiliar 0.3.3: resumos de e-mail e ticket abrem o chat no painel lateral nativo. Conversas e perguntas não enviadas persistem por ticket; cada resposta permite copiar e inserir no editor original, e perguntas podem ser editadas.
+- Ícone de IA no canto superior direito do editor público quando há texto. A orientação é digitada no próprio rascunho; somente o clique consulta a IA. A substituição exige que o rascunho original continue intacto, sem envio automático ao cliente.
+- APIs OpenAI, Gemini, Claude, NVIDIA e gateway opcional de equipe, com credenciais protegidas, continuação remota quando suportada e contexto compacto nos demais casos. Login ChatGPT e inicialização do auxiliar via Native Messaging no Firefox/Windows após instalação gráfica única.
+- Retenção configurável, padrões numéricos de escrita aprendidos após publicação confirmada e proteção contra assinatura do destinatário. Não há formulário de perfil nem exemplos de respostas arquivados.
+
+### Alterado
+- Modais, prévias flutuantes e campo separado de orientação substituídos pelo chat lateral. Controles compactos usam as cores da extensão.
+- Cache temporário de resumos idênticos e recuperação da conversa evitam consultas repetidas. Orçamentos de saída menores nas APIs e exclusões remotas fora do caminho da geração reduzem espera evitável.
+- Última release oficial 1.0.1 e main `ff7752d` incorporadas. Esta proposta depende de revisão dos mantenedores; nenhuma release ou tag foi publicada.
 
 ---
 

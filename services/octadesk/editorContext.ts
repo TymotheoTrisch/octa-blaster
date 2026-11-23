@@ -135,7 +135,7 @@ export function initEditorContext(doc: Document = document): EditorContext {
   browser.runtime.onMessage.addListener(
     (message: unknown, sender, sendResponse: (res: InsertMessageResponse) => void) => {
       const req = message as InsertMessageRequest;
-      if (!req || sender.id !== browser.runtime.id) return;
+      if (!req || sender.id !== browser.runtime.id || !['INSERT_REPLY', 'CHECK_LICENSE_TICKET', 'AUTOMATE_LICENSE_MENTIONS'].includes(req.action)) return;
       const selected = findBestEditableElement();
       if (!selected || req.editorToken !== editorTokens.get(selected)) {
         sendResponse({ success: false, error: 'Clique novamente no campo de resposta do ticket.' });

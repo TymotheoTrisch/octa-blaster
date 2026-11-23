@@ -23,7 +23,7 @@ export function createAiRouter(client = createNativeAiClient()) {
         }
         if (['AI_CONFIG', 'AI_CONFIG_SAVE', 'AI_CLEANUP'].includes(message.action) && !extensionPage) throw new Error('Abra as configurações de IA na extensão.');
         if (message.action === 'AI_CONFIG') { const result = await client.call('config'); await browser.storage.local.set({ octablaster_ai_history_namespace: result.historyNamespace || 'local' }); return result; }
-        if (message.action === 'AI_CONFIG_SAVE') { const result = await client.call('configure', { config: message.config }); await browser.storage.local.set({ [AI_RETENTION_KEY]: result.retention, octablaster_ai_history_namespace: result.historyNamespace || 'local' }); await chats.cleanup(); return result; }
+        if (message.action === 'AI_CONFIG_SAVE') { const result = await client.call('configure', { config: message.config }); await browser.storage.local.set({ octablaster_ai_config_revision: crypto.randomUUID(), [AI_RETENTION_KEY]: result.retention, octablaster_ai_history_namespace: result.historyNamespace || 'local' }); await chats.cleanup(); return result; }
         if (message.action === 'AI_CLEANUP') return { ...await chats.cleanup(), ...await client.call('cleanup') };
         if (message.action === 'AI_PROFILE') { const config = await client.call('config'); const profile = config.profiles.find((item: any) => item.id === config.profileId); return { name: profile?.name || '', aliases: profile?.aliases || [], retention: config.retention }; }
         if (message.action === 'AI_STYLE_SAVE') { if (!ticketPage || typeof message.author !== 'string' || message.author.length > 120 || typeof message.text !== 'string' || !message.text.trim() || message.text.length > 2000) throw new Error('Exemplo de estilo inválido.'); return client.call('style', { author: message.author, text: message.text }); }
@@ -48,7 +48,7 @@ export function createAiRouter(client = createNativeAiClient()) {
         }
         if (message.action === 'AI_DISCONNECT') return client.call('disconnect');
         if (message.action === 'AI_MODELS') return client.call('models');
-        if (message.action === 'AI_PREFERENCES') { if (typeof message.model !== 'string' || !message.model || message.model.length > 160) throw new Error('Modelo inválido.'); return client.call('preferences', { model: message.model }); }
+        if (message.action === 'AI_PREFERENCES') { await browser.storage.local.set({ octablaster_ai_config_revision: crypto.randomUUID() }); if (typeof message.model !== 'string' || !message.model || message.model.length > 160) throw new Error('Modelo inválido.'); return client.call('preferences', { model: message.model }); }
         if (message.action === 'AI_CANCEL') { if (pending.get(message.requestId) === ownerOf(sender)) { cancelled.add(message.requestId); await client.call('cancel', { requestId: message.requestId }); } return { cancelled: true }; }
         if (message.action === 'AI_GENERATE') {
           const input = message.input;

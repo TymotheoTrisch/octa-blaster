@@ -1,140 +1,55 @@
-# IA local — resumos do ticket
+# IA no painel lateral — proposta 1.3.0
 
-Entrega proposta 1.2.3, auxiliar 0.3.2, sobre a release oficial v1.0.1 e `main` (`ff7752d`) incorporadas nesta branch. Inclui resumos, conversa persistente, APIs de diferentes provedores, aprendizado de padrões de escrita sem exemplos e retenção automática.
+A integração opcional usa o painel lateral nativo da extensão para resumos, perguntas e respostas. Não abre modais ou campos extras na página do ticket. Auxiliar Windows 0.3.3; versão sujeita à aprovação da PR, sem release/tag publicada.
 
-## Plano executado
+## Usar e atualizar
 
-1. Incorporar a arquitetura, temas e cores da `main` atual.
-2. Substituir o compositor anterior por controles nos cabeçalhos nativos do ticket e das mensagens.
-3. Simplificar a conexão com Native Messaging no Firefox, sessão persistente e renovação automática.
-4. Validar isolamento, cancelamento, HTML Angular, iframe, responsividade e comunicação nativa; gerar o build para homologação.
+Extraia o pacote completo do auxiliar e execute **Instalar-IA-Firefox.exe** com dois cliques. A instalação gráfica precisa de Node.js 22.22.2+ e pnpm 10+ já instalados. Não exige administrador nem comandos digitados pelo usuário. Registra `com.octablaster.ai` em HKCU e instala o runtime em `%LOCALAPPDATA%\OctaBlaster\Auxiliar`, preservando credenciais DPAPI do usuário do Windows. O Firefox inicia o auxiliar sob demanda.
 
-## Usar no Firefox
+Carregue/recarregue o manifesto Firefox da extensão e atualize os tickets abertos. Configure a conexão em **Inteligência artificial**. O login ChatGPT abre a autorização oficial; as APIs usam credencial e modelo disponíveis na conta do usuário. Salvar uma credencial não faz inferência nem comprova acesso ao modelo.
 
-Extraia o pacote `octablaster-local-helper-0.3.2-windows.zip` inteiro e abra **Instalar-IA-Firefox.exe** com dois cliques, também para atualizar uma versão anterior. A instalação tem janela própria e executa a preparação em segundo plano; não é necessário digitar comandos ou abrir CMD. Precisa de Node.js 22.22.2+ e pnpm 10+ instalados. O instalador não exige administrador: registra o host nativo somente para o usuário atual. Copia o runtime para `%LOCALAPPDATA%\OctaBlaster\Auxiliar` e registra `com.octablaster.ai` no Firefox, autorizado apenas para a extensão `octablaster@pulz.dev.br`.
+Para homologar mantendo a extensão oficial, use outro perfil do Firefox: o ID é o mesmo e as duas versões não são independentes no mesmo perfil. O auxiliar/credenciais são compartilhados pelo usuário do Windows. Não desinstale a oficial para fazer um teste.
 
-Carregue `.output/firefox-mv2/manifest.json` em `about:debugging#/runtime/this-firefox` (ou extraia o ZIP Firefox e carregue seu manifesto). Recarregue os tickets abertos para substituir o content script antigo.
+## Resumos e chat
 
-Na extensão, abra **Mais opções → Inteligência artificial → Entrar com ChatGPT**. O login abre diretamente a página oficial. Ao concluir, pode fechar a aba de confirmação. O modelo padrão é selecionado entre os disponíveis; pode alterá-lo na tela de conexão. Contas já cadastradas podem ser selecionadas sem recriar o registro, e há uma ação separada para adicionar outra conta. O uso diário não exige abrir o site local, executar testes, gerar códigos ou manter CMD aberto: o Firefox inicia o auxiliar sob demanda.
+**Resumir** no cabeçalho do e-mail abre a lateral e analisa somente a mensagem selecionada. **Resumir ticket** abre a mesma lateral, carrega as interações disponíveis e resume o ticket. O chat mostra o título do ticket; a aba **Respostas** mantém as respostas rápidas da extensão.
 
-O auxiliar atualizado já foi instalado neste computador. Um teste com Firefox real iniciou o serviço desligado e recuperou a sessão salva sem novo login nem inferência. A versão 0.2.1 corrige o bloqueio antigo cujo PID havia sido reutilizado por outro programa após reiniciar o computador: agora confere também o nascimento do processo, sem encerrar o programa alheio nem apagar as credenciais. Não é necessário hospedar servidor para esse fluxo local.
+A conversa é salva por ticket/origem/workspace/conexão. Perguntas seguem o contexto atualizado e usam até seis pares recentes de histórico. Perguntas próprias podem ser editadas, gerando uma continuação a partir daquele ponto. Fechar a lateral não apaga a conversa e não inicia outra consulta. Reabrir o ticket sem mudança de conteúdo recupera o chat sem gerar outro resumo.
 
-## Login e validade
+Cada mensagem da IA tem **Copiar** e **Inserir no ticket**. Inserir usa o editor do ticket/frame de origem, exige que a aba esteja ativa e não envia nada ao cliente. Troca de ticket ou rascunho invalida referências de geração/inserção antigas.
 
-Os cinco minutos do desenho anterior eram a validade do código de pareamento, não a duração do login. Agora esse pareamento ocorre internamente, sem códigos manuais; a chave não chega à interface nem ao armazenamento da extensão.
+No Firefox, os gatilhos são botões numa pequena página da extensão embutida no cabeçalho/editor: o clique é encaminhado ao background como gesto da extensão. Isso permite abrir a lateral com um único clique respeitando a restrição do navegador. No Chrome usa o evento do botão e `sidePanel.open` diretamente no background, sem awaits antes da abertura. Referências: [Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/User_actions), [Chrome](https://developer.chrome.com/docs/extensions/reference/api/sidePanel).
 
-A autorização pertence à conta ChatGPT selecionada. Access token, refresh token e registro por conta ficam protegidos pela DPAPI CurrentUser do Windows em `%LOCALAPPDATA%\OctaBlaster\ChatGPT-Local`. A renovação é serializada e salva o token substituto. Reiniciar o navegador ou o computador não apaga a sessão. Expiração definitiva, revogação ou uma permissão insuficiente podem exigir novo login.
+## Resposta a partir do texto digitado
 
-A validade é definida pelo provedor e não pode ser configurada como um tempo arbitrário. Esta autorização é própria do aplicativo: não copia cookies do navegador e não equivale ao estado de login do site ChatGPT. Para encerrar a sessão do auxiliar, use **Sair** na extensão. Confira também os controles de acesso/uso do aplicativo na conta ChatGPT. Cada resumo/pergunta consome o uso autorizado; não há chave de API tradicional nem alternativa paga automática.
+Digite no **próprio editor de resposta pública** o que deseja comunicar, por exemplo: Peça ao cliente que confirme o funcionamento. Um pequeno ícone de IA aparece no canto superior direito do editor. Digitar ou focar não chama a IA. O clique no ícone abre a lateral e gera uma resposta usando a orientação e os fatos do ticket. A ação na barra do widget também utiliza o texto já digitado.
 
-O resumo inicial é gerado automaticamente também quando o registro salvo está vazio. Falha ou espera superior a seis segundos ao carregar o histórico permite gerar nesta janela, com aviso de que ela não será salva.
+Não há input de orientação separado nem geração automática ao entrar no editor. A sugestão permanece no chat. Ao escolher **Inserir no ticket** nessa resposta, a extensão substitui a orientação somente se o rascunho continuar exatamente igual ao snapshot capturado. Se você editar durante a espera, a inserção é recusada. Mensagens comuns do chat usam a inserção normal, como as respostas rápidas.
 
-## Resumir uma mensagem
+Não infere equipe/empresa do atendente a partir do rodapé do cliente. Os cabeçalhos identificam autores/papéis quando disponíveis. O modelo deve omitir assinaturas; a resposta sugerida passa também por remoção de encerramentos e rodapés comuns. Essa proteção não é um classificador universal de identidades em texto livre. Toda saída deve ser revisada antes do envio manual.
 
-O botão **Resumir** aparece no cabeçalho de cada mensagem carregada, antes das ações nativas de abrir em outra aba. Funciona em qualquer tipo de ticket, sem depender de licença ou de selecionar o editor.
+## Espera, cache e limites
 
-O resultado aparece em uma camada flutuante acima da página, com sombra, bordas arredondadas e margem interna em relação ao corpo da mensagem. Não envolve, move, estreita nem altera o HTML do e-mail. Usa o top layer do navegador para escapar do recorte de `.comment.collapse`. Prefere abrir acima do botão quando houver espaço; caso contrário, abre abaixo, limitado à área visível.
+A consulta mostra preparação, espera pela IA e tempo total de consulta. A duração inclui transporte/auxiliar/provedor; não é uma medição isolada da geração no servidor. Os testes usam respostas simuladas e não permitem estimar a latência real do Nemotron na conta do usuário.
 
-A largura acompanha o corpo da mensagem até 520px, com 16px de afastamento. A altura acompanha a expansão/recolhimento do corpo, entre 180 e 440px, limitada pela janela e com rolagem interna. Um `ResizeObserver` recalcula as dimensões e o posicionamento também acompanha rolagem e redimensionamento da janela. Os botões compactos de 22px, ícones, cores, tema e sombra reutilizam a identidade visual da extensão. O resumo envia somente o texto daquela mensagem.
+Resumos idênticos usam cache em memória de até 20 entradas/15 minutos, chaveado por conteúdo/tarefa/conexão/revisão de configuração. Mudança de conteúdo ou configuração invalida o reuso. Reabrir o chat do ticket com o mesmo digest recupera a conversa salva. O cache não é usado para gerar uma resposta nova a partir de outra orientação.
 
-## Resumir o ticket
+O auxiliar não espera exclusões HTTP de referências antigas antes de inferir. A limpeza remota fica no ciclo de manutenção; a expiração local do ticket consultado continua sendo validada. Orçamentos máximos nas APIs: 768 tokens para resumo de e-mail, 1536 para resumo geral e 2048 para perguntas/respostas. O login ChatGPT usa somente os parâmetros de seu fluxo autorizado. Saída interrompida/truncada é recusada, sem retry de inferência ou fallback pago automático.
 
-**Resumir ticket** aparece junto ao número e status. Abre uma conversa com resumo inicial, campo de perguntas e fechamento. Cada resposta da IA tem **Copiar resposta inteira**, que copia somente seu texto completo. Cada pergunta sua tem **Editar pergunta**, com Cancelar e Salvar e reenviar (ou Ctrl/Cmd+Enter). A edição refaz a resposta a partir daquele ponto e remove as interações seguintes; se falhar, preserva a conversa anterior e o texto corrigido para nova tentativa.
+O modelo/provedor ainda pode levar tempo para produzir o resultado; não há promessa de redução fixa nem benchmark real com dados de atendimento. Anexos, imagens e citações de e-mail não entram no contexto extraído; o texto é limitado a 50.000 caracteres e pode sofrer recorte nas perguntas.
 
-O resumo tenta abrir **Todas as interações** antes da análise. Se o carregamento não puder ser confirmado, avisa no contexto disponível. O chat mostra a cobertura: mensagens antigas não carregadas, anexos e imagens não foram analisados. Não presume acesso a conversas do ChatGPT ou a outros tickets.
+## Dados, estilo e credenciais
 
-Para perguntar, digite e pressione **Enter**; **Shift+Enter** quebra a linha. O histórico recente é enviado apenas nas perguntas de continuidade (até seis pares, 24.000 caracteres). A conversa completa e o texto ainda não enviado ficam no armazenamento privado local da extensão, separados por origem, workspace (quando disponível no shell) e número/identificador do ticket. Não são gravados no `localStorage` da página nem incluídos no backup de respostas rápidas. O conteúdo integral do e-mail não é arquivado: salva-se somente uma impressão SHA-256 do contexto junto das mensagens do chat e do rascunho da pergunta.
+O chat/draft ficam em `browser.storage.local`, fora dos backups de respostas rápidas e do localStorage do Octadesk. O contexto bruto permanece transitório na memória do background; não é arquivado como HTML. Mensagens do chat podem conter dados do atendimento. Falha no armazenamento é informada sem esconder a resposta gerada. Troca de conexão da equipe separa namespaces do histórico.
 
-Fechar salva o chat, cancela a solicitação em andamento e mantém a pergunta interrompida como texto para retomar. Ao reabrir ou recarregar a página/extensão/navegador, uma conversa com respostas é recuperada sem gerar outro resumo nem consumir uma nova chamada de IA. Se o ticket recebeu novas informações, o chat anterior é mantido, a tela avisa e a próxima pergunta usa o conteúdo atualizado. Uma troca de ticket durante a análise ainda cancela respostas tardias.
+A adaptação opcional de estilo guarda somente médias numéricas de tamanho/parágrafos/saudação/encerramento, após publicação confirmada do rascunho. Não aprende assinaturas/nomes/empresas nem treina o modelo. Usa padrões após três respostas; permite apagar/desabilitar. Retenção de padrões: 90 dias sem novas respostas. Retenção padrão de chats: 30 dias sem uso e 90 dias de idade máxima, configurável entre 1 e 365 dias.
 
-O armazenamento pertence ao perfil do navegador; não sincroniza com outro computador ou com o site ChatGPT. Limpar os dados da extensão ou removê-la pode apagar o histórico. O histórico de tickets pode conter dados do atendimento; não utiliza a DPAPI do auxiliar, que também protege perfis, referências remotas e notas curtas do contexto. Revisões e uma fila no background impedem que duas abas sobrescrevam silenciosamente a mesma conversa. Falha de gravação/quota é informada na conversa. O limite por conversa é de 1.000 mensagens e 1.000.000 de caracteres serializados, sujeito à política de retenção descrita abaixo.
+Credenciais, sessões e referências remotas ficam protegidas pela DPAPI no Windows. APIs disponíveis: OpenAI Responses, Gemini Interactions, Claude Messages, NVIDIA Chat Completions; gateway HTTPS de equipe opcional em `apps/team-gateway`, ainda não implantado. O endpoint NVIDIA Build exige confirmação de que o acordo permite os dados de atendimento. O login ChatGPT não importa chats/memórias do site e usa `store:false`; APIs com estado remoto não tornam tokens anteriores gratuitos.
 
-## Sugestões e aprendizado de escrita
+O gateway e o auxiliar reutilizam os adaptadores e o motor de contexto. O runtime local/instalador foi homologado no Windows/Firefox. Os testes do Chrome usam transporte fictício; a instalação nativa do Chrome não é fornecida por esse instalador Firefox.
 
-Não há formulário de persona, produtos, preferências ou exemplos. As instruções manuais antigas não participam das novas gerações; salvar as configurações remove esses campos antigos do perfil ativo.
+## Desenvolvimento e homologação
 
-Em **Inteligência artificial → Respostas no editor**, habilite **Abrir orientação de resposta ao entrar no editor** e salve. O padrão é somente quando solicitado. Ao focar/clicar no editor de resposta pública vazio, abre um componente flutuante com o campo Como você quer responder? já focado. Nenhuma inferência ocorre antes de enviar uma frase de orientação por Enter ou Gerar resposta. Shift+Enter permite nova linha. **Sugerir resposta**, junto de **Marcar Licenças** e **Respostas**, permite solicitar manualmente. O chat de resumo não tem mais esse botão. O texto só entra no editor por **Usar no rascunho** e apenas se ele continuar vazio; nada é enviado ao cliente.
+Use `pnpm compile`, `pnpm test`, `pnpm build`, `pnpm build:firefox`, `pnpm --dir apps/local-helper test` e `pnpm test:gateway`. `pnpm zip:firefox` gera o pacote da extensão. Compile o instalador gráfico com `windows/BuildInstaller.ps1`; inclua o executável com os arquivos do auxiliar no ZIP, sem node_modules, dados locais ou credenciais.
 
-O mesmo contexto não reabre automaticamente o componente a cada refoco; o botão manual permite abri-lo novamente. Editar a orientação não dispara outra geração: é preciso enviá-la novamente. Falha permite nova tentativa. Digitação, troca de ticket ou mudança das mensagens descarta a resposta tardia. Anotação interna não dispara a geração automática.
-
-**Adaptar o estilo com minhas respostas enviadas** guarda somente médias numéricas de extensão, quantidade de parágrafos e frequência de saudação/encerramento. O aprendizado exige identidade no avatar do compositor e confirmação de um comentário novo igual ao rascunho submetido no mesmo ticket; clicar em Enviar sem confirmação não ensina. A versão final editada pelo usuário é a referência. Não arquiva exemplos nem nomes/dados do texto. Após três respostas confirmadas, usa uma instrução curta só nas sugestões. Falta de autoria ou publicação confirmada significa ausência de aprendizado.
-
-Os padrões ficam no armazenamento privado da extensão, separados por workspace, atendente e conexão da equipe, fora do backup de respostas rápidas. Limitados a 20 identidades, com exclusão de padrões sem novas respostas por 90 dias na inicialização, periodicamente e nas consultas. Desligar e salvar apaga os padrões; **Apagar aprendizado de escrita** redefine imediatamente. Não é ajuste dos pesos do modelo nem memória do site ChatGPT. O reconhecimento de preferências semânticas/vocabulário ainda não é implementado.
-
-A pesquisa de referência recomenda contexto relevante e compacto: [OpenAI](https://developers.openai.com/api/docs/guides/prompt-engineering) e [Anthropic](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents). Essas referências orientam o desenho, não comprovam a qualidade do aprendizado desta extensão.
-
-## Conexões, contexto e cobrança
-
-Atualize com o pacote `octablaster-local-helper-0.3.2-windows.zip`: extraia inteiro e abra **Instalar-IA-Firefox.exe**. Na extensão, escolha conexão/modelo e salve. Campo de chave vazio mantém a existente; há ação explícita de remover. Salvar não executa inferência nem comprova acesso ao modelo. Credenciais são protegidas com DPAPI e não são devolvidas à interface, incluídas em backups ou registradas em logs.
-
-| Conexão | Continuação |
-| --- | --- |
-| Login ChatGPT | Exige `store: false`; o contexto precisa ser enviado a cada chamada. |
-| OpenAI API | Pode usar `store: true` e `previous_response_id`. A continuação envia a nova pergunta, mas o contexto anterior ainda conta como entrada. |
-| Gemini API | Usa Interactions e `previous_interaction_id` quando habilitado. Retenção/cache dependem do projeto e do provedor. |
-| Claude API | Usa Messages com histórico e indicações de cache efêmero; não promete conversa permanente no provedor. |
-| NVIDIA API | Usa Chat Completions compatível com OpenAI. O endpoint Build restringe dados pessoais/confidenciais; só habilite se seu acordo permitir os dados enviados. |
-| Servidor da equipe | Origem HTTPS e credencial pessoal; o administrador mantém chaves, política e limites. Veja [backend da equipe](../apps/team-gateway/README.md). |
-
-Armazenamento não torna tokens de contexto gratuitos. Cadeias remotas são renovadas após 12 interações, mudança de contexto/perfil/modelo ou edição de perguntas. Um contexto remoto expirado gera um erro; não há repetição automática de inferência nem fallback pago. A nova tentativa manual reconstrói a cadeia.
-
-Sem continuação remota, perguntas usam um recorte de até 14.000 caracteres com trechos relevantes/recentes e nota auxiliar curta do resumo anterior, quando ainda corresponde ao contexto. O histórico recente segue limitado a seis pares/24.000 caracteres. O chat informa quando houve recorte. Resumos iniciais podem usar até 50.000 caracteres. O recorte não gera chamada extra à IA; cache e descontos não são garantidos.
-
-## Retenção e proteção dos dados
-
-O padrão é **30 dias sem uso ou 90 dias de idade máxima**, o que ocorrer primeiro. Em **Retenção do histórico**, escolha de 1 a 365 dias, com idade máxima maior ou igual à inatividade. A política vale para chats locais e sessões do auxiliar; perfil e exemplos de estilo ficam até edição/remoção pelo usuário.
-
-Históricos pessoais existentes são preservados. Credenciais diferentes do servidor da equipe recebem espaços de histórico separados, também no navegador. Se a conexão mudar com uma conversa aberta, reabra o chat para não encaminhar o histórico anterior a outro usuário/servidor.
-
-A limpeza roda ao iniciar e a cada hora enquanto extensão/auxiliar estiverem ativos, também ao acessar chats e antes de gerar. Abrir o chat atualiza o uso local sem reiniciar sua idade máxima. Há **Limpar dados expirados agora**. O servidor da equipe segue sua própria política administrativa.
-
-O chat completo permanece no storage privado do navegador, sem DPAPI. O arquivo DPAPI do auxiliar agora guarda também credenciais de API, perfil, exemplos, referências remotas e notas curtas de resumo, sem arquivar HTML integral. Não há sincronização com o site ChatGPT.
-
-Cada referência remota é excluída quando possível. Sem confirmação, fica pendente e é tentada novamente. O total aparece nas configurações. Trocar/revogar a chave pode impedir uma exclusão; confira pendências antes. A exclusão não controla logs do provedor e não é imediata com o computador desligado ou o serviço inacessível.
-
-Fontes: [limitações do login](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations), [continuação e cobrança OpenAI](https://developers.openai.com/api/docs/guides/conversation-state), [Gemini](https://aistudio.google.com/docs/interactions-overview), [cache Claude](https://platform.claude.com/docs/en/build-with-claude/prompt-caching), [termos NVIDIA](https://developer.nvidia.com/legal/terms).
-
-## Estrutura
-
-| Camada | Responsabilidade |
-| --- | --- |
-| `entrypoints/content.ts` | Inicialização dos serviços existentes e do ciclo de resumos. |
-| `services/octadesk/aiSummaryLifecycle.ts` | Descoberta, ancoragem nos cabeçalhos Angular, recriação e limpeza dos controles. |
-| `services/octadesk/aiTicketContext.ts` / `aiHistory.ts` | Extração isolada, identidade real do ticket e carregamento das interações. |
-| `services/octadesk/aiMessageSummary.ts` / `aiTicketSummary.ts` | Box de mensagem e conversa mínima do ticket. |
-| `services/octadesk/aiSummaryPosition.ts` / `aiChatMessages.ts` | Geometria flutuante, acompanhamento do corpo e ações de copiar/editar mensagens. |
-| `services/ai/ticketChatPersistence.ts` / `services/storage/aiChatStorage.ts` | Identificação estável, recuperação, rascunho, validação e fila de persistência local com revisão contra sobrescrita. |
-| `services/octadesk/aiSummaryStyles.ts` | Estilos isolados, reutilizando os tokens de tema e marca atuais do projeto. |
-| `services/ai/summaryRequest.ts` / `nativeClient.ts` | Cancelamento, histórico limitado e canal nativo compartilhado. |
-| `services/background/aiRouter.ts` | Validação de origem/tarefa, bloqueio de tarefas não autorizadas, cancelamento por aba/frame. |
-| `components/settings/AiSettingsView.vue` | Conta, login, saída e modelo, no layout de gestão existente. |
-| `apps/local-helper/native-protocol.mjs` | Framing binário do Native Messaging, limites e UTF-8. |
-| `apps/local-helper/native-host.mjs` / `native-session.mjs` | Inicialização sem janela, sessão interna e compatibilidade com o auxiliar já aberto. |
-| `apps/local-helper/auth.mjs` / `vault.mjs` / `inference.mjs` | OAuth oficial, DPAPI, renovação e inferência por tarefa. |
-| `apps/local-helper/windows/` | Instalação HKCU e launcher C# que encaminha somente stdin/stdout. |
-
-A extensão pede `nativeMessaging` e `clipboardWrite` para a cópia solicitada pelo usuário; não lê a área de transferência. A permissão HTTP de loopback foi retirada. O programa local usa loopback internamente para compartilhar a mesma sessão entre processos e preservar o login existente. Nenhum token OAuth ou chave de pareamento fica na extensão. `processIdentity.mjs` verifica a identidade do processo antes de recuperar um lock antigo; `windows/InstallGui.cs` fornece o instalador gráfico.
-
-## Limites e validação
-
-Contexto limitado a 50.000 caracteres, com aviso de truncamento e preservação do trecho recente. Conteúdo do e-mail, do modelo e do chat é renderizado como texto, sem executar HTML. Não há envio, alteração do rascunho nem aprendizado automático. Troca de ticket/frame, alteração da fonte, cancelamento e respostas tardias são verificados.
-
-Os testes usam dados fictícios, inclusive a reprodução estrutural do HTML Angular fornecido. O layout foi inspecionado em Chromium com extensão real e iframe; as respostas de IA foram simuladas. O launcher Windows e a comunicação em Firefox headless foram testados com consulta de estado real da conexão, sem inferência nem dados de clientes. A homologação visual final no Octadesk real continua a cargo do teste do atendente.
-
-Referências: [Native Messaging no Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging), [sessões e renovação oficiais](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions).
-
-## Correção de autoria e assinatura — 1.2.2
-
-A geração anterior enviava textos sem autoria e não expandia as interações ocultas antes da sugestão. Agora carrega o histórico e inclui, em cada mensagem, o autor, papel explícito no cabeçalho, rótulo e data quando disponíveis. A ausência de papel é indicada como desconhecida; nunca é inferida da assinatura. Cortes de tamanho e compactação repetem os metadados dos trechos.
-
-A sugestão escreve pelo atendente identificado no avatar do compositor, para o cliente, sem inferir a empresa do atendente. Deve terminar no corpo da resposta, sem nomes, cargos, equipe, empresa ou contatos no rodapé. A identidade de assinatura fica a cargo do Octadesk. A proteção local remove encerramentos padrão acompanhados de assinatura e rodapés curtos identificáveis de equipe, antes de prévia/cópia/inserção; informa quando omite um rodapé. Não é um classificador semântico universal de identidades em qualquer posição do texto. A revisão do conteúdo do atendimento continua necessária.
-
-Se não puder confirmar a expansão de interações ocultas, a sugestão avisa e permite nova tentativa após expandir o histórico; não gera silenciosamente com o histórico incompleto. O aprendizado de escrita continua exclusivamente numérico e não aprende nem memoriza assinaturas ou nomes de empresas.
-
-## Conversar sobre um e-mail e orientar a resposta — 1.2.3
-
-Depois de resumir uma mensagem, **Conversar sobre este e-mail no ticket** leva o resumo pronto ao chat do ticket e foca o campo de pergunta. Não executa uma segunda geração para fazer essa transferência. Se já existe conversa, preserva mensagens e pergunta ainda não enviada. O resumo é identificado como específico daquele e-mail, com autoria do cabeçalho, referência da mensagem e um trecho inicial de até 400 caracteres para localizá-la. Esses dados e o resumo passam a integrar o histórico local do chat; nenhum HTML bruto é arquivado. O resumo importado é limitado a 16.000 caracteres para caber no histórico enviado à IA.
-
-A transferência é validada contra ticket e fonte atuais; outra mensagem/ticket não pode ser importada por referência stale. A mesma mensagem não é adicionada repetidamente. Fechar e reabrir mantém a conversa importada. Se o chat já estiver respondendo, a transferência aguarda o término sem descartar a pergunta em andamento.
-
-**Sugerir resposta** agora abre uma orientação editável em vez de gerar imediatamente. O campo recebe foco automaticamente. O atendente informa, por exemplo, Informe que a alteração foi concluída e peça confirmação. Só Enter ou **Gerar resposta** inicia a leitura das interações e a chamada à IA. Orientação vazia não gera nada. É possível editar a frase e pedir outra versão explicitamente. Prévia, cópia, remoção de assinatura e inserção manual em rascunho vazio permanecem.
+Validar no Octadesk real antes da aprovação: histórico longo e múltiplos autores, origem do editor, rascunho modificado durante espera, retomada de chat, cache/expiração e qualidade/latência das respostas do provedor. Resultados e limites em [VALIDATION.md](../apps/local-helper/VALIDATION.md).

@@ -2,11 +2,9 @@
 
 O projeto mantém WXT, Vue 3 e TypeScript. As funções de respostas e licenças executam na extensão; a integração opcional de IA utiliza um auxiliar local em `apps/local-helper/`, com backend opcional da equipe. A estrutura é organizada por domínio: pontos de entrada enxutos em `entrypoints/`, componentes Vue modulares em `components/`, composables em `composables/`, serviços e regras em `services/`, contratos em `types/` e documentação em `docs/`.
 
-O assistente de IA separa extração e histórico (`aiTicketContext.ts`, `aiHistory.ts`), ciclo dos controles (`aiSummaryLifecycle.ts`), resumo da mensagem (`aiMessageSummary.ts`), conversa do ticket (`aiTicketSummary.ts`), comunicação nativa no background (`aiRouter.ts`, `nativeClient.ts`) e autenticação/inferência no auxiliar. Reutiliza os temas de `services/appearance/`; permite sugestões no chat, sem inserção ou envio automático. Veja [IA local](IA-LOCAL.md).
 
 ## Responsabilidades
 
-Na proposta 1.2.0, `ai-settings.mjs` valida perfis e credenciais, `provider-http.mjs` adapta OpenAI/Gemini/Claude/NVIDIA e `provider-engine.mjs` controla estado, compactação e exclusões. Chaves não chegam aos content scripts. O backend opcional em `apps/team-gateway/` reutiliza essa camada e separa usuários por credencial, quota e vault AES-GCM. O login ChatGPT fica local. `AiProviderSettings.vue` configura conexões, perfil e retenção; `aiStyleExample.ts` exige revisão e autoria correspondente antes de guardar um exemplo. Não há inserção ou envio automático de sugestões.
 
 | Camada | Arquivos | Responsabilidade |
 | --- | --- | --- |
@@ -93,7 +91,6 @@ Sem formulário reconhecido, permanece a marcação de técnicos. Formulário re
 
 ## Como adicionar funcionalidades
 
-Os resumos de IA usam `aiSummaryLifecycle.ts` para ancorar controles nos cabeçalhos Angular, `aiSummaryPosition.ts` para uma camada flutuante independente do HTML do e-mail e `aiChatMessages.ts` para renderizar texto, copiar respostas e editar perguntas. `aiTicketSummary.ts` controla a transação de edição e descarta a continuação anterior somente após uma nova resposta válida. A cópia fica em `services/ai/clipboard.ts`, com restauração do foco e seleção no fallback. O auxiliar Windows usa Native Messaging e credenciais DPAPI; `processIdentity.mjs` evita tratar um PID reaproveitado como dono de um lock antigo. Veja [IA-LOCAL.md](IA-LOCAL.md) para limites e validação.
 
 - **Nova regra de variável:** altere a validação em `settingsSchema.ts` ou a resolução em `templateVariables.ts`; mantenha valores substituídos literais e preserve o cancelamento.
 - **Novo cadastro:** defina contratos e validação, implemente persistência na fila do background, use uma base para detectar conflitos e só então conecte o formulário Vue. Atualize o backup quando o dado precisar ser transportável.
@@ -101,3 +98,9 @@ Os resumos de IA usam `aiSummaryLifecycle.ts` para ancorar controles nos cabeça
 - **Novo formulário de licença:** acrescente a leitura em `licenseRequest.ts` com HTML anonimizado e casos de campo ausente, ambiguidade e outro ticket. Preserve os tokens nativos durante a inserção.
 
 Não são necessárias novas dependências, serviços externos ou um framework de arquitetura para essas extensões. Os testes, tipos e builds descritos em [CONTRIBUTING.md](../CONTRIBUTING.md) verificam os contratos entre os módulos.
+
+## IA no painel lateral (1.3.0)
+
+`aiSummaryLifecycle.ts` ancora os controles; `aiPanelBridge.ts` extrai contexto, mantém referências ao ticket/editor e valida snapshots de inserção. `aiTrigger.ts` e `entrypoints/ai-trigger` preservam o gesto de abertura no Firefox usando uma página da extensão; o Chrome abre a lateral diretamente no background. `aiPanelRouter.ts` controla sessões por janela, persistência por ticket, cache limitado, cancelamento e geração via `aiRouter.ts`/`nativeClient.ts`. `AiChatPanel.vue` apresenta mensagens e ações de cópia/edição/inserção sem HTML gerado. Os módulos antigos de modal/popover de IA foram removidos.
+
+O modelo recebe autor/papel dos cabeçalhos quando conhecidos. Contextos brutos são transitórios; persistem mensagens do chat e rascunhos. `provider-engine.mjs` mantém expiração e contexto remoto sem aguardar exclusões HTTP antes da inferência; `provider-http.mjs` aplica orçamentos de saída por tarefa. `writingMemory.ts` guarda somente estatísticas numéricas de respostas publicadas. Nenhuma automação envia a resposta ao cliente.

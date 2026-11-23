@@ -1,0 +1,38 @@
+<script setup lang="ts">
+import { onMounted, onUnmounted, ref, nextTick } from 'vue';
+import { Copy, Pencil, CornerDownLeft, Loader2, Send, Settings, Square } from 'lucide-vue-next';
+import type { AiPanelState } from '@/types/aiPanel';
+import { aiLocalMessage } from '@/services/ai/localClient';
+const emit = defineEmits<{ settings: [] }>();
+const state = ref<AiPanelState | null>(null), draft = ref(''), feedback = ref(''), seconds = ref(0);
+const log = ref<HTMLElement | null>(null), composer = ref<HTMLTextAreaElement | null>(null), editIndex = ref<number | undefined>();
+function visibleText(text:string) { return text.startsWith('Prepare uma resposta ao cliente a partir desta orientação:') ? text.split('\n\nPadrões de escrita observados')[0] : text; }
+function edit(index:number) { editIndex.value=index; draft.value=visibleText(state.value!.messages[index]!.content) || ''; composer.value?.focus(); }
+let windowId = 0, started = 0, timer: ReturnType<typeof setInterval> | undefined;
+async function refresh() {
+  try { const value = await aiLocalMessage('AI_PANEL_GET', { windowId }); const changed = value?.id !== state.value?.id || (!!value?.error && !value.busy && !!state.value?.busy); if (value?.busy && !state.value?.busy) started = Date.now(); state.value = value; if (changed) { draft.value = value?.draft || ''; feedback.value=''; editIndex.value=undefined; } await nextTick(); log.value?.scrollTo?.({ top: log.value.scrollHeight }); } catch (error) { feedback.value = error instanceof Error ? error.message : 'Painel indisponível.'; }
+}
+const notify = (message: any) => { if (message.action === 'AI_PANEL_CHANGED' && message.windowId === windowId) void refresh(); };
+async function ask() { if (!state.value || !draft.value.trim() || state.value.busy) return; const text = draft.value; try { await aiLocalMessage('AI_PANEL_SEND', { windowId, id: state.value.id, text, editIndex: editIndex.value }); draft.value = ''; editIndex.value=undefined; feedback.value = ''; } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível enviar.'; } }
+async function insert(index: number) { try { await aiLocalMessage('AI_PANEL_INSERT', { windowId, id: state.value?.id, index }); feedback.value = 'Texto inserido no ticket. Revise antes de enviar.'; } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível inserir.'; } }
+async function copy(text: string) { try { await navigator.clipboard.writeText(text); feedback.value = 'Copiado.'; } catch { feedback.value = 'Não foi possível copiar.'; } }
+function saveDraft() { if (state.value) void aiLocalMessage('AI_PANEL_DRAFT', { windowId, id: state.value.id, text: draft.value }).catch(() => {}); }
+onMounted(async () => { windowId = (await browser.windows.getCurrent()).id!; browser.runtime.onMessage.addListener(notify); await refresh(); timer = setInterval(() => { seconds.value = started ? Math.floor((Date.now() - started) / 1000) : 0; }, 1000); });
+onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListener(notify); });
+</script>
+<template>
+  <section class="ai-panel" aria-label="Chat de IA do ticket">
+    <header><div><strong>Chat do ticket</strong><p>{{ state?.title || 'Abra um ticket no Octadesk' }}</p></div><button type="button" title="Configurar IA" aria-label="Configurar IA" @click="emit('settings')"><Settings :size="16" /></button></header>
+    <div ref="log" class="ai-panel-log" role="log">
+      <p v-if="!state" class="ai-panel-hint">Clique em Resumir no e-mail ou no ticket. Para redigir, escreva uma orientação no editor do e-mail e clique no ícone de IA.</p>
+      <article v-for="(turn,index) in state?.messages || []" :key="index" :data-role="turn.role"><strong>{{ turn.role === 'user' ? 'Você' : 'OctaBlaster' }}</strong><div class="ai-panel-text">{{ turn.role === 'user' ? visibleText(turn.content) : turn.content }}</div><div v-if="turn.role === 'assistant'" class="ai-panel-actions"><button type="button" title="Copiar mensagem" @click="copy(turn.content)"><Copy :size="13" />Copiar</button><button type="button" @click="insert(index)"><CornerDownLeft :size="13" />Inserir no ticket</button></div><button v-else type="button" title="Editar pergunta" :disabled="state?.busy" @click="edit(index)"><Pencil :size="13" />Editar</button></article>
+      <p v-if="state?.busy" role="status" class="ai-panel-hint"><Loader2 :size="14" class="spin" />{{ state.status }} {{ seconds }}s <button type="button" title="Cancelar consulta" @click="aiLocalMessage('AI_PANEL_CANCEL',{windowId,id:state.id})"><Square :size="12" /></button></p>
+    </div>
+    <p v-if="state?.error" role="alert" class="ai-panel-error">{{ state.error }}</p>
+    <p class="ai-panel-feedback" role="status">{{ feedback || (!state?.busy ? state?.status : '') }}<span v-if="!state?.busy && state?.queryMs"> · {{ (state.queryMs/1000).toFixed(1) }}s de consulta</span></p>
+    <form @submit.prevent="ask"><textarea ref="composer" v-model="draft" aria-label="Pergunte sobre o ticket" placeholder="Pergunte sobre o ticket…" maxlength="4000" :disabled="!state?.ready || state.busy" @input="saveDraft" @keydown.enter.exact.prevent="ask"></textarea><button type="submit" aria-label="Enviar pergunta" :disabled="!draft.trim() || !state?.ready || state.busy"><Send :size="16" /></button></form>
+  </section>
+</template>
+<style scoped>
+.ai-panel{display:flex;flex-direction:column;flex:1;min-height:0;color:var(--text-primary);background:var(--bg-primary)}header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg-secondary)}header strong{font-size:13px}header p{font-size:11px;margin:5px 0 0;color:var(--text-secondary);overflow-wrap:anywhere}button{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--text-secondary);cursor:pointer;font:11px system-ui;padding:6px;border-radius:5px}button:hover{background:var(--bg-hover)}button:disabled{opacity:.45;cursor:default}.ai-panel-log{overflow:auto;flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:12px}article{flex-shrink:0;padding:12px;border:1px solid var(--border);border-radius:9px;background:var(--bg-surface)}article[data-role=user]{background:var(--accent-soft);border-color:var(--accent-border);margin-left:15px}article>strong{font-size:10px;color:var(--text-muted)}.ai-panel-text{font:12px/1.65 system-ui;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px}.ai-panel-actions{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.ai-panel-hint{font:12px/1.6 system-ui;color:var(--text-secondary)}.ai-panel-feedback{font:11px/1.5 system-ui;color:var(--text-muted);padding:0 12px;white-space:pre-wrap}.ai-panel-error{font:12px/1.5 system-ui;padding:8px 12px;color:var(--text-primary);background:var(--bg-secondary)}form{display:flex;gap:6px;padding:12px;border-top:1px solid var(--border)}textarea{box-sizing:border-box;flex:1;min-width:0;min-height:68px;max-height:160px;resize:vertical;padding:9px;border:1px solid var(--border);border-radius:8px;color:var(--text-primary);background:var(--bg-input);font:12px/1.5 system-ui}textarea:focus{outline:2px solid var(--accent-ring);border-color:var(--accent-border)}form button{align-self:flex-end;background:var(--accent);color:var(--accent-text);padding:10px}.spin{animation:rotate 1s linear infinite}@keyframes rotate{to{transform:rotate(360deg)}}
+</style>

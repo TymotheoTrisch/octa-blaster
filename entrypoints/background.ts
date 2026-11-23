@@ -1,5 +1,6 @@
 import { createStorageQueue } from '@/services/background/storageQueue';
 import { createTicketRouter } from '@/services/background/ticketRouter';
+import { createAiPanelRouter } from '@/services/background/aiPanelRouter';
 import { createAiRouter } from '@/services/background/aiRouter';
 import { syncBrowserBrandIconFromStorage } from '@/services/appearance/browserIcon';
 import { APPEARANCE_KEY } from '@/services/storage/settingsSchema';
@@ -8,6 +9,7 @@ export default defineBackground(() => {
   const storageQueue = createStorageQueue();
   const ticketRouter = createTicketRouter();
   const aiRouter = createAiRouter();
+  const panelRouter = createAiPanelRouter((message, sender) => new Promise((resolve, reject) => { aiRouter.handleMessage(message, sender, (result: any) => result?.success ? resolve(result.data) : reject(new Error(result?.error || 'Falha na IA.'))); }));
   void aiRouter.cleanup().catch(() => {});
   const cleanupTimer = setInterval(() => void aiRouter.cleanup().catch(() => {}), 3600_000);
   (cleanupTimer as unknown as { unref?: () => void }).unref?.();
@@ -33,6 +35,11 @@ export default defineBackground(() => {
 
   browser.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== browser.runtime.id || !message || typeof message !== 'object') return;
+    if (message.action === 'AI_TRIGGER_OPEN_SIDEBAR' && sender.url?.startsWith(browser.runtime.getURL('/ai-trigger.html'))) {
+      try { Promise.resolve((browser as any).sidebarAction.open()).then(() => respond({success:true}), error => respond({success:false,error:error.message})); } catch(error) { respond({success:false,error:error instanceof Error ? error.message : 'Abra o painel lateral.'}); }
+      return true;
+    }
+    if (panelRouter.handleMessage(message, sender, respond)) return true;
     if (aiRouter.canHandle(message.action)) return aiRouter.handleMessage(message, sender, respond);
     if (message.action === 'SYNC_BROWSER_ICON') {
       void syncBrowserBrandIconFromStorage(
@@ -50,5 +57,6 @@ export default defineBackground(() => {
   browser.tabs.onRemoved.addListener((tabId) => {
     ticketRouter.clearTab(tabId);
     aiRouter.clearTab(tabId);
+    panelRouter.clearTab(tabId);
   });
 });

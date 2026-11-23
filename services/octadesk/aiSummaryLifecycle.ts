@@ -3,8 +3,9 @@ import type { SummarySend } from '@/services/ai/summaryRequest';
 import { getScopedTicketContainer, isTicketElementVisible, TICKET_SELECTOR } from './licenseDetector';
 import { ticketMessages, getAiTicketIdentity } from './aiTicketContext';
 import { attachMessageSummary } from './aiMessageSummary';
-import { openTicketSummary } from './aiTicketSummary';
+import { openAiSidebar } from './aiPanelBridge';
 import { ensureSummaryStyles } from './aiSummaryStyles';
+import { createAiTrigger } from './aiTrigger';
 import { aiIcons } from './aiIcons';
 
 const HEADER_SELECTOR = ':scope > header.header-info, [data-cy="ticket_header"], .ticket-header, .header-ticket, .ticket-top-bar';
@@ -34,13 +35,13 @@ export function createSummaryLifecycle(doc: Document, send?: SummarySend) {
         const title = scope.querySelector<HTMLElement>('h1, h2, h3, [data-cy="ticket_subject"]');
         const header = scope.querySelector<HTMLElement>(HEADER_SELECTOR);
         if (!title && !header) continue;
-        const button = doc.createElement('button'); button.type = 'button'; button.className = 'octa-summary-button octa-ticket-summary-button'; button.innerHTML = `${aiIcons.sparkle}<span>Resumir ticket</span>`; button.dataset.octaAi = 'true';
-        const stopTheme = bindInpageAppearance(button); let closeChat = () => {};
-        button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); closeChat = openTicketSummary(scope, send); });
+        const trigger = createAiTrigger(doc, 'Resumir ticket', opened => { void openAiSidebar(scope, 'summary_full', undefined, undefined, opened).catch(error => { button.title = error.message; }); });
+        const button = trigger.element; button.className = 'octa-summary-button octa-ticket-summary-button'; if (button.tagName === 'BUTTON') button.innerHTML = `${aiIcons.sparkle}<span>Resumir ticket</span>`; button.dataset.octaAi = 'true';
+        const stopTheme = bindInpageAppearance(button);
         const statusRow = header?.querySelector<HTMLElement>('.col-sm-8 > .clearfix:not(.ticket-title), .ticket-status-row, .ticket-header-status, [data-cy="ticket_number"]');
         const numberLabel = statusRow && Array.from(statusRow.querySelectorAll('.label.label-default.ng-binding')).find(label => /^\s*\d+\b/.test(label.textContent || ''));
         if (numberLabel) numberLabel.after(button); else if (statusRow) statusRow.append(button); else if (header) header.append(button); else title!.after(button);
-        scopes.set(scope, { identity: getAiTicketIdentity(scope), button, dispose() { closeChat(); stopTheme(); button.remove(); } });
+        scopes.set(scope, { identity: getAiTicketIdentity(scope), button, dispose() { trigger.dispose(); stopTheme(); button.remove(); } });
       }
       for (const body of ticketMessages(scope)) {
         if (messages.has(body)) continue;
