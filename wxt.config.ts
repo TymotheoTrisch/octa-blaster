@@ -8,7 +8,7 @@ export default defineConfig({
     name: 'OctaBlaster - Respostas Rápidas Octadesk',
     description: 'Respostas prontas automatizadas, injeção rápida de texto e automação de licenças para tickets no Octadesk',
     version: packageInfo.version,
-    permissions: ['storage', 'activeTab', 'tabs', 'nativeMessaging'],
+    permissions: ['storage', 'activeTab', 'tabs', 'nativeMessaging', 'clipboardWrite'],
     host_permissions: ['*://app.octadesk.com/*', '*://*.octadesk.com/*'],
     browser_specific_settings: {
       gecko: {

@@ -1,6 +1,6 @@
 # IA local — resumos do ticket
 
-Entrega proposta 1.1.0, sobre a `main` 1.0.0 (`959b2f9`). Esta etapa contém somente resumos de mensagens e resumo geral com perguntas de continuidade. A antiga tela de gerar/responder/inserir foi removida. As respostas rápidas e licenças existentes seguem na arquitetura do projeto.
+Entrega proposta 1.1.1, sobre a última release oficial v1.0.1 e `main` (`ff7752d`), conferidas em 23/11/2026. Esta etapa contém resumos de mensagens e resumo geral com perguntas de continuidade. As respostas rápidas e licenças existentes seguem na arquitetura do projeto.
 
 ## Plano executado
 
@@ -11,13 +11,13 @@ Entrega proposta 1.1.0, sobre a `main` 1.0.0 (`959b2f9`). Esta etapa contém som
 
 ## Usar no Firefox
 
-No primeiro uso em um computador Windows, execute `apps/local-helper/Instalar-IA-Firefox.cmd` uma vez. Precisa de Node.js 22.22.2+ e pnpm 10+. O instalador não exige administrador: registra o host nativo somente para o usuário atual. Copia o runtime para `%LOCALAPPDATA%\OctaBlaster\Auxiliar` e registra `com.octablaster.ai` no Firefox, autorizado apenas para a extensão `octablaster@pulz.dev.br`.
+Extraia o pacote `octablaster-local-helper-0.2.1-windows.zip` inteiro e abra **Instalar-IA-Firefox.exe** com dois cliques, uma única vez por computador. A instalação tem janela própria e executa a preparação em segundo plano; não é necessário digitar comandos ou abrir CMD. Precisa de Node.js 22.22.2+ e pnpm 10+ instalados. O instalador não exige administrador: registra o host nativo somente para o usuário atual. Copia o runtime para `%LOCALAPPDATA%\OctaBlaster\Auxiliar` e registra `com.octablaster.ai` no Firefox, autorizado apenas para a extensão `octablaster@pulz.dev.br`.
 
 Carregue `.output/firefox-mv2/manifest.json` em `about:debugging#/runtime/this-firefox` (ou extraia o ZIP Firefox e carregue seu manifesto). Recarregue os tickets abertos para substituir o content script antigo.
 
 Na extensão, abra **Mais opções → Inteligência artificial → Entrar com ChatGPT**. O login abre diretamente a página oficial. Ao concluir, pode fechar a aba de confirmação. O modelo padrão é selecionado entre os disponíveis; pode alterá-lo na tela de conexão. Contas já cadastradas podem ser selecionadas sem recriar o registro, e há uma ação separada para adicionar outra conta. O uso diário não exige abrir o site local, executar testes, gerar códigos ou manter CMD aberto: o Firefox inicia o auxiliar sob demanda.
 
-O instalador foi exercitado neste computador. O host nativo reconheceu a sessão já existente sem novo login. Existe compatibilidade com o auxiliar 0.10 já aberto, para não interromper essa autorização durante a atualização. Depois de fechar sua janela antiga, a nova cópia instalada passa a ser iniciada automaticamente.
+O auxiliar atualizado já foi instalado neste computador. Um teste com Firefox real iniciou o serviço desligado e recuperou a sessão salva sem novo login nem inferência. A versão 0.2.1 corrige o bloqueio antigo cujo PID havia sido reutilizado por outro programa após reiniciar o computador: agora confere também o nascimento do processo, sem encerrar o programa alheio nem apagar as credenciais. Não é necessário hospedar servidor para esse fluxo local.
 
 ## Login e validade
 
@@ -31,11 +31,13 @@ A validade é definida pelo provedor e não pode ser configurada como um tempo a
 
 O botão **Resumir** aparece no cabeçalho de cada mensagem carregada, antes das ações nativas de abrir em outra aba. Funciona em qualquer tipo de ticket, sem depender de licença ou de selecionar o editor.
 
-O resultado aparece em um box ao lado do e-mail, dentro da largura do comentário. O layout reserva uma coluna, mantém os nós originais do Octadesk e posiciona o box fora do contêiner de recolhimento `.comment.collapse`; assim o resultado não é cortado pelo limite nativo de 200px. O box tem altura fixa calculada da mensagem (180–440px) e rolagem interna. Em áreas estreitas, as colunas ficam empilhadas, sem sobreposição. Fechar restaura a estrutura original. O resumo envia somente o texto daquela mensagem.
+O resultado aparece em uma camada flutuante acima da página, com sombra, bordas arredondadas e margem interna em relação ao corpo da mensagem. Não envolve, move, estreita nem altera o HTML do e-mail. Usa o top layer do navegador para escapar do recorte de `.comment.collapse`. Prefere abrir acima do botão quando houver espaço; caso contrário, abre abaixo, limitado à área visível.
+
+A largura acompanha o corpo da mensagem até 520px, com 16px de afastamento. A altura acompanha a expansão/recolhimento do corpo, entre 180 e 440px, limitada pela janela e com rolagem interna. Um `ResizeObserver` recalcula as dimensões e o posicionamento também acompanha rolagem e redimensionamento da janela. Os botões compactos de 22px, ícones, cores, tema e sombra reutilizam a identidade visual da extensão. O resumo envia somente o texto daquela mensagem.
 
 ## Resumir o ticket
 
-**Resumir ticket** aparece junto ao número e status. Ao clicar, abre apenas uma conversa: resumo inicial, campo de perguntas e fechamento. Não há seletor de contexto, botões de geração, exemplos, ações de inserir ou opções de rascunho nesse modal.
+**Resumir ticket** aparece junto ao número e status. Abre uma conversa com resumo inicial, campo de perguntas e fechamento. Cada resposta da IA tem **Copiar resposta inteira**, que copia somente seu texto completo. Cada pergunta sua tem **Editar pergunta**, com Cancelar e Salvar e reenviar (ou Ctrl/Cmd+Enter). A edição refaz a resposta a partir daquele ponto e remove as interações seguintes; se falhar, preserva a conversa anterior e o texto corrigido para nova tentativa.
 
 O resumo tenta abrir **Todas as interações** antes da análise. Se o carregamento não puder ser confirmado, avisa no contexto disponível. O chat mostra a cobertura: mensagens antigas não carregadas, anexos e imagens não foram analisados. Não presume acesso a conversas do ChatGPT ou a outros tickets.
 
@@ -49,6 +51,7 @@ Para perguntar, digite e pressione **Enter**; **Shift+Enter** quebra a linha. O 
 | `services/octadesk/aiSummaryLifecycle.ts` | Descoberta, ancoragem nos cabeçalhos Angular, recriação e limpeza dos controles. |
 | `services/octadesk/aiTicketContext.ts` / `aiHistory.ts` | Extração isolada, identidade real do ticket e carregamento das interações. |
 | `services/octadesk/aiMessageSummary.ts` / `aiTicketSummary.ts` | Box de mensagem e conversa mínima do ticket. |
+| `services/octadesk/aiSummaryPosition.ts` / `aiChatMessages.ts` | Geometria flutuante, acompanhamento do corpo e ações de copiar/editar mensagens. |
 | `services/octadesk/aiSummaryStyles.ts` | Estilos isolados, reutilizando os tokens de tema e marca atuais do projeto. |
 | `services/ai/summaryRequest.ts` / `nativeClient.ts` | Cancelamento, histórico limitado e canal nativo compartilhado. |
 | `services/background/aiRouter.ts` | Validação de origem/tarefa, bloqueio de geração de e-mails, cancelamento por aba/frame. |
@@ -58,7 +61,7 @@ Para perguntar, digite e pressione **Enter**; **Shift+Enter** quebra a linha. O 
 | `apps/local-helper/auth.mjs` / `vault.mjs` / `inference.mjs` | OAuth oficial, DPAPI, renovação e inferência por tarefa. |
 | `apps/local-helper/windows/` | Instalação HKCU e launcher C# que encaminha somente stdin/stdout. |
 
-A extensão pede `nativeMessaging`; a permissão HTTP de loopback foi retirada. O programa local usa loopback internamente para compartilhar a mesma sessão entre processos e preservar o login existente. Nenhum token OAuth ou chave de pareamento fica na extensão.
+A extensão pede `nativeMessaging` e `clipboardWrite` para a cópia solicitada pelo usuário; não lê a área de transferência. A permissão HTTP de loopback foi retirada. O programa local usa loopback internamente para compartilhar a mesma sessão entre processos e preservar o login existente. Nenhum token OAuth ou chave de pareamento fica na extensão. `processIdentity.mjs` verifica a identidade do processo antes de recuperar um lock antigo; `windows/InstallGui.cs` fornece o instalador gráfico.
 
 ## Limites e validação
 

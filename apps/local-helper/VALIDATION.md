@@ -1,12 +1,24 @@
-# Validação — 19/11/2026
+# Validação — 23/11/2026
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
+
+## Revisão de 23/11 — entrega proposta 1.1.1 / auxiliar 0.2.1
+
+- Última release oficial v1.0.1 e main `ff7752d` incorporadas, preservando as correções do seletor de cores do colega.
+- **138 testes da extensão e 37 do auxiliar aprovados**, TypeScript sem erros e builds Chromium/Firefox concluídos. ZIP Firefox 1.1.1 gerado.
+- Extensão real em Chromium com fixture Angular dentro de iframe: resumo em top layer, HTML e largura do e-mail idênticos antes/depois, botão compacto, margens em janela estreita e altura acompanhando expansão de 300 para 420px. Respostas simuladas, sem inferência.
+- Cópia de resposta completa, edição da própria pergunta, substituição do histórico seguinte e preservação do rascunho exercitadas no navegador. Falha ao editar restaura a conversa e conserva o texto corrigido; falha no resumo inicial não cria histórico inválido.
+- Reproduzido um lock antigo cujo PID havia sido reutilizado por outro aplicativo. Corrigida a verificação com nascimento do processo; credenciais criptografadas preservadas e nenhum processo alheio encerrado.
+- Instalador do auxiliar atualizado exercitado neste computador. Firefox headless real iniciou o serviço inicialmente desligado e reconheceu a sessão salva. Consulta de estado apenas, sem inferência ou conteúdo de clientes.
+- Instalador gráfico `Instalar-IA-Firefox.exe` compilado com .NET Framework/Windows PowerShell e subsistema GUI verificado. O script de instalação utilizado por ele foi exercitado; a janela gráfica não foi acionada no teste automatizado.
+
+A homologação visual no Octadesk real permanece pendente. Os testes de layout usam dados fictícios e as chamadas de IA são simuladas; a verificação no Firefox valida o transporte nativo real e a conexão salva.
 
 ## Etapa inicial
 
 O usuário concluiu o login oficial, concedeu a autorização de uso do plano e executou uma chamada fictícia concluída: 50 tokens de entrada e 15 de saída. Relatou não ter observado cobrança e autorizou a integração. O contador de tokens não comprova faturamento; o aplicativo não faz auditoria financeira.
 
-## Redesenho focado em resumos
+## Redesenho inicial de 19/11 (histórico anterior à revisão)
 
 - Base atualizada para a main 1.0.0, commit `959b2f9`, preservando a arquitetura modular, os temas e as cores.
 - Tela anterior de geração, exemplos e inserção removida. Tarefas de rascunho bloqueadas na extensão, no host nativo e no novo auxiliar.

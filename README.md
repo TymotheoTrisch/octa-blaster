@@ -48,7 +48,7 @@ Projetada especificamente para equipes de atendimento e suporte que utilizam o *
 
 ### Assistente de IA local (em desenvolvimento)
 
-Resumo de cada mensagem no próprio comentário e resumo geral com um chat mínimo de perguntas. No Firefox/Windows, o auxiliar inicia automaticamente via Native Messaging após uma instalação única; o login oficial é salvo e renovado, sem códigos manuais. A geração de e-mails fica desabilitada nesta etapa. Consulte [IA local: instalação, contexto, chat e arquitetura](docs/IA-LOCAL.md).
+Resumo de cada mensagem em uma janela flutuante, sem alterar a largura ou o HTML do e-mail, e resumo geral com perguntas, cópia das respostas e edição das próprias perguntas. A interface acompanha o tema e as cores da extensão. No Firefox/Windows, o auxiliar inicia automaticamente via Native Messaging após uma instalação gráfica única; o login oficial é salvo e renovado, sem CMD nem códigos manuais. A geração de e-mails fica desabilitada nesta etapa. Consulte [IA local: instalação, contexto, chat e arquitetura](docs/IA-LOCAL.md).
 
 ### 1. 🏷️ Automação Inteligente de Licenças com Isolamento por Ticket
 - **Detecção Ampla de Operações**: Reconhece chamados de **Contratação**, **Troca**, **Cancelamento** e **Renovação** de forma isolada dentro do contêiner do chamado atual, sem interferir nem vazar para outros tickets abertos em abas vizinhas.

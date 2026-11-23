@@ -8,8 +8,9 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ## [Não lançado]
 
 ### Adicionado
-- Resumos de mensagens em box com rolagem, ancorados no cabeçalho Angular de cada comentário, e “Resumir ticket” junto ao número, abrindo somente resumo e chat de perguntas. Funciona em todos os tipos de ticket. Versão proposta: 1.1.0, sobre a base 1.0.0, para avaliação dos mantenedores.
+- Resumos de mensagens flutuantes com rolagem, margem, sombra e dimensões que acompanham o corpo do e-mail, sem alterar o HTML original; botões menores com tema e cores da extensão. “Resumir ticket” junto ao número, com cópia de respostas completas e edição das próprias perguntas. Versão proposta: 1.1.1, sobre a release oficial 1.0.1, para avaliação dos mantenedores.
 - Login ChatGPT persistente com renovação e credenciais DPAPI no Windows; inicialização automática via Native Messaging no Firefox após instalação única, sem testes ou códigos manuais.
+- Instalador Windows com janela própria, sem comandos manuais; recuperação de locks antigos confere o nascimento do processo para não confundir PIDs reutilizados nem perder o login salvo.
 - Carregamento das interações intermediárias antes do resumo geral, indicação de cobertura/truncamento e descarte de respostas canceladas ou de outro ticket. O compositor anterior de geração/inserção de e-mails foi removido nesta etapa.
 
 ---

@@ -5,6 +5,7 @@ import { ticketMessages, getAiTicketIdentity } from './aiTicketContext';
 import { attachMessageSummary } from './aiMessageSummary';
 import { openTicketSummary } from './aiTicketSummary';
 import { ensureSummaryStyles } from './aiSummaryStyles';
+import { aiIcons } from './aiIcons';
 
 const HEADER_SELECTOR = ':scope > header.header-info, [data-cy="ticket_header"], .ticket-header, .header-ticket, .ticket-top-bar';
 const MESSAGE_HEADER_SELECTOR = '.interaction-comment-header, [data-cy="interaction_header"], .interaction-header, .comment-header, .panel-heading, .box-header, .header-comment';
@@ -33,7 +34,7 @@ export function createSummaryLifecycle(doc: Document, send?: SummarySend) {
         const title = scope.querySelector<HTMLElement>('h1, h2, h3, [data-cy="ticket_subject"]');
         const header = scope.querySelector<HTMLElement>(HEADER_SELECTOR);
         if (!title && !header) continue;
-        const button = doc.createElement('button'); button.type = 'button'; button.className = 'octa-summary-button octa-ticket-summary-button'; button.textContent = 'Resumir ticket'; button.dataset.octaAi = 'true';
+        const button = doc.createElement('button'); button.type = 'button'; button.className = 'octa-summary-button octa-ticket-summary-button'; button.innerHTML = `${aiIcons.sparkle}<span>Resumir ticket</span>`; button.dataset.octaAi = 'true';
         const stopTheme = bindInpageAppearance(button); let closeChat = () => {};
         button.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); closeChat = openTicketSummary(scope, send); });
         const statusRow = header?.querySelector<HTMLElement>('.col-sm-8 > .clearfix:not(.ticket-title), .ticket-status-row, .ticket-header-status, [data-cy="ticket_number"]');

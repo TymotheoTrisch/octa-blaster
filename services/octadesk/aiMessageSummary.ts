@@ -2,19 +2,20 @@ import { bindInpageAppearance } from '@/services/appearance/inpageTheme';
 import { createSummaryRequest, type SummarySend } from '@/services/ai/summaryRequest';
 import { readAiMessage, getAiTicketIdentity } from './aiTicketContext';
 import { getScopedTicketContainer, isTicketElementVisible } from './licenseDetector';
+import { anchorSummaryPanel } from './aiSummaryPosition';
+import { aiIcons } from './aiIcons';
 
 export function attachMessageSummary(body: HTMLElement, host: HTMLElement, send?: SummarySend) {
   const doc = body.ownerDocument, scope = getScopedTicketContainer(body)!;
   const contentRoot = body.closest<HTMLElement>('.comment') || body;
   const identity = getAiTicketIdentity(scope), request = createSummaryRequest(send);
-  const button = doc.createElement('button'); button.type = 'button'; button.className = 'octa-summary-button octa-message-summary-button'; button.textContent = 'Resumir'; button.dataset.octaAi = 'true';
+  const button = doc.createElement('button'); button.type = 'button'; button.className = 'octa-summary-button octa-message-summary-button'; button.innerHTML = `${aiIcons.sparkle}<span>Resumir</span>`; button.dataset.octaAi = 'true';
   const stopButtonTheme = bindInpageAppearance(button);
-  let wrapper: HTMLElement | null = null, panel: HTMLElement | null = null, resize: ResizeObserver | null = null, stopPanelTheme = () => {};
+  let panel: HTMLElement | null = null, disposePanel = () => {}, stopPanelTheme = () => {};
   const valid = () => button.isConnected && body.isConnected && scope.isConnected && getScopedTicketContainer(body) === scope && getAiTicketIdentity(scope) === identity && isTicketElementVisible(body);
   function close() {
-    request.cancel(); resize?.disconnect(); resize = null; stopPanelTheme(); panel?.remove(); panel = null;
-    if (wrapper?.isConnected && contentRoot.parentElement === wrapper) wrapper.replaceWith(contentRoot);
-    wrapper = null; button.disabled = false; button.setAttribute('aria-expanded', 'false');
+    request.cancel(); stopPanelTheme(); disposePanel(); panel = null;
+    button.disabled = false; button.setAttribute('aria-expanded', 'false');
   }
   button.setAttribute('aria-expanded', 'false');
   button.addEventListener('click', async event => {
@@ -22,18 +23,12 @@ export function attachMessageSummary(body: HTMLElement, host: HTMLElement, send?
     if (panel) { close(); return; }
     if (!valid()) return;
     const source = readAiMessage(body); if (!source) return;
-    const height = Math.max(180, Math.min(440, contentRoot.getBoundingClientRect().height));
-    wrapper = doc.createElement('div'); wrapper.className = 'octa-summary-layout';
-    contentRoot.before(wrapper); wrapper.append(contentRoot);
-    panel = doc.createElement('aside'); panel.className = 'octa-message-summary'; panel.dataset.octaAi = 'true'; panel.setAttribute('aria-label', 'Resumo desta mensagem'); panel.style.height = `${height}px`;
-    panel.innerHTML = '<header><strong>Resumo da mensagem</strong><button type="button" class="octa-summary-close" aria-label="Fechar resumo">×</button></header><div class="octa-summary-text" role="status">Resumindo…</div>';
-    wrapper.append(panel); stopPanelTheme = bindInpageAppearance(panel);
+    panel = doc.createElement('aside'); panel.className = 'octa-message-summary'; panel.dataset.octaAi = 'true'; panel.setAttribute('aria-label', 'Resumo desta mensagem');
+    panel.innerHTML = `<header><strong>${aiIcons.sparkle}<span>Resumo da mensagem</span></strong><button type="button" class="octa-summary-close" aria-label="Fechar resumo">${aiIcons.close}</button></header><div class="octa-summary-text" role="status">Resumindo…</div>`;
+    stopPanelTheme = bindInpageAppearance(panel); disposePanel = anchorSummaryPanel(panel, button, contentRoot);
     const content = panel.querySelector<HTMLElement>('.octa-summary-text')!;
     panel.querySelector('button')!.addEventListener('click', close);
-    const fit = () => { if (wrapper) wrapper.dataset.narrow = String(wrapper.getBoundingClientRect().width < 760); };
-    fit();
-    const Observer = doc.defaultView?.ResizeObserver;
-    if (Observer) { resize = new Observer(fit); resize.observe(wrapper); }
+    panel.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(); button.focus(); } });
     button.disabled = true; button.setAttribute('aria-expanded', 'true');
     try {
       const text = await request.run('summary_latest', source.slice(-50_000), 'Resuma esta mensagem de e-mail em português, destacando o pedido, informações novas e pendências.');

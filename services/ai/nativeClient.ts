@@ -14,7 +14,7 @@ export function createNativeAiClient() {
       // Consumir lastError evita logs desnecessários; nunca registra conteúdo da solicitação.
       void browser.runtime.lastError;
       if (port === next) port = null;
-      for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new Error('Instale ou atualize o auxiliar com Instalar-IA-Firefox.cmd. Depois clique em Entrar com ChatGPT no menu Inteligência artificial.')); }
+      for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new Error('Instale ou atualize o auxiliar com Instalar-IA-Firefox.exe. Depois clique em Entrar com ChatGPT no menu Inteligência artificial.')); }
       pending.clear();
     });
     return next;
@@ -25,7 +25,7 @@ export function createNativeAiClient() {
         const timer = setTimeout(() => { pending.delete(id); reject(new Error('O tempo de espera da IA terminou. Tente novamente quando desejar.')); }, 125_000);
         pending.set(id, { resolve, reject, timer });
         try { connect().postMessage({ ...data, id, action }); }
-        catch { clearTimeout(timer); pending.delete(id); reject(new Error('Auxiliar não instalado. Execute Instalar-IA-Firefox.cmd uma vez.')); }
+        catch { clearTimeout(timer); pending.delete(id); reject(new Error('Auxiliar não instalado. Execute Instalar-IA-Firefox.exe uma vez.')); }
       });
     },
   };

@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile, rename, unlink } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrototypeError } from './auth.mjs';
+import { isLockOwnerAlive, processStartedAt } from './processIdentity.mjs';
 
 // O conteúdo entra por stdin, nunca por argumentos, variáveis de ambiente ou logs.
 export function dpapi(value, decrypt = false) {
@@ -27,13 +28,15 @@ export async function openVault(dataDir, codec = dpapi) {
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
   const lockPath = join(dataDir, 'helper.lock');
   const lockId = randomUUID();
-  try { await writeFile(lockPath, JSON.stringify({ pid: process.pid, lockId }), { flag: 'wx', mode: 0o600 }); }
+  try { await writeFile(lockPath, JSON.stringify({ pid: process.pid, lockId, startedAt: await processStartedAt ?? undefined }), { flag: 'wx', mode: 0o600 }); }
   catch (error) {
     if (error.code !== 'EEXIST') throw new PrototypeError('vault_unavailable');
     const previous = JSON.parse(await readFile(lockPath, 'utf8'));
-    try { process.kill(previous.pid, 0); throw new PrototypeError('helper_already_running'); }
-    catch (check) { if (check.code !== 'ESRCH') throw new PrototypeError('helper_already_running'); }
-    await unlink(lockPath); // Arquivo de lock desta aplicação, sem processo vivo.
+    const modified = (await stat(lockPath)).mtimeMs;
+    if (await isLockOwnerAlive(previous, modified)) throw new PrototypeError('helper_already_running');
+    const current = JSON.parse(await readFile(lockPath, 'utf8'));
+    if (current.lockId !== previous.lockId || current.pid !== previous.pid) return openVault(dataDir, codec);
+    await unlink(lockPath); // Apenas o controle obsoleto; as credenciais DPAPI permanecem intactas.
     return openVault(dataDir, codec);
   }
   const release = async () => {

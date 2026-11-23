@@ -21,7 +21,7 @@ test('summary controls appear on all tickets independently of license status and
     assert.equal(dom.document.querySelectorAll('.octa-ai-dialog').length, 0);
   } finally { lifecycle.dispose(); dom.restore(); }
 });
-test('message summary uses only that email, renders text safely in a reserved scrollable column and preserves the editor', async () => {
+test('message summary floats outside the email and preserves its original DOM and editor', async () => {
   const dom = fixture(), calls = [];
   const lifecycle = createSummaryLifecycle(dom.document, async (action, data) => { calls.push({ action, data }); return { text: '<script>Resumo seguro</script>' }; });
   try {
@@ -31,7 +31,9 @@ test('message summary uses only that email, renders text safely in a reserved sc
     const panel = dom.document.querySelector('.octa-message-summary');
     assert.ok(panel); assert.equal(panel.querySelectorAll('script').length, 0);
     assert.match(panel.textContent, /Resumo seguro/);
-    assert.equal(panel.parentElement.className, 'octa-summary-layout');
+    assert.equal(panel.parentElement, dom.document.body);
+    assert.equal(dom.document.querySelector('.content-comment-interaction').parentElement.className, 'interaction');
+    assert.equal(dom.document.querySelector('.octa-summary-layout'), null);
     assert.equal(dom.document.querySelector('textarea').value, 'Rascunho preservado');
     assert.equal(dom.document.querySelectorAll('dialog').length, 0);
     panel.querySelector('button').click();
@@ -45,7 +47,7 @@ test('ticket modal contains only conversation, generates an initial summary and 
   try {
     lifecycle.scan(); dom.document.querySelector('.octa-ticket-summary-button').click(); await settle();
     const dialog = dom.document.querySelector('.octa-ticket-chat');
-    assert.equal(dialog.querySelectorAll('button').length, 1); // Somente fechar; nenhum menu ou ação de rascunho.
+    assert.equal(dialog.querySelectorAll('button').length, 2); // Fechar e copiar a resposta; nenhum menu de rascunho.
     assert.equal(calls[0].data.input.task, 'summary_full');
     assert.ok(!calls[0].data.input.context.includes('SEGREDO B'));
     const input = dialog.querySelector('textarea'); input.value = 'O que falta?';
@@ -99,9 +101,10 @@ test('supplied Angular form anchors ticket summary after the number and message 
     const header = dom.document.querySelector('.interaction-comment-header'), button = header.querySelector('.octa-summary-button');
     assert.equal(button.nextElementSibling.className, 'comment-actions');
     button.click(); await settle();
-    const layout = dom.document.querySelector('.octa-summary-layout');
-    assert.equal(layout.querySelector(':scope > .comment').style.height, '200px');
-    assert.equal(layout.querySelector(':scope > .octa-message-summary').style.height, '200px');
+    const original = dom.document.querySelector('.comment');
+    assert.equal(original.style.height, '200px');
+    assert.equal(original.parentElement.tagName.toLowerCase(), 'interaction-comment');
+    assert.equal(dom.document.querySelector('.octa-message-summary').style.height, '200px');
     assert.equal(dom.document.querySelector('.comment .octa-message-summary'), null);
     assert.equal(submits, 0);
     number.firstChild.textContent = '654321'; lifecycle.scan();
@@ -119,5 +122,52 @@ test('ticket summary loads the Angular middle interactions before analysis', asy
     lifecycle.scan(); scope.querySelector('.octa-ticket-summary-button').click();
     await new Promise(resolve => setTimeout(resolve, 260));
     assert.equal(calls.length, 1); assert.match(calls[0].input.context, /Mensagem intermediária fictícia/);
+  } finally { lifecycle.dispose(); dom.restore(); }
+});
+
+test('editing an earlier question regenerates from that point and excludes discarded answers from model history', async () => {
+  const dom = fixture(), calls = [];
+  const lifecycle = createSummaryLifecycle(dom.document, async (_action, data) => { calls.push(data); return { text: `Resposta ${calls.length}` }; });
+  try {
+    lifecycle.scan(); dom.document.querySelector('.octa-ticket-summary-button').click(); await settle();
+    const dialog = dom.document.querySelector('.octa-ticket-chat'), input = dialog.querySelector('footer textarea');
+    for (const question of ['Pergunta original', 'Pergunta seguinte']) { input.value = question; input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle(); }
+    dialog.querySelector('[data-role="user"] .octa-chat-message-action').click();
+    dialog.querySelector('.octa-chat-edit-input').value = 'Pergunta corrigida'; dialog.querySelector('.octa-chat-save-edit').click(); await settle();
+    assert.equal(calls[3].input.instruction, 'Pergunta corrigida');
+    assert.equal(calls[3].input.history.length, 2);
+    assert.ok(!JSON.stringify(calls[3].input.history).includes('Pergunta original'));
+    assert.ok(!dialog.querySelector('[role="log"]').textContent.includes('Pergunta seguinte'));
+    assert.ok(dialog.querySelector('[role="log"]').textContent.includes('Pergunta corrigida'));
+    assert.ok(dialog.querySelector('[role="log"]').textContent.includes('Resposta 4'));
+    assert.equal(dom.document.querySelector('section textarea').value, 'Rascunho preservado');
+  } finally { lifecycle.dispose(); dom.restore(); }
+});
+
+test('failed edit restores the previous conversation and keeps the corrected question for retry', async () => {
+  const dom = fixture(); let fail = false;
+  const lifecycle = createSummaryLifecycle(dom.document, async () => { if (fail) throw new Error('Falha fictícia'); return { text: 'Resposta anterior' }; });
+  try {
+    lifecycle.scan(); dom.document.querySelector('.octa-ticket-summary-button').click(); await settle();
+    const dialog = dom.document.querySelector('.octa-ticket-chat'), input = dialog.querySelector('footer textarea');
+    input.value = 'Pergunta anterior'; input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle();
+    dialog.querySelector('[data-role="user"] button').click();
+    dialog.querySelector('.octa-chat-edit-input').value = 'Correção a preservar'; fail = true;
+    dialog.querySelector('.octa-chat-save-edit').click(); await settle();
+    assert.equal(dialog.querySelector('.octa-chat-edit-input').value, 'Correção a preservar');
+    assert.match(dialog.querySelector('[role="log"]').textContent, /Resposta anterior/);
+    assert.match(dialog.querySelector('.octa-ticket-chat-status').textContent, /Falha fictícia/);
+  } finally { lifecycle.dispose(); dom.restore(); }
+});
+
+test('a question after initial summary failure starts with empty history and preserves the draft', async () => {
+  const dom = fixture(), calls = [];
+  const lifecycle = createSummaryLifecycle(dom.document, async (_action, data) => { calls.push(data); if (calls.length === 1) throw new Error('Falha inicial'); return { text: 'Resposta da nova pergunta' }; });
+  try {
+    lifecycle.scan(); dom.document.querySelector('.octa-ticket-summary-button').click(); await settle();
+    const dialog = dom.document.querySelector('.octa-ticket-chat'), input = dialog.querySelector('footer textarea');
+    input.value = 'Qual é a pendência?'; input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle();
+    assert.deepEqual(calls[1].input.history, []); assert.match(dialog.querySelector('[role="log"]').textContent, /Resposta da nova pergunta/);
+    assert.equal(dom.document.querySelector('section textarea').value, 'Rascunho preservado');
   } finally { lifecycle.dispose(); dom.restore(); }
 });

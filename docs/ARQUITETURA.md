@@ -89,6 +89,8 @@ Sem formulário reconhecido, permanece a marcação de técnicos. Formulário re
 
 ## Como adicionar funcionalidades
 
+Os resumos de IA usam `aiSummaryLifecycle.ts` para ancorar controles nos cabeçalhos Angular, `aiSummaryPosition.ts` para uma camada flutuante independente do HTML do e-mail e `aiChatMessages.ts` para renderizar texto, copiar respostas e editar perguntas. `aiTicketSummary.ts` controla a transação de edição e descarta a continuação anterior somente após uma nova resposta válida. A cópia fica em `services/ai/clipboard.ts`, com restauração do foco e seleção no fallback. O auxiliar Windows usa Native Messaging e credenciais DPAPI; `processIdentity.mjs` evita tratar um PID reaproveitado como dono de um lock antigo. Veja [IA-LOCAL.md](IA-LOCAL.md) para limites e validação.
+
 - **Nova regra de variável:** altere a validação em `settingsSchema.ts` ou a resolução em `templateVariables.ts`; mantenha valores substituídos literais e preserve o cancelamento.
 - **Novo cadastro:** defina contratos e validação, implemente persistência na fila do background, use uma base para detectar conflitos e só então conecte o formulário Vue. Atualize o backup quando o dado precisar ser transportável.
 - **Novo canal de respostas:** reutilize `replyList.ts` e `prepareTemplate`; valide novamente o editor após qualquer espera e escreva apenas no rascunho.

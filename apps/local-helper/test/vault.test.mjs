@@ -42,3 +42,21 @@ test('Windows DPAPI roundtrip protects a fictional value under the current OS us
   assert.ok(!encrypted.includes(secret));
   assert.equal(await dpapi(encrypted, true), secret);
 });
+
+import { isLockOwnerAlive } from '../processIdentity.mjs';
+test('an old PID reused after reboot does not keep the helper falsely locked', async () => {
+  const oldDate = Date.now() - 86400_000;
+  assert.equal(await isLockOwnerAlive({ pid: 1234 }, oldDate, async () => Date.now()), false);
+  assert.equal(await isLockOwnerAlive({ pid: 1234, startedAt: oldDate }, Date.now(), async () => oldDate + 100), true);
+  assert.equal(await isLockOwnerAlive({ pid: 1234, startedAt: oldDate }, Date.now(), async () => Date.now()), false);
+});
+test('stale lock recovery preserves the encrypted credentials and does not terminate a reused process', { skip: process.platform !== 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'octa-vault-stale-')), codec = testCodec();
+  const first = await openVault(dir, codec); await first.update(state => ({ ...state, marker: 'fictional-persisted-session' })); await first.close();
+  const encrypted = await readFile(join(dir, 'credentials.dpapi'), 'utf8');
+  await writeFile(join(dir, 'helper.lock'), JSON.stringify({ pid: process.pid, lockId: 'stale-fixture', startedAt: 0 }));
+  const recovered = await openVault(dir, codec);
+  assert.equal(recovered.read().marker, 'fictional-persisted-session');
+  assert.equal(await readFile(join(dir, 'credentials.dpapi'), 'utf8'), encrypted);
+  await assert.rejects(openVault(dir, codec), /helper_already_running/); await recovered.close();
+});

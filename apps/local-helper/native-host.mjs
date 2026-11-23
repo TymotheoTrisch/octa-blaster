@@ -15,8 +15,8 @@ export async function ensureHelper(fetcher = fetch, launch = () => {
   };
   if (await ready()) return;
   launch();
-  for (let i = 0; i < 50; i++) { await new Promise(resolve => setTimeout(resolve, 100)); if (await ready()) return; }
-  throw new Error('Não foi possível iniciar o auxiliar. Execute novamente Instalar-IA-Firefox.cmd para atualizar a instalação.');
+  for (let i = 0; i < 100; i++) { await new Promise(resolve => setTimeout(resolve, 100)); if (await ready()) return; }
+  throw new Error('Não foi possível iniciar o auxiliar. Atualize a instalação com Instalar-IA-Firefox.exe.');
 }
 
 export function startNativeHost({ input = process.stdin, output = process.stdout, fetcher = fetch, ensure = ensureHelper } = {}) {
