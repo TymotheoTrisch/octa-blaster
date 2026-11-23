@@ -5,7 +5,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ChatGPTAuth, PrototypeError } from './auth.mjs';
-import { listModels } from './inference.mjs';
+import { listModels, runSummary } from './inference.mjs';
+import { aiSettings, publicSettings, updateSettings, addStyleExample } from './ai-settings.mjs';
+import { createProviderEngine } from './provider-engine.mjs';
 import { openVault, memoryVault } from './vault.mjs';
 import { createBridge } from './bridge.mjs';
 
@@ -60,7 +62,7 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
   const stableHost = hostId || await loadHostId(dataDir);
   const vault = providedVault || (hostId ? memoryVault() : await openVault(dataDir));
   const session = randomBytes(32).toString('base64url'), csrf = randomBytes(32).toString('base64url');
-  let auth, bridge, origin, busy = false, lastError = '', lastDiagnostic = null, models = [], result = null, nativeLogin = false;
+  let auth, bridge, engine, origin, busy = false, lastError = '', lastDiagnostic = null, models = [], result = null, nativeLogin = false;
   async function enableNative() {
     models = await listModels(await auth.authorizedAccess(), fetcher);
     const preferred = vault.read().preferences.model;
@@ -84,17 +86,18 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
     }
     const readBody = async () => {
       const chunks = []; let size = 0;
-      for await (const chunk of req) { size += chunk.length; if (size > (url.pathname.startsWith('/bridge/') ? 300_000 : 4096)) throw new PrototypeError('invalid_body'); chunks.push(chunk); }
+      for await (const chunk of req) { size += chunk.length; if (size > (url.pathname.startsWith('/bridge/') ? 300_000 : url.pathname.startsWith('/ai/') ? 32_000 : 4096)) throw new PrototypeError('invalid_body'); chunks.push(chunk); }
       const value = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
       if (!value || typeof value !== 'object' || Array.isArray(value)) throw new PrototypeError('invalid_body');
       return value;
     };
     if (url.pathname.startsWith('/bridge/')) {
-      if (busy) return send(409, { error: messages.busy });
-      busy = true;
+      const readOnly = url.pathname === '/bridge/status';
+      if (busy && !readOnly) return send(409, { error: messages.busy });
+      if (!readOnly) busy = true;
       try { await bridge.handle(req, res, url, send, readBody); }
-      catch (error) { if (!res.destroyed) send(400, { error: messages[error.code] || 'A geração falhou. Tente novamente manualmente ou confira a conexão no auxiliar.', code: error instanceof PrototypeError ? error.code : 'local_error' }); }
-      finally { busy = false; }
+      catch (error) { if (!res.destroyed) send(400, { error: messages[error.code] || (error instanceof Error ? error.message.slice(0, 350) : 'A geração falhou.'), code: error instanceof PrototypeError ? error.code : 'local_error' }); }
+      finally { if (!readOnly) busy = false; }
       return;
     }
     if (req.headers.origin && req.headers.origin !== origin) return reject();
@@ -115,11 +118,18 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
     if (req.method === 'GET' && url.pathname === '/status') return send(200, { ...auth.status(), accounts: auth.accounts(), preferences: vault.read().preferences, pairedClients: vault.read().bridges.length, busy, lastError, lastDiagnostic, result, billingVerified: false });
     if (req.method === 'GET' && url.pathname === '/config') return send(200, { csrf });
     if (req.method !== 'POST' || req.headers.origin !== origin || req.headers['x-octablaster-csrf'] !== csrf || req.headers['content-type'] !== 'application/json') return reject();
+    if (url.pathname === '/ai/config') { try { await readBody(); return send(200, publicSettings(vault.read())); } catch { return send(400, { error: 'Solicitação inválida.' }); } }
     if (busy) return send(409, { error: messages.busy });
     busy = true;
     try {
       const input = await readBody();
+      if (url.pathname === '/ai/config') return send(200, publicSettings(vault.read()));
+      if (url.pathname === '/ai/config/save') { await vault.update(state => updateSettings(state, input)); await engine.cleanup(); return send(200, publicSettings(vault.read())); }
+      if (url.pathname === '/ai/style') { await vault.update(state => addStyleExample(state, input.author, input.text)); return send(200, { saved: true }); }
+      if (url.pathname === '/ai/forget') return send(200, await engine.forget(input.conversationKey));
+      if (url.pathname === '/ai/cleanup') return send(200, await engine.cleanup());
       if (url.pathname === '/native/connect') {
+        await vault.update(state => ({ ...state, ai: { ...aiSettings(state), provider: 'chatgpt' } }));
         if (!input.newAccount && auth.status().connected && auth.status().planAuthorized) {
           try { await enableNative(); return send(200, { connected: true }); }
           catch (error) { if (error.code !== 'login_required') throw error; }
@@ -146,7 +156,7 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
       if (url.pathname === '/models') { models = await listModels(await auth.authorizedAccess(), fetcher); lastError = ''; lastDiagnostic = null; return send(200, { models }); }
       return send(404, { error: 'Rota não encontrada.' });
     } catch (error) {
-      lastError = messages[error.code] || 'A operação falhou. Nenhuma alternativa paga será utilizada.';
+      lastError = messages[error.code] || (url.pathname.startsWith('/ai/') && error instanceof Error ? error.message.slice(0, 350) : 'A operação falhou. Nenhuma alternativa paga será utilizada.');
       lastDiagnostic = { code: error instanceof PrototypeError ? error.code : 'unexpected_local_error', ...(error instanceof PrototypeError ? error.diagnostic : {}) };
       return send(400, { error: lastError, diagnostic: lastDiagnostic });
     } finally { busy = false; }
@@ -155,8 +165,11 @@ export async function startPrototype({ port = 53894, hostId, vault: providedVaul
   catch (error) { await vault.close(); throw error; }
   origin = `http://127.0.0.1:${server.address().port}`;
   auth = new ChatGPTAuth({ hostId: stableHost, redirectUri: `${origin}/auth/callback`, saved: vault.read(), onSave: data => vault.update(state => ({ ...state, ...data })), ...(fetcher ? { fetcher } : {}), ...(verifier ? { verifier } : {}) });
-  bridge = createBridge({ auth, vault, fetcher });
-  const close = async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await vault.close(); };
+  engine = createProviderEngine({ vault, fetcher, chatgpt: async (input, signal) => { const token = await auth.authorizedAccess(); const catalog = await listModels(token, fetcher); const model = vault.read().preferences.model; if (!catalog.some(item => item.slug === model)) throw new PrototypeError('invalid_model'); return runSummary(token, model, input, fetcher, signal); } });
+  bridge = createBridge({ auth, vault, fetcher, engine });
+  const housekeeping = setInterval(() => void engine.cleanup().catch(() => {}), 3600_000); housekeeping.unref();
+  void engine.cleanup().catch(() => {});
+  const close = async () => { clearInterval(housekeeping); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await engine.drain(); await vault.close(); };
   return { origin, close };
 }
 

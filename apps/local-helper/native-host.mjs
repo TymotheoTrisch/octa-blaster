@@ -53,6 +53,11 @@ export function startNativeHost({ input = process.stdin, output = process.stdout
       const { local, bridge } = await session();
       if (controller.signal.aborted) throw new Error('Solicitação cancelada.');
       if (message.action === 'status') { await local.afterLogin(); return bridge('status'); }
+      if (message.action === 'config') return local.post('/ai/config');
+      if (message.action === 'configure') return local.post('/ai/config/save', message.config);
+      if (message.action === 'style') return local.post('/ai/style', { author: message.author, text: message.text });
+      if (message.action === 'forget') return local.post('/ai/forget', { conversationKey: message.conversationKey });
+      if (message.action === 'cleanup') return local.post('/ai/cleanup');
       if (message.action === 'connect') return local.connect(message.newAccount === true);
       if (message.action === 'accounts') return { accounts: await local.accounts() };
       if (message.action === 'select') return local.select(message.clientId);

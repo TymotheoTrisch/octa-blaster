@@ -12,6 +12,10 @@ node_modules
 stats.html
 stats-*.json
 .wxt
+apps/team-gateway/.env
+apps/team-gateway/users.json
+apps/team-gateway/.secrets/
+apps/team-gateway/data/
 web-ext.config.ts
 
 # Editor directories and files

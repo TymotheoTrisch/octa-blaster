@@ -2,6 +2,17 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Provedores, perfil e retenção — extensão 1.2.0 / auxiliar 0.3.0
+
+- **155 testes da extensão, 51 do auxiliar e 4 do gateway aprovados (210 no total)**. TypeScript e builds Chromium/Firefox concluídos; ZIP Firefox 1.2.0 gerado.
+- OpenAI com continuação por resposta, Gemini Interactions com saída `steps`, Claude Messages/cache e NVIDIA Chat Completions exercitados com respostas fictícias nos formatos oficiais. Sem credenciais reais nem inferência paga nesses testes.
+- Cobertura de contexto inicial/continuação sem repetir o ticket na requisição, troca de ticket/fonte, edição do histórico, truncamento/erros, cancelamento, ausência de retry automático, credenciais mascaradas e separação de histórico para diferentes credenciais do servidor da equipe. Cancelar antes do despacho impede a inferência posterior.
+- Retenção por inatividade e idade máxima, exclusão de respostas remotas e fila de exclusões não confirmadas testadas. Alterar o domínio do servidor não reaproveita a credencial do domínio anterior.
+- Navegador Chromium com extensão real e fixture Angular em iframe: seis opções de conexão, revisão de exemplo com autoria correspondente, perfil, retenção, chave limpa da tela após salvar e ausente do storage do navegador. Chat recuperado após reload e geometria flutuante preservados. Provedores simulados.
+- Auxiliar atualizado instalado neste computador, preservando o login existente. Firefox headless real confirmou conexão e leitura da configuração pública por Native Messaging; credenciais não foram devolvidas. Consulta de estado/configuração apenas, sem chamada ao modelo.
+- Gateway HTTP testado com autenticação individual, isolamento de usuários, quota diária persistente após reinício e AES-GCM autenticado. Compose validado com valores fictícios. Identidade de processo Linux tem teste de parsing para boot/início; não houve execução em contêiner, pois o daemon Docker estava indisponível.
+- Backend preparado para homologação, sem publicação externa. Acesso real às APIs, preço, condições de retenção/contrato e qualidade de cada modelo ainda dependem da conta/endpoint escolhido. O destino de implantação da equipe não foi informado. A homologação no Octadesk real permanece pendente.
+
 ## Histórico persistente — extensão 1.1.2
 
 - **149 testes da extensão aprovados**, TypeScript sem erros, builds Chromium/Firefox e ZIP Firefox 1.1.2 gerados. O runtime do auxiliar permanece 0.2.1; as mudanças de persistência ocorrem na extensão.

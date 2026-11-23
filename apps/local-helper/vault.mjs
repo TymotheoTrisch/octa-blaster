@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, unlink, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrototypeError } from './auth.mjs';
-import { isLockOwnerAlive, processStartedAt } from './processIdentity.mjs';
+import { isLockOwnerAlive, processStartedAt, processBirthIdentity } from './processIdentity.mjs';
 
 // O conteúdo entra por stdin, nunca por argumentos, variáveis de ambiente ou logs.
 export function dpapi(value, decrypt = false) {
@@ -28,7 +28,7 @@ export async function openVault(dataDir, codec = dpapi) {
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
   const lockPath = join(dataDir, 'helper.lock');
   const lockId = randomUUID();
-  try { await writeFile(lockPath, JSON.stringify({ pid: process.pid, lockId, startedAt: await processStartedAt ?? undefined }), { flag: 'wx', mode: 0o600 }); }
+  try { await writeFile(lockPath, JSON.stringify({ pid: process.pid, lockId, startedAt: await processStartedAt ?? undefined, birthIdentity: await processBirthIdentity ?? undefined }), { flag: 'wx', mode: 0o600 }); }
   catch (error) {
     if (error.code !== 'EEXIST') throw new PrototypeError('vault_unavailable');
     const previous = JSON.parse(await readFile(lockPath, 'utf8'));

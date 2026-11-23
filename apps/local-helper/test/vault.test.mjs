@@ -44,6 +44,14 @@ test('Windows DPAPI roundtrip protects a fictional value under the current OS us
 });
 
 import { isLockOwnerAlive } from '../processIdentity.mjs';
+import { linuxProcessIdentity } from '../processIdentity.mjs';
+
+test('Linux container process identity includes boot identity and process start ticks', async () => {
+  const fields = Array(20).fill('0'); fields[0] = 'S'; fields[19] = '12345';
+  const read = async path => path.endsWith('/stat') ? `1 (node worker) ${fields.join(' ')}` : 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n';
+  assert.equal(await linuxProcessIdentity(1, read), 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:12345');
+  assert.equal(await linuxProcessIdentity(1, async () => { throw new Error('missing'); }), null);
+});
 test('an old PID reused after reboot does not keep the helper falsely locked', async () => {
   const oldDate = Date.now() - 86400_000;
   assert.equal(await isLockOwnerAlive({ pid: 1234 }, oldDate, async () => Date.now()), false);

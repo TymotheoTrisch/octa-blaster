@@ -50,3 +50,23 @@ test('reconnect starts official reauthorization of the same registration when an
     assert.ok(login.searchParams.get('code_challenge')); assert.equal(vault.read().accounts.length, 1);
   } finally { await app.close(); }
 });
+
+test('API configuration stays behind local CSRF protection, redacts secrets and works without a ChatGPT session', async () => {
+  const vault = memoryVault(); let release, calls = 0;
+  const app = await startPrototype({ port: 0, hostId: 'urn:uuid:11111111-1111-4111-8111-111111111111', vault, fetcher: async () => { calls++; return new Promise(resolve => { release = () => resolve(Response.json({ id: 'r_test', status: 'completed', output: [{ content: [{ type: 'output_text', text: 'Resumo fictício' }] }] })); }); } });
+  try {
+    const home = await fetch(app.origin), cookie = home.headers.get('set-cookie').split(';')[0], { csrf } = await (await fetch(`${app.origin}/config`, { headers: { cookie } })).json();
+    const post = (path, data = {}, headers = {}) => fetch(`${app.origin}${path}`, { method: 'POST', headers: { cookie, Origin: app.origin, 'Content-Type': 'application/json', 'X-Octablaster-CSRF': csrf, ...headers }, body: JSON.stringify(data) });
+    assert.equal((await post('/ai/config', {}, { Origin: 'https://other.invalid' })).status, 403);
+    const config = await (await post('/ai/config')).json(); config.provider = 'openai'; config.providers.openai = { model: 'test-model', apiKey: 'fake-private-company-key', remoteStore: true };
+    const saved = await post('/ai/config/save', config), publicData = await saved.text(); assert.equal(saved.status, 200); assert.ok(!publicData.includes('fake-private-company-key')); assert.equal(calls, 0);
+    const code = await (await post('/pairing/code')).json(), origin = 'moz-extension://fictional-test';
+    const pair = await (await post('/bridge/pair', { code: code.code }, { 'X-Octablaster-Origin': origin, Origin: origin })).json();
+    const headers = { Origin: origin, 'X-Octablaster-Origin': origin, Authorization: `Bearer ${pair.key}` };
+    const status = await (await post('/bridge/status', {}, headers)).json(); assert.equal(status.provider, 'openai'); assert.equal(status.enabled, true);
+    const pending = post('/bridge/draft', { task: 'summary_full', context: 'Mensagem fictícia', instruction: 'Resuma.', conversationKey: 'a'.repeat(64) }, headers);
+    for (let i = 0; !release && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal((await post('/ai/config')).status, 200); assert.equal((await post('/bridge/status', {}, headers)).status, 200);
+    release(); const result = await (await pending).json(); assert.equal(result.text, 'Resumo fictício'); assert.equal(calls, 1);
+  } finally { release?.(); await app.close(); }
+});

@@ -24,6 +24,8 @@ pnpm test
 - `windows/InstallGui.cs` e `BuildInstaller.ps1`: instalador gráfico compilado com Windows PowerShell/.NET Framework; o EXE deve ficar junto da pasta `windows` no pacote extraído.
 - `processIdentity.mjs`: diferencia o dono do lock de um PID reaproveitado pelo Windows, preservando as credenciais ao recuperar um lock antigo.
 
-Os tokens não chegam à extensão, não entram no backup e não são registrados em logs. O auxiliar não persiste o chat nem o conteúdo dos clientes; a extensão 1.1.2 salva o histórico de conversa por ticket no armazenamento privado do navegador para continuar depois. As tarefas habilitadas são resumo de mensagem, resumo do ticket e perguntas sobre esse contexto. A validade da autorização é definida pelo provedor, com renovação; não é um token manual de cinco minutos nem um cookie do navegador.
+O auxiliar 0.3.0 adiciona APIs OpenAI, Gemini, Claude, NVIDIA e servidor da equipe. O login ChatGPT continua disponível. Chaves, tokens, perfil, exemplos revisados, referências remotas e notas curtas de resumo são protegidos com DPAPI, sem entrar nos backups ou logs. Chaves/tokens não são devolvidos à interface. O chat completo fica no storage privado do navegador; o HTML integral não é arquivado. A retenção padrão dos tickets é 30 dias sem uso/90 dias de idade máxima. Exclusões remotas sem confirmação ficam pendentes.
+
+`provider-engine.mjs` controla contexto, mudanças de modelo/perfil, recorte e limpeza; `provider-http.mjs` adapta as APIs. Não há retry de inferência nem fallback pago automático. Veja também [servidor da equipe](../team-gateway/README.md). Login ChatGPT exige `store: false`; usar estado remoto nas APIs não torna tokens de contexto gratuitos.
 
 Veja [VALIDATION.md](VALIDATION.md). A licença é AGPL-3.0-or-later, conforme o LICENSE da raiz do repositório.
