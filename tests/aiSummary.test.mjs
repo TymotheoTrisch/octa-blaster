@@ -3,13 +3,26 @@ import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
 import { createSummaryLifecycle } from '../services/octadesk/aiSummaryLifecycle.ts';
 import { collectAiTicketContext } from '../services/octadesk/aiTicketContext.ts';
-const settle = () => new Promise(resolve => setImmediate(resolve));
+import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
+async function settle() {
+  await new Promise(resolve => setTimeout(resolve, 20));
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const dialog = globalThis.document?.querySelector('.octa-ticket-chat');
+    if (!dialog?.querySelector('footer textarea')?.disabled || !/Carregando|Analisando/.test(dialog.querySelector('.octa-ticket-chat-status').textContent)) break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+}
+function installChatTransport() {
+  const chats = createTicketChatStore();
+  browser.runtime = { sendMessage: async message => { try { return { success: true, data: await chats.handle(message.action, message.key, message.revision, message.content) }; } catch (error) { return { success: false, error: error.message }; } } };
+}
 function fixture() {
   const storage = installStorage();
+  installChatTransport();
   const dom = installDom(`<section ticket-id="A"><header class="ticket-header"><h1>Ticket fictício</h1></header><article class="interaction"><header class="interaction-header">Remetente fictício</header><div class="content-comment-interaction"><p>Mensagem original A</p><blockquote>Citação removida</blockquote></div></article><textarea>Rascunho preservado</textarea></section><section ticket-id="B"><h1>Outro ticket</h1><div class="content-comment-interaction"><p>SEGREDO B</p></div></section>`);
   dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({ width: 900, height: 250 });
   dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
-  return { ...dom, restore() { dom.restore(); storage.restore(); } };
+  return { ...dom, data: storage.data, restore() { dom.restore(); storage.restore(); } };
 }
 test('summary controls appear on all tickets independently of license status and never duplicate', () => {
   const dom = fixture(), lifecycle = createSummaryLifecycle(dom.document);
@@ -90,6 +103,7 @@ test('full context covers more than twenty messages and reports the 50000-charac
 
 test('supplied Angular form anchors ticket summary after the number and message summary before native actions without entering collapse', async () => {
   const storage = installStorage();
+  installChatTransport();
   const dom = installDom(`<form class="edit-ticket" ticket="ticket"><header class="header header-info header-lg"><div class="col-sm-8 space-less"><div class="clearfix"><span class="label">Em andamento</span><span class="label label-md label-default ng-binding">123456<pop-over-copy></pop-over-copy></span><a class="native-link">Vinculados</a></div><div class="ticket-title clearfix"><h2>Solicitação fictícia</h2></div></div></header><div class="od-Ticket-history"><octa-ticket-interaction ticket-number="123456"><interaction-comment class="interaction-comment-item"><header><interaction-comment-header><div class="interaction-comment-header"><interaction-comment-header-information class="layout-flex-1"><span class="comment-title">Pessoa fictícia</span></interaction-comment-header-information><ul class="comment-actions"><li><a>Abrir</a></li></ul></div></interaction-comment-header></header><div class="comment collapse" style="height:200px;overflow:hidden"><div class="text"><interaction-comment-text><interaction-comment-text-common><div class="content-comment-interaction"><div class="ng-binding">Mensagem fictícia de suporte.</div></div></interaction-comment-text-common></interaction-comment-text></div><button type="button" class="btn-toggle-collapse">Expandir</button></div></interaction-comment></octa-ticket-interaction></div><textarea>Preservar</textarea></form>`);
   dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({ width: 1000, height: 200 });
   const lifecycle = createSummaryLifecycle(dom.document, async () => ({ text: 'Resumo fictício' })); let submits = 0;
@@ -170,4 +184,59 @@ test('a question after initial summary failure starts with empty history and pre
     assert.deepEqual(calls[1].input.history, []); assert.match(dialog.querySelector('[role="log"]').textContent, /Resposta da nova pergunta/);
     assert.equal(dom.document.querySelector('section textarea').value, 'Rascunho preservado');
   } finally { lifecycle.dispose(); dom.restore(); }
+});
+
+test('closing and reopening restores chat and unsent text without another summary or inference', async () => {
+  const dom = fixture(), calls = [];
+  const lifecycle = createSummaryLifecycle(dom.document, async (_action, data) => { calls.push(data); return { text: 'Resumo salvo' }; });
+  try {
+    lifecycle.scan(); const open = () => dom.document.querySelector('.octa-ticket-summary-button').click();
+    open(); await settle();
+    dom.document.querySelector('.octa-ticket-chat footer textarea').value = 'Pergunta ainda não enviada';
+    dom.document.querySelector('.octa-ticket-chat header button').click(); open(); await settle();
+    assert.equal(calls.length, 1); assert.match(dom.document.querySelector('[role="log"]').textContent, /Resumo salvo/);
+    const input = dom.document.querySelector('.octa-ticket-chat footer textarea'); assert.equal(input.value, 'Pergunta ainda não enviada');
+    input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle();
+    assert.equal(calls.length, 2); assert.equal(calls[1].input.history.length, 2);
+    assert.equal(Object.values(dom.data).filter(value => value?.version === 1 && value.messages).length, 1);
+    assert.equal(localStorage.length, 0);
+  } finally { lifecycle.dispose(); await settle(); dom.restore(); }
+});
+
+test('a recreated ticket DOM resumes storage but another ticket has its own chat', async () => {
+  const dom = fixture(); let calls = 0, lifecycle = createSummaryLifecycle(dom.document, async () => ({ text: `Resumo ${++calls}` }));
+  try {
+    lifecycle.scan(); dom.document.querySelector('.octa-ticket-summary-button').click(); await settle();
+    lifecycle.dispose(); await settle(); const scope = dom.document.querySelector('section'); scope.replaceWith(scope.cloneNode(true));
+    installChatTransport(); // Simula recriação da fila/background mantendo o storage persistente.
+    lifecycle = createSummaryLifecycle(dom.document, async () => ({ text: `Resumo ${++calls}` })); lifecycle.scan();
+    dom.document.querySelector('.octa-ticket-summary-button').click(); await settle(); assert.equal(calls, 1);
+    dom.document.querySelector('.octa-ticket-chat header button').click();
+    dom.document.querySelector('[ticket-id="B"] .octa-ticket-summary-button').click(); await settle();
+    assert.equal(calls, 2); assert.ok(!dom.document.querySelector('[role="log"]').textContent.includes('Resumo 1'));
+  } finally { lifecycle.dispose(); await settle(); dom.restore(); }
+});
+
+test('new email content preserves saved chat and uses fresh context on the next question', async () => {
+  const dom = fixture(), calls = [], lifecycle = createSummaryLifecycle(dom.document, async (_action, data) => { calls.push(data); return { text: 'Conversa original' }; });
+  try {
+    lifecycle.scan(); const open = () => dom.document.querySelector('.octa-ticket-summary-button').click(); open(); await settle();
+    dom.document.querySelector('.octa-ticket-chat header button').click(); await settle();
+    dom.document.querySelector('.content-comment-interaction').append(' Nova informação do cliente.'); open(); await settle();
+    assert.equal(calls.length, 1); assert.match(dom.document.querySelector('.octa-ticket-chat-status').textContent, /mudaram/);
+    const input = dom.document.querySelector('.octa-ticket-chat footer textarea'); input.value = 'E agora?'; input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle();
+    assert.match(calls[1].input.context, /Nova informação do cliente/); assert.equal(calls[1].input.history.length, 2);
+  } finally { lifecycle.dispose(); await settle(); dom.restore(); }
+});
+
+test('closing an in-flight question saves its text but never appends the cancelled late answer', async () => {
+  const dom = fixture(); let finish; const calls = [];
+  const lifecycle = createSummaryLifecycle(dom.document, async (action, data) => { if (action === 'AI_CANCEL') return {}; calls.push(data); if (calls.length === 2) return new Promise(resolve => { finish = resolve; }); return { text: 'Resumo válido' }; });
+  try {
+    lifecycle.scan(); const open = () => dom.document.querySelector('.octa-ticket-summary-button').click(); open(); await settle();
+    const input = dom.document.querySelector('.octa-ticket-chat footer textarea'); input.value = 'Pergunta em andamento'; input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle();
+    dom.document.querySelector('.octa-ticket-chat header button').click(); finish({ text: 'Resposta cancelada' }); open(); await settle();
+    assert.equal(calls.length, 2); assert.equal(dom.document.querySelector('.octa-ticket-chat footer textarea').value, 'Pergunta em andamento');
+    assert.ok(!dom.document.querySelector('[role="log"]').textContent.includes('Resposta cancelada'));
+  } finally { lifecycle.dispose(); await settle(); dom.restore(); }
 });

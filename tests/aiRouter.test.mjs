@@ -40,3 +40,17 @@ test('only the originating tab/frame can cancel a request and closing a tab canc
     router.clearTab(1); assert.equal(calls[2].action, 'cancel'); finish({ text: 'Resumo' }); await result;
   } finally { storage.restore(); }
 });
+
+test('chat persistence uses extension-local storage and rejects other sites, frames and stale revisions', async () => {
+  let nativeCalls = 0;
+  const { storage, call } = setup({ call: async () => { nativeCalls++; } });
+  const key = 'a'.repeat(64), content = { messages: [{ role: 'assistant', content: 'Resumo' }], draft: '', contextDigest: 'b'.repeat(64) };
+  try {
+    const saved = await call({ action: 'AI_CHAT_SAVE', key, revision: null, content }); assert.equal(saved.success, true);
+    assert.equal((await call({ action: 'AI_CHAT_LOAD', key })).data.chat.messages[0].content, 'Resumo');
+    assert.equal((await call({ action: 'AI_CHAT_SAVE', key, revision: null, content })).success, false);
+    assert.equal((await call({ action: 'AI_CHAT_LOAD', key }, { ...content, tab: { id: 2, url: 'https://other.invalid' } })).success, false);
+    assert.equal((await call({ action: 'AI_CHAT_LOAD', key }, { ...content, tab: { id: 2, url: 'https://app.octadesk.com' }, url: 'https://other.invalid' })).success, false);
+    assert.equal(nativeCalls, 0);
+  } finally { storage.restore(); }
+});

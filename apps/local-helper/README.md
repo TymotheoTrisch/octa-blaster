@@ -24,6 +24,6 @@ pnpm test
 - `windows/InstallGui.cs` e `BuildInstaller.ps1`: instalador gráfico compilado com Windows PowerShell/.NET Framework; o EXE deve ficar junto da pasta `windows` no pacote extraído.
 - `processIdentity.mjs`: diferencia o dono do lock de um PID reaproveitado pelo Windows, preservando as credenciais ao recuperar um lock antigo.
 
-Os tokens não chegam à extensão, não entram no backup e não são registrados em logs. O chat e o conteúdo de clientes não são persistidos pelo aplicativo. As tarefas habilitadas são resumo de mensagem, resumo do ticket e perguntas sobre esse contexto. A validade da autorização é definida pelo provedor, com renovação; não é um token manual de cinco minutos nem um cookie do navegador.
+Os tokens não chegam à extensão, não entram no backup e não são registrados em logs. O auxiliar não persiste o chat nem o conteúdo dos clientes; a extensão 1.1.2 salva o histórico de conversa por ticket no armazenamento privado do navegador para continuar depois. As tarefas habilitadas são resumo de mensagem, resumo do ticket e perguntas sobre esse contexto. A validade da autorização é definida pelo provedor, com renovação; não é um token manual de cinco minutos nem um cookie do navegador.
 
 Veja [VALIDATION.md](VALIDATION.md). A licença é AGPL-3.0-or-later, conforme o LICENSE da raiz do repositório.

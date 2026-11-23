@@ -1,6 +1,6 @@
 # IA local — resumos do ticket
 
-Entrega proposta 1.1.1, sobre a última release oficial v1.0.1 e `main` (`ff7752d`), conferidas em 23/11/2026. Esta etapa contém resumos de mensagens e resumo geral com perguntas de continuidade. As respostas rápidas e licenças existentes seguem na arquitetura do projeto.
+Entrega proposta 1.1.2, sobre a última release oficial v1.0.1 e `main` (`ff7752d`), conferidas em 23/11/2026. Esta etapa contém resumos de mensagens e resumo geral com perguntas de continuidade e histórico persistente por ticket. As respostas rápidas e licenças existentes seguem na arquitetura do projeto.
 
 ## Plano executado
 
@@ -41,7 +41,17 @@ A largura acompanha o corpo da mensagem até 520px, com 16px de afastamento. A a
 
 O resumo tenta abrir **Todas as interações** antes da análise. Se o carregamento não puder ser confirmado, avisa no contexto disponível. O chat mostra a cobertura: mensagens antigas não carregadas, anexos e imagens não foram analisados. Não presume acesso a conversas do ChatGPT ou a outros tickets.
 
-Para perguntar, digite e pressione **Enter**; **Shift+Enter** quebra a linha. O histórico recente é enviado apenas nas perguntas de continuidade (até seis pares, 24.000 caracteres). Fica em memória nesta janela e não representa aprendizado permanente. Fechar cancela a solicitação e descarta o chat. Mudanças no ticket ou nas mensagens exigem reabrir o resumo.
+Para perguntar, digite e pressione **Enter**; **Shift+Enter** quebra a linha. O histórico recente é enviado apenas nas perguntas de continuidade (até seis pares, 24.000 caracteres). A conversa completa e o texto ainda não enviado ficam no armazenamento privado local da extensão, separados por origem, workspace (quando disponível no shell) e número/identificador do ticket. Não são gravados no `localStorage` da página nem incluídos no backup de respostas rápidas. O conteúdo integral do e-mail não é arquivado: salva-se somente uma impressão SHA-256 do contexto junto das mensagens do chat e do rascunho da pergunta.
+
+Fechar salva o chat, cancela a solicitação em andamento e mantém a pergunta interrompida como texto para retomar. Ao reabrir ou recarregar a página/extensão/navegador, a conversa é recuperada sem gerar outro resumo nem consumir uma nova chamada de IA. Se o ticket recebeu novas informações, o chat anterior é mantido, a tela avisa e a próxima pergunta usa o conteúdo atualizado. Uma troca de ticket durante a análise ainda cancela respostas tardias.
+
+O armazenamento pertence ao perfil do navegador; não sincroniza com outro computador ou com o site ChatGPT. Limpar os dados da extensão ou removê-la pode apagar o histórico. O histórico de tickets pode conter dados do atendimento; não utiliza a DPAPI do auxiliar, que protege somente as credenciais de conexão. Revisões e uma fila no background impedem que duas abas sobrescrevam silenciosamente a mesma conversa. Falha de gravação/quota é informada na conversa. O limite por conversa é de 1.000 mensagens e 1.000.000 de caracteres serializados, sem descarte automático de mensagens antigas.
+
+## Sugestões no estilo do atendente (proposta, ainda não habilitada)
+
+É possível construir um acervo local de exemplos a partir das respostas enviadas pelo próprio atendente no HTML dos tickets carregados. Antes de automatizar a coleta, é necessário confirmar a autoria, separar respostas de outros agentes e trechos citados, e definir quais exemplos podem ser reutilizados. Um perfil de escrita pode guardar saudação, tom, extensão e forma de orientar, combinado com poucos exemplos relevantes ao novo atendimento. Isso orienta cada geração por contexto; não treina o modelo permanentemente nem dá acesso ao histórico completo do Octadesk.
+
+O histórico do chat implementado nesta entrega fica separado desse futuro acervo. Não há coleta automática entre tickets nem geração personalizada habilitada. A futura sugestão deve usar os fatos do ticket atual e ser revisada antes do envio.
 
 ## Estrutura
 
@@ -52,6 +62,7 @@ Para perguntar, digite e pressione **Enter**; **Shift+Enter** quebra a linha. O 
 | `services/octadesk/aiTicketContext.ts` / `aiHistory.ts` | Extração isolada, identidade real do ticket e carregamento das interações. |
 | `services/octadesk/aiMessageSummary.ts` / `aiTicketSummary.ts` | Box de mensagem e conversa mínima do ticket. |
 | `services/octadesk/aiSummaryPosition.ts` / `aiChatMessages.ts` | Geometria flutuante, acompanhamento do corpo e ações de copiar/editar mensagens. |
+| `services/ai/ticketChatPersistence.ts` / `services/storage/aiChatStorage.ts` | Identificação estável, recuperação, rascunho, validação e fila de persistência local com revisão contra sobrescrita. |
 | `services/octadesk/aiSummaryStyles.ts` | Estilos isolados, reutilizando os tokens de tema e marca atuais do projeto. |
 | `services/ai/summaryRequest.ts` / `nativeClient.ts` | Cancelamento, histórico limitado e canal nativo compartilhado. |
 | `services/background/aiRouter.ts` | Validação de origem/tarefa, bloqueio de geração de e-mails, cancelamento por aba/frame. |

@@ -2,6 +2,15 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Histórico persistente — extensão 1.1.2
+
+- **149 testes da extensão aprovados**, TypeScript sem erros, builds Chromium/Firefox e ZIP Firefox 1.1.2 gerados. O runtime do auxiliar permanece 0.2.1; as mudanças de persistência ocorrem na extensão.
+- Conversa e pergunta não enviada recuperadas depois de fechar/reabrir, recriar o DOM e recriar a fila de storage. Tickets e workspaces separados; rota e parâmetros de rastreamento não alteram a identidade de um ticket com número conhecido.
+- Reabertura imediata aguarda a gravação anterior; revisão otimista impede sobrescrita por outra aba. Dados inválidos, papéis privilegiados e falha de quota rejeitam a gravação sem fallback para `localStorage` da página.
+- Perguntas continuam com histórico salvo e contexto atual quando novas mensagens chegam. Respostas canceladas não entram no histórico, e o texto da pergunta interrompida é recuperado.
+- Navegador Chromium com extensão real, fixture em iframe e IA simulada: conversa e texto não enviado restaurados após fechar e recarregar a página, sem outra inferência. A pergunta seguinte incluiu o histórico salvo. Nenhuma chamada real ao modelo ou dado de cliente foi usado.
+- Não foi habilitado acervo de respostas do atendente nem coleta automática entre tickets; a documentação registra essa possibilidade como próxima etapa. A homologação no Octadesk real permanece pendente.
+
 ## Revisão de 23/11 — entrega proposta 1.1.1 / auxiliar 0.2.1
 
 - Última release oficial v1.0.1 e main `ff7752d` incorporadas, preservando as correções do seletor de cores do colega.

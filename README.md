@@ -50,6 +50,8 @@ Projetada especificamente para equipes de atendimento e suporte que utilizam o *
 
 Resumo de cada mensagem em uma janela flutuante, sem alterar a largura ou o HTML do e-mail, e resumo geral com perguntas, cópia das respostas e edição das próprias perguntas. A interface acompanha o tema e as cores da extensão. No Firefox/Windows, o auxiliar inicia automaticamente via Native Messaging após uma instalação gráfica única; o login oficial é salvo e renovado, sem CMD nem códigos manuais. A geração de e-mails fica desabilitada nesta etapa. Consulte [IA local: instalação, contexto, chat e arquitetura](docs/IA-LOCAL.md).
 
+O chat e a pergunta ainda não enviada ficam salvos por ticket no perfil local do navegador. Reabrir o resumo ou recarregar a página recupera a conversa sem outra geração. O contexto das próximas perguntas acompanha novas mensagens do ticket; o acervo de exemplos pessoais para sugestões futuras ainda não está habilitado.
+
 ### 1. 🏷️ Automação Inteligente de Licenças com Isolamento por Ticket
 - **Detecção Ampla de Operações**: Reconhece chamados de **Contratação**, **Troca**, **Cancelamento** e **Renovação** de forma isolada dentro do contêiner do chamado atual, sem interferir nem vazar para outros tickets abertos em abas vizinhas.
 - **Validação Sob Demanda no Clique**: Elimina rotinas contínuas de varredura do DOM (zero overhead em segundo plano). A verificação é disparada sob demanda quando o usuário aciona a ação. Caso o chamado não contenha indícios de licença, exibe um diálogo preventivo de confirmação antes de prosseguir.

@@ -1,7 +1,9 @@
 import { createNativeAiClient } from '@/services/ai/nativeClient';
+import { createTicketChatStore } from '@/services/storage/aiChatStorage';
 
-const actions = ['AI_STATUS', 'AI_CONNECT', 'AI_ACCOUNTS', 'AI_SELECT_ACCOUNT', 'AI_DISCONNECT', 'AI_MODELS', 'AI_PREFERENCES', 'AI_GENERATE', 'AI_CANCEL'];
+const actions = ['AI_STATUS', 'AI_CONNECT', 'AI_ACCOUNTS', 'AI_SELECT_ACCOUNT', 'AI_DISCONNECT', 'AI_MODELS', 'AI_PREFERENCES', 'AI_GENERATE', 'AI_CANCEL', 'AI_CHAT_LOAD', 'AI_CHAT_SAVE'];
 export function createAiRouter(client = createNativeAiClient()) {
+  const chats = createTicketChatStore();
   const pending = new Map<string, string>();
   const ownerOf = (sender: any) => `${sender.tab?.id ?? 'ui'}:${sender.frameId ?? 0}`;
   return {
@@ -12,6 +14,12 @@ export function createAiRouter(client = createNativeAiClient()) {
       const ticketPage = (() => { try { const url = new URL(sender.tab?.url); return url.protocol === 'https:' && (url.hostname === 'app.octadesk.com' || url.hostname.endsWith('.octadesk.com')); } catch { return false; } })();
       if (!extensionPage && !ticketPage) { respond({ success: false, error: 'Origem não autorizada.' }); return true; }
       void (async () => {
+        if (message.action === 'AI_CHAT_LOAD' || message.action === 'AI_CHAT_SAVE') {
+          if (!ticketPage) throw new Error('Abra a conversa no ticket do Octadesk.');
+          const frameUrl = new URL(sender.url || sender.tab.url);
+          if (frameUrl.protocol !== 'https:' || !(frameUrl.hostname === 'app.octadesk.com' || frameUrl.hostname.endsWith('.octadesk.com'))) throw new Error('Frame não autorizado.');
+          return chats.handle(message.action, message.key, message.revision, message.content);
+        }
         if (['AI_CONNECT', 'AI_ACCOUNTS', 'AI_SELECT_ACCOUNT', 'AI_DISCONNECT', 'AI_PREFERENCES'].includes(message.action) && !extensionPage) throw new Error('Use Inteligência artificial no menu da extensão para alterar a conexão.');
         if (message.action === 'AI_STATUS') return client.call('status');
         if (message.action === 'AI_ACCOUNTS') return client.call('accounts');

@@ -60,6 +60,8 @@ Widgets e atalhos capturam o editor, a identidade do ticket e o rascunho antes d
 
 ## Persistência e compatibilidade
 
+Conversas da IA usam uma chave privada `octablaster_ticket_chat_v1_<sha256>` por origem/workspace/ticket. `ticketChatPersistence.ts` gera a identidade estável sem depender de query, hash ou rota de entrada. `aiChatStorage.ts` valida os registros e serializa gravações no background com revisão otimista. Mensagens do chat, rascunho da pergunta e digest do contexto ficam em `browser.storage.local`, sem backup no armazenamento da página e sem alteração no formato de backup dos templates. O HTML original do atendimento não é arquivado. A restauração não solicita inferência; perguntas subsequentes combinam histórico limitado e contexto atual do ticket.
+
 | Chave | Conteúdo |
 | --- | --- |
 | `octablaster_quick_replies_v2` | Mensagens, ordem e associações com tags. |
