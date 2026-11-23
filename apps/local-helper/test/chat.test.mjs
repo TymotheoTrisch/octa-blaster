@@ -17,6 +17,8 @@ test('summaries and questions use task-specific instructions with local bounded 
       assert.deepEqual(input.historico_do_chat, task === 'chat' ? history : []);
       assert.equal(input.conversa_do_ticket, base.context);
       assert.match(body.instructions, /mensagens carregadas/);
+      assert.match(body.instructions, /não assuma a identidade da empresa destinatária/);
+      assert.match(body.instructions, /Não escreva assinatura de pessoa, equipe ou empresa/);
       if (task === 'summary_latest') assert.match(body.instructions, /somente a última mensagem/);
       if (task === 'summary_full') assert.match(body.instructions, /evolução/);
       if (task === 'chat') assert.match(body.instructions, /perguntas de continuidade/);

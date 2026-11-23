@@ -2,6 +2,17 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Autoria e assinatura — extensão 1.2.2 / auxiliar 0.3.2
+
+- 166 testes da extensão, 53 do auxiliar e 4 do gateway aprovados: 223 no total. TypeScript, builds Chrome/Firefox, teste visual Chromium e consulta de configuração pública em Firefox real aprovados.
+
+- Regressão do rodapé do destinatário: resposta simulada contendo Atenciosamente e equipe/empresa do cliente é limpa antes de prévia, cópia e inserção. A mesma verificação passa com aprendizado desativado; os padrões armazenados são numéricos, sem nomes/assinaturas.
+- Contexto passa a distinguir papéis explicitamente mostrados nos cabeçalhos, registra autoria desconhecida sem inferir pela assinatura e preserva metadados em truncamentos e recortes.
+- Sugestão aguarda expansão das interações anteriores. Revalidação do editor/ticket/autoria continua ativa durante o carregamento.
+- Prompts nativos dos quatro provedores por API e login ChatGPT proíbem assumir identidade do cliente e gerar assinatura.
+- Chromium com extensão real e fixture Angular confirmou remoção do rodapé na prévia e no rascunho. Respostas do modelo simuladas, sem chamadas pagas e sem dados reais de atendimento.
+- A proteção reconhece encerramentos e rodapés de equipe comuns; não é classificador universal de identidade em texto livre. O envio continua manual.
+
 ## Respostas e tela simplificada — extensão 1.2.1 / auxiliar 0.3.1
 
 - 162 testes da extensão, 51 do auxiliar e 4 do gateway aprovados: 217 no total. TypeScript e builds Chrome/Firefox concluídos.

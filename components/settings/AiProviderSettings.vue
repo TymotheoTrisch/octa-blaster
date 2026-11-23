@@ -49,8 +49,8 @@ onMounted(refresh);
       <div class="ai-behavior-section"><h4>Respostas no editor</h4>
         <label class="ai-check"><input v-model="behavior.automaticReplies" type="checkbox">Sugerir automaticamente ao entrar no campo de resposta</label>
         <p>A sugestão aparece para revisão quando o campo está vazio. Você também pode solicitar pelo botão junto de Marcar Licenças e Respostas. Nada é enviado ao cliente.</p>
-        <label class="ai-check"><input v-model="behavior.learnWriting" type="checkbox">Aprender com minhas respostas enviadas</label>
-        <p>Após a publicação ser confirmada no ticket, aprende apenas padrões como extensão, parágrafos e saudação. Não guarda textos de exemplo ou dados de clientes. Usado após três respostas confirmadas; apagado após 90 dias sem novas respostas.</p>
+        <label class="ai-check"><input v-model="behavior.learnWriting" type="checkbox">Adaptar o estilo com minhas respostas enviadas</label>
+        <p>Após confirmar a publicação, guarda apenas médias de tamanho, parágrafos e uso de saudação/encerramento. Não aprende assinaturas, nomes ou empresas e não treina o modelo. Usado após três respostas confirmadas; apagado após 90 dias sem novas respostas.</p>
         <button type="button" class="ai-text-action" :disabled="busy" @click="resetWriting">Apagar aprendizado de escrita</button>
       </div>
       <details><summary>Retenção do histórico</summary>

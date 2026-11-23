@@ -1,6 +1,6 @@
 # IA local — resumos do ticket
 
-Entrega proposta 1.2.1, auxiliar 0.3.1, sobre a release oficial v1.0.1 e `main` (`ff7752d`) incorporadas nesta branch. Inclui resumos, conversa persistente, APIs de diferentes provedores, aprendizado de padrões de escrita sem exemplos e retenção automática.
+Entrega proposta 1.2.2, auxiliar 0.3.2, sobre a release oficial v1.0.1 e `main` (`ff7752d`) incorporadas nesta branch. Inclui resumos, conversa persistente, APIs de diferentes provedores, aprendizado de padrões de escrita sem exemplos e retenção automática.
 
 ## Plano executado
 
@@ -11,7 +11,7 @@ Entrega proposta 1.2.1, auxiliar 0.3.1, sobre a release oficial v1.0.1 e `main` 
 
 ## Usar no Firefox
 
-Extraia o pacote `octablaster-local-helper-0.3.1-windows.zip` inteiro e abra **Instalar-IA-Firefox.exe** com dois cliques, também para atualizar uma versão anterior. A instalação tem janela própria e executa a preparação em segundo plano; não é necessário digitar comandos ou abrir CMD. Precisa de Node.js 22.22.2+ e pnpm 10+ instalados. O instalador não exige administrador: registra o host nativo somente para o usuário atual. Copia o runtime para `%LOCALAPPDATA%\OctaBlaster\Auxiliar` e registra `com.octablaster.ai` no Firefox, autorizado apenas para a extensão `octablaster@pulz.dev.br`.
+Extraia o pacote `octablaster-local-helper-0.3.2-windows.zip` inteiro e abra **Instalar-IA-Firefox.exe** com dois cliques, também para atualizar uma versão anterior. A instalação tem janela própria e executa a preparação em segundo plano; não é necessário digitar comandos ou abrir CMD. Precisa de Node.js 22.22.2+ e pnpm 10+ instalados. O instalador não exige administrador: registra o host nativo somente para o usuário atual. Copia o runtime para `%LOCALAPPDATA%\OctaBlaster\Auxiliar` e registra `com.octablaster.ai` no Firefox, autorizado apenas para a extensão `octablaster@pulz.dev.br`.
 
 Carregue `.output/firefox-mv2/manifest.json` em `about:debugging#/runtime/this-firefox` (ou extraia o ZIP Firefox e carregue seu manifesto). Recarregue os tickets abertos para substituir o content script antigo.
 
@@ -57,7 +57,7 @@ Em **Inteligência artificial → Respostas no editor**, habilite **Sugerir auto
 
 O mesmo contexto não dispara gerações repetidas ao refocar o editor. Falha permite nova tentativa. Digitação, troca de ticket ou mudança das mensagens descarta a resposta tardia. Anotação interna não dispara a geração automática.
 
-**Aprender com minhas respostas enviadas** guarda somente médias numéricas de extensão, quantidade de parágrafos e frequência de saudação/encerramento. O aprendizado exige identidade no avatar do compositor e confirmação de um comentário novo igual ao rascunho submetido no mesmo ticket; clicar em Enviar sem confirmação não ensina. A versão final editada pelo usuário é a referência. Não arquiva exemplos nem nomes/dados do texto. Após três respostas confirmadas, usa uma instrução curta só nas sugestões. Falta de autoria ou publicação confirmada significa ausência de aprendizado.
+**Adaptar o estilo com minhas respostas enviadas** guarda somente médias numéricas de extensão, quantidade de parágrafos e frequência de saudação/encerramento. O aprendizado exige identidade no avatar do compositor e confirmação de um comentário novo igual ao rascunho submetido no mesmo ticket; clicar em Enviar sem confirmação não ensina. A versão final editada pelo usuário é a referência. Não arquiva exemplos nem nomes/dados do texto. Após três respostas confirmadas, usa uma instrução curta só nas sugestões. Falta de autoria ou publicação confirmada significa ausência de aprendizado.
 
 Os padrões ficam no armazenamento privado da extensão, separados por workspace, atendente e conexão da equipe, fora do backup de respostas rápidas. Limitados a 20 identidades, com exclusão de padrões sem novas respostas por 90 dias na inicialização, periodicamente e nas consultas. Desligar e salvar apaga os padrões; **Apagar aprendizado de escrita** redefine imediatamente. Não é ajuste dos pesos do modelo nem memória do site ChatGPT. O reconhecimento de preferências semânticas/vocabulário ainda não é implementado.
 
@@ -65,7 +65,7 @@ A pesquisa de referência recomenda contexto relevante e compacto: [OpenAI](http
 
 ## Conexões, contexto e cobrança
 
-Atualize com o pacote `octablaster-local-helper-0.3.1-windows.zip`: extraia inteiro e abra **Instalar-IA-Firefox.exe**. Na extensão, escolha conexão/modelo e salve. Campo de chave vazio mantém a existente; há ação explícita de remover. Salvar não executa inferência nem comprova acesso ao modelo. Credenciais são protegidas com DPAPI e não são devolvidas à interface, incluídas em backups ou registradas em logs.
+Atualize com o pacote `octablaster-local-helper-0.3.2-windows.zip`: extraia inteiro e abra **Instalar-IA-Firefox.exe**. Na extensão, escolha conexão/modelo e salve. Campo de chave vazio mantém a existente; há ação explícita de remover. Salvar não executa inferência nem comprova acesso ao modelo. Credenciais são protegidas com DPAPI e não são devolvidas à interface, incluídas em backups ou registradas em logs.
 
 | Conexão | Continuação |
 | --- | --- |
@@ -122,3 +122,11 @@ Contexto limitado a 50.000 caracteres, com aviso de truncamento e preservação 
 Os testes usam dados fictícios, inclusive a reprodução estrutural do HTML Angular fornecido. O layout foi inspecionado em Chromium com extensão real e iframe; as respostas de IA foram simuladas. O launcher Windows e a comunicação em Firefox headless foram testados com consulta de estado real da conexão, sem inferência nem dados de clientes. A homologação visual final no Octadesk real continua a cargo do teste do atendente.
 
 Referências: [Native Messaging no Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging), [sessões e renovação oficiais](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions).
+
+## Correção de autoria e assinatura — 1.2.2
+
+A geração anterior enviava textos sem autoria e não expandia as interações ocultas antes da sugestão. Agora carrega o histórico e inclui, em cada mensagem, o autor, papel explícito no cabeçalho, rótulo e data quando disponíveis. A ausência de papel é indicada como desconhecida; nunca é inferida da assinatura. Cortes de tamanho e compactação repetem os metadados dos trechos.
+
+A sugestão escreve pelo atendente identificado no avatar do compositor, para o cliente, sem inferir a empresa do atendente. Deve terminar no corpo da resposta, sem nomes, cargos, equipe, empresa ou contatos no rodapé. A identidade de assinatura fica a cargo do Octadesk. A proteção local remove encerramentos padrão acompanhados de assinatura e rodapés curtos identificáveis de equipe, antes de prévia/cópia/inserção; informa quando omite um rodapé. Não é um classificador semântico universal de identidades em qualquer posição do texto. A revisão do conteúdo do atendimento continua necessária.
+
+Se não puder confirmar a expansão de interações ocultas, a sugestão avisa e permite nova tentativa após expandir o histórico; não gera silenciosamente com o histórico incompleto. O aprendizado de escrita continua exclusivamente numérico e não aprende nem memoriza assinaturas ou nomes de empresas.

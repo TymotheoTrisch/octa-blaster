@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
 import { suggestTicketReply, startReplyAssistance } from '../services/octadesk/aiReply.ts';
 import { AI_BEHAVIOR_KEY, AI_WRITING_KEY, writingIdentity, writingGuidance, rememberWriting, cleanupWriting } from '../services/ai/writingMemory.ts';
+import { withoutGeneratedSignature } from '../services/ai/replySignature.ts';
+import { collectAiTicketContext } from '../services/octadesk/aiTicketContext.ts';
 const settle = () => new Promise(resolve => setTimeout(resolve, 60));
 function fixture() {
   const storage = installStorage();
@@ -74,4 +76,48 @@ test('writing identities isolate workspace users and cleanup removes expired pat
     assert.equal(dom.data[AI_WRITING_KEY][first], undefined); assert.ok(dom.data[AI_WRITING_KEY][other]);
     dom.document.querySelector('bexs-thumb img').remove(); assert.equal(await writingIdentity(dom.editor), null);
   } finally { dom.restore(); }
+});
+
+test('received company footer is excluded from preview, copy and inserted draft independently of learning', async () => {
+  const dom = fixture(), calls = []; let copied = '';
+  try {
+    dom.data[AI_BEHAVIOR_KEY] = { learnWriting: false };
+    dom.document.querySelector('.content-comment-interaction').outerHTML = '<interaction-comment><header><span class="comment-title">Pessoa Cliente (Cliente) | Mensagem</span></header><div class="content-comment-interaction">Solicito a alteração.<br>Atenciosamente,<br>Equipe de Suporte Empresa Cliente</div></interaction-comment>';
+    await suggestTicketReply(dom.editor, false, async (_action, data) => { calls.push(data); return { text: 'A alteração foi confirmada.\n\nFico à disposição.\n\nAtenciosamente,\nEquipe de Suporte Empresa Cliente' }; });
+    assert.match(calls[0].input.context, /"autor":"Pessoa Cliente","papel":"cliente\/solicitante"/);
+    assert.match(calls[0].input.instruction, /Não escreva assinatura/);
+    const panel = dom.document.querySelector('.octa-reply-preview');
+    assert.equal(panel.querySelector('.octa-summary-text').textContent, 'A alteração foi confirmada.\n\nFico à disposição.');
+    assert.match(panel.querySelector('.octa-reply-signature-notice').textContent, /omitido/);
+    dom.document.execCommand = command => { if (command === 'copy') { copied = dom.document.querySelector('textarea[readonly]').value; return true; } return false; };
+    panel.querySelector('.octa-reply-copy').click(); await settle(); assert.ok(!copied.includes('Empresa Cliente')); assert.match(copied, /Fico à disposição/);
+    panel.querySelector('.octa-reply-insert').click(); assert.ok(!dom.editor.textContent.includes('Empresa Cliente')); assert.match(dom.editor.textContent, /A alteração foi confirmada/);
+  } finally { dom.document.querySelector('.octa-reply-preview header button')?.click(); dom.restore(); }
+});
+
+test('reply loads collapsed interactions before inference and preserves agent/client attribution', async () => {
+  const dom = fixture(), scope = dom.document.querySelector('form'), calls = [];
+  try {
+    scope.querySelector('.content-comment-interaction').outerHTML = '<interaction-comment><header><span class="comment-title">Agente ficticio (Agente) | Mensagem</span></header><div class="content-comment-interaction">Realizado.</div></interaction-comment>';
+    const toggle = dom.document.createElement('div'); toggle.className = 'toggle-middle-interactions'; toggle.innerHTML = '<a ng-click="toggleMiddleInteractions()"><i class="icon-angle-double-down"></i>Todas as interações</a>'; scope.prepend(toggle);
+    toggle.querySelector('a').addEventListener('click', () => { const earlier = dom.document.createElement('div'); earlier.setAttribute('ng-if', 'showMiddleInteractions'); earlier.innerHTML = '<interaction-comment><header><span class="comment-title">Pessoa Cliente (Cliente) | Mensagem</span></header><div class="content-comment-interaction">Pedido anterior com informação relevante.</div></interaction-comment>'; scope.prepend(earlier); });
+    await suggestTicketReply(dom.editor, false, async (_action, data) => { calls.push(data); return { text: 'Texto para revisão sem assinatura.' }; });
+    assert.equal(calls.length, 1); assert.match(calls[0].input.context, /Pedido anterior/); assert.match(calls[0].input.context, /"papel":"agente de atendimento"/); assert.match(calls[0].input.context, /"papel":"cliente\/solicitante"/);
+  } finally { dom.document.querySelector('.octa-reply-preview header button')?.click(); dom.restore(); }
+});
+
+test('truncating a long email retains its author metadata and never labels an unknown author as the agent', () => {
+  const dom = fixture();
+  try {
+    dom.document.querySelector('.content-comment-interaction').outerHTML = `<interaction-comment><header><span class="comment-title">Pessoa Cliente (Cliente) | Mensagem</span></header><div class="content-comment-interaction">${'x'.repeat(60000)}</div></interaction-comment>`;
+    const context = collectAiTicketContext(dom.editor); assert.ok(context.context.length <= 50000); assert.equal(context.truncated, true); assert.match(context.context, /"autor":"Pessoa Cliente","papel":"cliente\/solicitante"/);
+    dom.document.querySelector('.comment-title').textContent = 'Pessoa sem classificação | Mensagem';
+    assert.match(collectAiTicketContext(dom.editor).context, /não identificado; não inferir pela assinatura/);
+  } finally { dom.restore(); }
+});
+
+test('signature filter handles standard and markdown closings without deleting a generic cordial sentence', () => {
+  for (const closing of ['Atenciosamente,', '**Atenciosamente,**', 'Att.', 'Cordialmente,']) assert.deepEqual(withoutGeneratedSignature(`Resposta útil.\n\nFico à disposição!\n\n${closing}\nEquipe da Empresa Cliente`), { text: 'Resposta útil.\n\nFico à disposição!', removed: true });
+  assert.deepEqual(withoutGeneratedSignature('Resposta útil.\n\nEquipe de Suporte Empresa Cliente'), { text: 'Resposta útil.', removed: true });
+  assert.deepEqual(withoutGeneratedSignature('Resposta útil.\n\nFico à disposição!'), { text: 'Resposta útil.\n\nFico à disposição!', removed: false });
 });

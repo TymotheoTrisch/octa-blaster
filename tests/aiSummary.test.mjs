@@ -134,7 +134,7 @@ test('ticket summary loads the Angular middle interactions before analysis', asy
   const calls = [], lifecycle = createSummaryLifecycle(dom.document, async (_action, data) => { calls.push(data); return { text: 'Resumo' }; });
   try {
     lifecycle.scan(); scope.querySelector('.octa-ticket-summary-button').click();
-    await new Promise(resolve => setTimeout(resolve, 260));
+    for (let attempt = 0; attempt < 100 && !calls.length; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
     assert.equal(calls.length, 1); assert.match(calls[0].input.context, /Mensagem intermediária fictícia/);
   } finally { lifecycle.dispose(); dom.restore(); }
 });
