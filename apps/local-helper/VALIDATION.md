@@ -2,6 +2,16 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Continuidade do e-mail e orientação antes da geração — extensão 1.2.3
+
+- 170 testes da extensão aprovados, TypeScript e builds Chrome/Firefox concluídos. Auxiliar 0.3.2 e gateway sem alterações nesta entrega; suas suítes anteriores continuam com 53 e 4 testes, respectivamente.
+- Chromium com extensão carregada e fixture Angular em iframe confirmou transferência sem inferência extra, chat recuperado após reload, foco automático no campo de orientação, ausência de geração ao abrir/digitar e geração apenas no Enter. Saídas simuladas, sem chamada paga.
+
+- Transferência de resumo de e-mail ao chat sem segunda inferência; perguntas seguintes recebem esse resumo e a identificação da mensagem no histórico.
+- Importação preserva conversa e rascunho existentes, persiste após reabrir e não duplica a mesma mensagem. Referências de outro ticket ou com conteúdo alterado são rejeitadas.
+- Resposta assistida abre orientação com foco automático. Abrir, focar, digitar, Shift+Enter ou enviar uma orientação vazia não chama a IA; Enter ou Gerar resposta com frase preenchida gera usando a orientação explícita.
+- Regeneração exige novo envio explícito. Cancelamento e proteção do rascunho continuam cobertos, assim como a remoção do rodapé do destinatário.
+
 ## Autoria e assinatura — extensão 1.2.2 / auxiliar 0.3.2
 
 - 166 testes da extensão, 53 do auxiliar e 4 do gateway aprovados: 223 no total. TypeScript, builds Chrome/Firefox, teste visual Chromium e consulta de configuração pública em Firefox real aprovados.

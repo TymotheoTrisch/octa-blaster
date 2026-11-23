@@ -4,6 +4,8 @@ import { installDom, installStorage } from './helpers.mjs';
 import { createSummaryLifecycle } from '../services/octadesk/aiSummaryLifecycle.ts';
 import { collectAiTicketContext } from '../services/octadesk/aiTicketContext.ts';
 import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
+import { openTicketSummary } from '../services/octadesk/aiTicketSummary.ts';
+import { readAiMessage } from '../services/octadesk/aiTicketContext.ts';
 async function settle() {
   await new Promise(resolve => setTimeout(resolve, 20));
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -263,4 +265,52 @@ test('a previously saved empty chat regenerates the automatic initial summary', 
   const lifecycle = createSummaryLifecycle(dom.document, async () => { calls++; return { text: 'Resumo inicial recuperado' }; });
   try { lifecycle.scan(); dom.document.querySelector('.octa-ticket-summary-button').click(); await settle(); assert.equal(calls, 1); assert.match(dom.document.querySelector('[role="log"]').textContent, /Resumo inicial recuperado/); }
   finally { lifecycle.dispose(); await settle(); dom.restore(); }
+});
+
+test('email summary moves into ticket chat without generating twice and supports persistent follow-up questions', async () => {
+  const dom = fixture(), calls = [], send = async (_action, data) => { calls.push(data); return { text: calls.length === 1 ? 'Resumo deste e-mail para conversar.' : 'Pendência identificada neste e-mail.' }; };
+  const lifecycle = createSummaryLifecycle(dom.document, send);
+  try {
+    lifecycle.scan(); dom.document.querySelector('.octa-message-summary-button').click(); await settle();
+    assert.equal(calls.length, 1); assert.equal(calls[0].input.task, 'summary_latest');
+    dom.document.querySelector('.octa-email-to-ticket').click(); await settle();
+    assert.equal(calls.length, 1); assert.equal(dom.document.querySelector('.octa-message-summary'), null);
+    assert.match(dom.document.querySelector('[role="log"]').textContent, /Resumo deste e-mail para conversar/);
+    const input = dom.document.querySelector('.octa-ticket-chat footer textarea'); assert.equal(dom.document.activeElement, input);
+    input.value = 'Qual é a pendência desse e-mail?'; input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await settle();
+    assert.equal(calls.length, 2); assert.equal(calls[1].input.task, 'chat'); assert.equal(calls[1].input.history.length, 2);
+    assert.match(calls[1].input.history[1].content, /Resumo deste e-mail/); assert.ok(!JSON.stringify(calls[1]).includes('SEGREDO B'));
+    dom.document.querySelector('.octa-ticket-chat header button').click(); await settle();
+    dom.document.querySelector('.octa-ticket-summary-button').click(); await settle();
+    assert.equal(calls.length, 2); assert.match(dom.document.querySelector('[role="log"]').textContent, /Qual é a pendência desse e-mail/);
+  } finally { lifecycle.dispose(); dom.document.querySelector('.octa-ticket-chat header button')?.click(); await settle(); dom.restore(); }
+});
+
+test('importing into an existing ticket conversation preserves messages and draft and avoids duplicate imports', async () => {
+  const dom = fixture(), calls = [], send = async (_action, data) => { calls.push(data); return { text: 'Resumo geral existente.' }; };
+  const scope = dom.document.querySelector('section'), message = scope.querySelector('.content-comment-interaction');
+  let close;
+  try {
+    close = openTicketSummary(scope, send); await settle();
+    const dialog = dom.document.querySelector('.octa-ticket-chat'), input = dialog.querySelector('footer textarea'); input.value = 'Minha pergunta ainda não enviada';
+    const email = { message, source: readAiMessage(message), summary: 'Resumo específico já gerado.' };
+    openTicketSummary(scope, send, email); await settle();
+    assert.equal(dom.document.querySelectorAll('.octa-ticket-chat').length, 1); assert.equal(calls.length, 1);
+    assert.match(dialog.querySelector('[role="log"]').textContent, /Resumo geral existente/); assert.match(dialog.querySelector('[role="log"]').textContent, /Resumo específico já gerado/);
+    assert.equal(input.value, 'Minha pergunta ainda não enviada'); assert.equal(dialog.querySelectorAll('.octa-ticket-chat-turn').length, 3);
+    openTicketSummary(scope, send, email); await settle(); assert.equal(dialog.querySelectorAll('.octa-ticket-chat-turn').length, 3);
+  } finally { close?.(); await settle(); dom.restore(); }
+});
+
+test('email imports reject other tickets and stale source content without exposing the imported summary', async () => {
+  for (const stale of [false, true]) {
+    const dom = fixture(); let calls = 0, close;
+    try {
+      const scope = dom.document.querySelector('section'), message = dom.document.querySelector(stale ? '.content-comment-interaction' : '[ticket-id="B"] .content-comment-interaction');
+      const source = readAiMessage(message); if (stale) message.append(' Conteúdo mudou.');
+      close = openTicketSummary(scope, async () => { calls++; return { text: 'Não deve gerar' }; }, { message, source, summary: 'RESUMO QUE NÃO PODE VAZAR' }); await settle();
+      assert.equal(calls, 0); assert.ok(!dom.document.querySelector('[role="log"]').textContent.includes('RESUMO QUE NÃO PODE VAZAR'));
+      assert.match(dom.document.querySelector('.octa-ticket-chat-status').textContent, /mudou ou pertence a outro ticket/);
+    } finally { close?.(); await settle(); dom.restore(); }
+  }
 });

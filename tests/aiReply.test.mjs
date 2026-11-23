@@ -6,6 +6,11 @@ import { AI_BEHAVIOR_KEY, AI_WRITING_KEY, writingIdentity, writingGuidance, reme
 import { withoutGeneratedSignature } from '../services/ai/replySignature.ts';
 import { collectAiTicketContext } from '../services/octadesk/aiTicketContext.ts';
 const settle = () => new Promise(resolve => setTimeout(resolve, 60));
+async function submitGuidance(dom, direction = 'Explique a solução de forma breve e cordial.') {
+  const field = dom.document.querySelector('.octa-reply-guidance'); field.value = direction;
+  dom.document.querySelector('.octa-reply-guidance-form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  for (let attempt = 0; attempt < 100 && field.disabled; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+}
 function fixture() {
   const storage = installStorage();
   const dom = installDom('<form ticket="ticket"><h2>Ticket A</h2><div class="content-comment-interaction">Pedido do cliente A</div><div class="comment-panel"><bexs-thumb user-logged><img alt="Agente ficticio"></bexs-thumb><div ng-if="ticketViewModel.typeInteractionSelected == 2"><div class="note-editable" contenteditable="true"><p><br></p></div></div></div><button type="button" class="btn-save">Enviar</button></form><section ticket-id="B"><div class="content-comment-interaction">SEGREDO B</div></section>');
@@ -18,6 +23,8 @@ test('manual reply preview isolates the ticket, preserves draft and parses no ge
   try {
     dom.editor.innerHTML = '<p>Meu rascunho</p>';
     await suggestTicketReply(dom.editor, false, async (_action, data) => { calls.push(data); return { text: '<script>Texto para revisão</script>' }; });
+    assert.equal(calls.length, 0); assert.equal(dom.document.activeElement, dom.document.querySelector('.octa-reply-guidance'));
+    await submitGuidance(dom);
     assert.equal(calls.length, 1); assert.ok(!JSON.stringify(calls).includes('SEGREDO B'));
     assert.equal(dom.editor.textContent, 'Meu rascunho');
     const panel = dom.document.querySelector('.octa-reply-preview'); assert.ok(panel); assert.equal(panel.querySelector('script'), null);
@@ -25,13 +32,16 @@ test('manual reply preview isolates the ticket, preserves draft and parses no ge
     panel.querySelector('header button').click();
   } finally { dom.restore(); }
 });
-test('automatic generation requires opting in, an empty public editor and runs once per context', async () => {
+test('automatic assistance opens and focuses guidance without inference; generation requires a submitted instruction', async () => {
   const dom = fixture(); let calls = 0; const send = async () => { calls++; return { text: 'Sugestão' }; };
   try {
     await suggestTicketReply(dom.editor, true, send); assert.equal(calls, 0);
     dom.data[AI_BEHAVIOR_KEY] = { automaticReplies: true, learnWriting: true };
     dom.editor.textContent = 'Rascunho'; await suggestTicketReply(dom.editor, true, send); assert.equal(calls, 0);
-    dom.editor.innerHTML = '<p><br></p>'; await suggestTicketReply(dom.editor, true, send); assert.equal(calls, 1);
+    dom.editor.innerHTML = '<p><br></p>'; await suggestTicketReply(dom.editor, true, send); assert.equal(calls, 0);
+    assert.equal(dom.document.activeElement, dom.document.querySelector('.octa-reply-guidance'));
+    await submitGuidance(dom, ''); assert.equal(calls, 0);
+    await submitGuidance(dom, 'Peça ao cliente que confirme os dados.'); assert.equal(calls, 1);
     dom.document.querySelector('.octa-reply-preview header button').click();
     await suggestTicketReply(dom.editor, true, send); assert.equal(calls, 1);
     dom.editor.parentElement.setAttribute('ng-if', 'ticketViewModel.typeInteractionSelected == 3');
@@ -42,6 +52,9 @@ test('typing during inference cancels and never displays or inserts a late answe
   const dom = fixture(); let resolve; const actions = [];
   try {
     const task = suggestTicketReply(dom.editor, false, async action => { actions.push(action); return action === 'AI_GENERATE' ? new Promise(done => { resolve = done; }) : {}; });
+    await task;
+    const field = dom.document.querySelector('.octa-reply-guidance'); field.value = 'Solicite confirmação.';
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     await settle(); dom.editor.textContent = 'Novo rascunho'; dom.editor.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     resolve({ text: 'OBSOLETO' }); await task;
     assert.ok(actions.includes('AI_CANCEL')); assert.equal(dom.document.querySelector('.octa-reply-preview'), null); assert.equal(dom.editor.textContent, 'Novo rascunho');
@@ -84,6 +97,7 @@ test('received company footer is excluded from preview, copy and inserted draft 
     dom.data[AI_BEHAVIOR_KEY] = { learnWriting: false };
     dom.document.querySelector('.content-comment-interaction').outerHTML = '<interaction-comment><header><span class="comment-title">Pessoa Cliente (Cliente) | Mensagem</span></header><div class="content-comment-interaction">Solicito a alteração.<br>Atenciosamente,<br>Equipe de Suporte Empresa Cliente</div></interaction-comment>';
     await suggestTicketReply(dom.editor, false, async (_action, data) => { calls.push(data); return { text: 'A alteração foi confirmada.\n\nFico à disposição.\n\nAtenciosamente,\nEquipe de Suporte Empresa Cliente' }; });
+    await submitGuidance(dom, 'Confirme a alteração e ofereça ajuda.');
     assert.match(calls[0].input.context, /"autor":"Pessoa Cliente","papel":"cliente\/solicitante"/);
     assert.match(calls[0].input.instruction, /Não escreva assinatura/);
     const panel = dom.document.querySelector('.octa-reply-preview');
@@ -102,6 +116,8 @@ test('reply loads collapsed interactions before inference and preserves agent/cl
     const toggle = dom.document.createElement('div'); toggle.className = 'toggle-middle-interactions'; toggle.innerHTML = '<a ng-click="toggleMiddleInteractions()"><i class="icon-angle-double-down"></i>Todas as interações</a>'; scope.prepend(toggle);
     toggle.querySelector('a').addEventListener('click', () => { const earlier = dom.document.createElement('div'); earlier.setAttribute('ng-if', 'showMiddleInteractions'); earlier.innerHTML = '<interaction-comment><header><span class="comment-title">Pessoa Cliente (Cliente) | Mensagem</span></header><div class="content-comment-interaction">Pedido anterior com informação relevante.</div></interaction-comment>'; scope.prepend(earlier); });
     await suggestTicketReply(dom.editor, false, async (_action, data) => { calls.push(data); return { text: 'Texto para revisão sem assinatura.' }; });
+    assert.equal(calls.length, 0);
+    await submitGuidance(dom, 'Responda considerando o pedido anterior.');
     assert.equal(calls.length, 1); assert.match(calls[0].input.context, /Pedido anterior/); assert.match(calls[0].input.context, /"papel":"agente de atendimento"/); assert.match(calls[0].input.context, /"papel":"cliente\/solicitante"/);
   } finally { dom.document.querySelector('.octa-reply-preview header button')?.click(); dom.restore(); }
 });
@@ -120,4 +136,21 @@ test('signature filter handles standard and markdown closings without deleting a
   for (const closing of ['Atenciosamente,', '**Atenciosamente,**', 'Att.', 'Cordialmente,']) assert.deepEqual(withoutGeneratedSignature(`Resposta útil.\n\nFico à disposição!\n\n${closing}\nEquipe da Empresa Cliente`), { text: 'Resposta útil.\n\nFico à disposição!', removed: true });
   assert.deepEqual(withoutGeneratedSignature('Resposta útil.\n\nEquipe de Suporte Empresa Cliente'), { text: 'Resposta útil.', removed: true });
   assert.deepEqual(withoutGeneratedSignature('Resposta útil.\n\nFico à disposição!'), { text: 'Resposta útil.\n\nFico à disposição!', removed: false });
+});
+
+test('guidance is required and only explicit submission generates or regenerates using the user sentence', async () => {
+  const dom = fixture(), calls = [];
+  try {
+    await suggestTicketReply(dom.editor, false, async (_action, data) => { calls.push(data); return { text: `Versão ${calls.length}` }; });
+    const field = dom.document.querySelector('.octa-reply-guidance'); assert.equal(dom.document.activeElement, field); assert.equal(calls.length, 0);
+    field.value = '   '; field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await settle(); assert.equal(calls.length, 0);
+    field.value = 'Peça o número do banco em uma frase cordial.';
+    field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true, cancelable: true })); await settle(); assert.equal(calls.length, 0);
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await settle();
+    assert.equal(calls.length, 1); assert.match(calls[0].input.instruction, /Peça o número do banco em uma frase cordial/);
+    assert.equal(dom.editor.textContent, ''); assert.equal(dom.document.activeElement, field);
+    field.value = 'Explique de forma mais detalhada.'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true })); await settle(); assert.equal(calls.length, 1);
+    await submitGuidance(dom, field.value); assert.equal(calls.length, 2); assert.match(calls[1].input.instruction, /Explique de forma mais detalhada/);
+  } finally { dom.document.querySelector('.octa-reply-preview header button')?.click(); dom.restore(); }
 });

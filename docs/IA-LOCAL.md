@@ -1,6 +1,6 @@
 # IA local — resumos do ticket
 
-Entrega proposta 1.2.2, auxiliar 0.3.2, sobre a release oficial v1.0.1 e `main` (`ff7752d`) incorporadas nesta branch. Inclui resumos, conversa persistente, APIs de diferentes provedores, aprendizado de padrões de escrita sem exemplos e retenção automática.
+Entrega proposta 1.2.3, auxiliar 0.3.2, sobre a release oficial v1.0.1 e `main` (`ff7752d`) incorporadas nesta branch. Inclui resumos, conversa persistente, APIs de diferentes provedores, aprendizado de padrões de escrita sem exemplos e retenção automática.
 
 ## Plano executado
 
@@ -53,9 +53,9 @@ O armazenamento pertence ao perfil do navegador; não sincroniza com outro compu
 
 Não há formulário de persona, produtos, preferências ou exemplos. As instruções manuais antigas não participam das novas gerações; salvar as configurações remove esses campos antigos do perfil ativo.
 
-Em **Inteligência artificial → Respostas no editor**, habilite **Sugerir automaticamente ao entrar no campo de resposta** e salve. O padrão é somente quando solicitado. Ao focar/clicar no editor de resposta pública vazio, aparece uma sugestão flutuante para revisão. **Sugerir resposta**, junto de **Marcar Licenças** e **Respostas**, permite solicitar manualmente. O chat de resumo não tem mais esse botão. O texto só entra no editor por **Usar no rascunho** e apenas se ele continuar vazio; nada é enviado ao cliente.
+Em **Inteligência artificial → Respostas no editor**, habilite **Abrir orientação de resposta ao entrar no editor** e salve. O padrão é somente quando solicitado. Ao focar/clicar no editor de resposta pública vazio, abre um componente flutuante com o campo Como você quer responder? já focado. Nenhuma inferência ocorre antes de enviar uma frase de orientação por Enter ou Gerar resposta. Shift+Enter permite nova linha. **Sugerir resposta**, junto de **Marcar Licenças** e **Respostas**, permite solicitar manualmente. O chat de resumo não tem mais esse botão. O texto só entra no editor por **Usar no rascunho** e apenas se ele continuar vazio; nada é enviado ao cliente.
 
-O mesmo contexto não dispara gerações repetidas ao refocar o editor. Falha permite nova tentativa. Digitação, troca de ticket ou mudança das mensagens descarta a resposta tardia. Anotação interna não dispara a geração automática.
+O mesmo contexto não reabre automaticamente o componente a cada refoco; o botão manual permite abri-lo novamente. Editar a orientação não dispara outra geração: é preciso enviá-la novamente. Falha permite nova tentativa. Digitação, troca de ticket ou mudança das mensagens descarta a resposta tardia. Anotação interna não dispara a geração automática.
 
 **Adaptar o estilo com minhas respostas enviadas** guarda somente médias numéricas de extensão, quantidade de parágrafos e frequência de saudação/encerramento. O aprendizado exige identidade no avatar do compositor e confirmação de um comentário novo igual ao rascunho submetido no mesmo ticket; clicar em Enviar sem confirmação não ensina. A versão final editada pelo usuário é a referência. Não arquiva exemplos nem nomes/dados do texto. Após três respostas confirmadas, usa uma instrução curta só nas sugestões. Falta de autoria ou publicação confirmada significa ausência de aprendizado.
 
@@ -130,3 +130,11 @@ A geração anterior enviava textos sem autoria e não expandia as interações 
 A sugestão escreve pelo atendente identificado no avatar do compositor, para o cliente, sem inferir a empresa do atendente. Deve terminar no corpo da resposta, sem nomes, cargos, equipe, empresa ou contatos no rodapé. A identidade de assinatura fica a cargo do Octadesk. A proteção local remove encerramentos padrão acompanhados de assinatura e rodapés curtos identificáveis de equipe, antes de prévia/cópia/inserção; informa quando omite um rodapé. Não é um classificador semântico universal de identidades em qualquer posição do texto. A revisão do conteúdo do atendimento continua necessária.
 
 Se não puder confirmar a expansão de interações ocultas, a sugestão avisa e permite nova tentativa após expandir o histórico; não gera silenciosamente com o histórico incompleto. O aprendizado de escrita continua exclusivamente numérico e não aprende nem memoriza assinaturas ou nomes de empresas.
+
+## Conversar sobre um e-mail e orientar a resposta — 1.2.3
+
+Depois de resumir uma mensagem, **Conversar sobre este e-mail no ticket** leva o resumo pronto ao chat do ticket e foca o campo de pergunta. Não executa uma segunda geração para fazer essa transferência. Se já existe conversa, preserva mensagens e pergunta ainda não enviada. O resumo é identificado como específico daquele e-mail, com autoria do cabeçalho, referência da mensagem e um trecho inicial de até 400 caracteres para localizá-la. Esses dados e o resumo passam a integrar o histórico local do chat; nenhum HTML bruto é arquivado. O resumo importado é limitado a 16.000 caracteres para caber no histórico enviado à IA.
+
+A transferência é validada contra ticket e fonte atuais; outra mensagem/ticket não pode ser importada por referência stale. A mesma mensagem não é adicionada repetidamente. Fechar e reabrir mantém a conversa importada. Se o chat já estiver respondendo, a transferência aguarda o término sem descartar a pergunta em andamento.
+
+**Sugerir resposta** agora abre uma orientação editável em vez de gerar imediatamente. O campo recebe foco automaticamente. O atendente informa, por exemplo, Informe que a alteração foi concluída e peça confirmação. Só Enter ou **Gerar resposta** inicia a leitura das interações e a chamada à IA. Orientação vazia não gera nada. É possível editar a frase e pedir outra versão explicitamente. Prévia, cópia, remoção de assinatura e inserção manual em rascunho vazio permanecem.

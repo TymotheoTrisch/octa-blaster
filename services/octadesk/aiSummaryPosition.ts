@@ -1,9 +1,9 @@
 export interface FloatingSummaryRect { top: number; bottom: number; left: number; right: number; width: number; height: number }
 
-export function summaryPanelBounds(anchor: FloatingSummaryRect, body: FloatingSummaryRect, viewport: { width: number; height: number }) {
+export function summaryPanelBounds(anchor: FloatingSummaryRect, body: FloatingSummaryRect, viewport: { width: number; height: number }, minHeight = 180) {
   const gutter = 16;
   const width = Math.max(0, Math.min(520, body.width - gutter * 2, viewport.width - gutter * 2));
-  const height = Math.max(0, Math.min(Math.max(180, body.height), 440, viewport.height - gutter * 2));
+  const height = Math.max(0, Math.min(Math.max(minHeight, body.height), 440, viewport.height - gutter * 2));
   const maxLeft = viewport.width - gutter - width;
   const minLeft = Math.min(maxLeft, Math.max(gutter, body.left + gutter));
   const left = Math.max(minLeft, Math.min(anchor.right - width, body.right - gutter - width, maxLeft));
@@ -13,12 +13,12 @@ export function summaryPanelBounds(anchor: FloatingSummaryRect, body: FloatingSu
 }
 
 /** Camada independente: não move, envolve, estreita nem define dimensões do e-mail. */
-export function anchorSummaryPanel(panel: HTMLElement, anchor: HTMLElement, body: HTMLElement) {
+export function anchorSummaryPanel(panel: HTMLElement, anchor: HTMLElement, body: HTMLElement, options: { minHeight?: number } = {}) {
   const doc = anchor.ownerDocument, win = doc.defaultView!;
   let frame: number | null = null, disposed = false;
   const position = () => {
     if (disposed || !anchor.isConnected || !body.isConnected) return;
-    const bounds = summaryPanelBounds(anchor.getBoundingClientRect(), body.getBoundingClientRect(), { width: win.innerWidth, height: win.innerHeight });
+    const bounds = summaryPanelBounds(anchor.getBoundingClientRect(), body.getBoundingClientRect(), { width: win.innerWidth, height: win.innerHeight }, options.minHeight);
     Object.assign(panel.style, { left: `${bounds.left}px`, top: `${bounds.top}px`, width: `${bounds.width}px`, height: `${bounds.height}px` });
   };
   const schedule = () => { if (frame === null) frame = win.requestAnimationFrame(() => { frame = null; position(); }); };
