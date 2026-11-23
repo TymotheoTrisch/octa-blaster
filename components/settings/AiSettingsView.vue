@@ -4,6 +4,7 @@ import { ArrowLeft, LogIn, LogOut, RefreshCw, Cpu } from 'lucide-vue-next';
 import { aiLocalMessage } from '@/services/ai/localClient';
 import type { AiPublicConnection } from '@/types/ai';
 import './management.css';
+import AiProviderSettings from './AiProviderSettings.vue';
 const emit = defineEmits<{ back: [] }>();
 const state = ref<AiPublicConnection | null>(null), busy = ref(false), message = ref('');
 const models = ref<{ slug: string; name: string }[]>([]), model = ref('');
@@ -12,6 +13,7 @@ let timer: ReturnType<typeof setInterval> | undefined;
 async function refresh() {
   try {
     state.value = await aiLocalMessage('AI_STATUS'); model.value = state.value?.model || '';
+    if (state.value?.provider && state.value.provider !== 'chatgpt') { clearInterval(timer); accounts.value = []; models.value = []; message.value = state.value.connected ? `Credencial ${state.value.provider} salva. ${state.value.contextMode === 'gateway' ? 'Contexto gerenciado pelo servidor da equipe.' : state.value.contextMode === 'remote' ? 'Contexto remoto habilitado; o histórico anterior ainda pode consumir tokens.' : 'Contexto compacto por ticket.'}` : 'Configure a credencial da conexão selecionada.'; return; }
     accounts.value = (await aiLocalMessage('AI_ACCOUNTS')).accounts || [];
     message.value = !state.value?.connected ? 'Entre uma vez com sua conta ChatGPT para habilitar os resumos.' : !state.value.planAuthorized ? 'A conta não autorizou o uso do plano. Reconecte para conferir as permissões.' : !state.value.enabled ? 'Conta conectada. Clique em Reconectar conta para ativar os resumos.' : 'Login salvo neste computador. A renovação é automática enquanto a autorização permitir.';
     if (state.value?.connected && state.value.enabled) { clearInterval(timer); models.value = (await aiLocalMessage('AI_MODELS')).models; }
@@ -44,7 +46,8 @@ onMounted(() => void refresh()); onUnmounted(() => clearInterval(timer));
   <section class="management-shell" aria-label="Inteligência artificial">
     <div class="management-subbar"><button type="button" class="management-back-btn" aria-label="Voltar para a tela anterior" @click="emit('back')"><ArrowLeft :size="15" /></button><h2>Inteligência artificial</h2></div>
     <div class="management-scroll ai-connection">
-      <article class="ai-connection-card">
+      <AiProviderSettings @configured="refresh" />
+      <article v-if="!state?.provider || state.provider === 'chatgpt'" class="ai-connection-card">
         <Cpu :size="24" /><h3>Resumos no Octadesk</h3>
         <p>Uma instalação, um login. O Firefox inicia o auxiliar quando você usa os resumos.</p>
         <p v-if="state?.account" class="ai-account"><strong>Conta conectada</strong><br>{{ state.account }}</p>

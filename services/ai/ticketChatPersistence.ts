@@ -25,12 +25,15 @@ export function createTicketChatPersistence(scope: HTMLElement, send = aiLocalMe
   const identity = number || scope.getAttribute('ticket-id') || scope.getAttribute('data-ticket-id') || scope.id;
   const queueKey = `${url.origin}|${workspace}|${identity}`;
   let digest: Promise<string> | undefined;
+  let namespace = 'local';
   const key = () => {
     if (!identity) throw new Error('Não foi possível identificar este ticket para salvar a conversa.');
-    return digest ||= textDigest(queueKey);
+    return digest ||= (async () => { const data = typeof browser !== 'undefined' && browser.storage?.local ? await browser.storage.local.get(['octablaster_ai_history_namespace']) : {}; const candidate = data.octablaster_ai_history_namespace; namespace = typeof candidate === 'string' && /^[a-zA-Z0-9_-]{1,90}$/.test(candidate) ? candidate : 'local'; return textDigest(namespace === 'local' ? queueKey : `${queueKey}|${namespace}`); })();
   };
   let revision: string | null = null;
   return {
+    identity: key,
+    namespace: async () => { await key(); return namespace; },
     load(): Promise<SavedTicketChat | null> {
       return enqueue(queueKey, async () => {
         const result = await send('AI_CHAT_LOAD', { key: await key() });

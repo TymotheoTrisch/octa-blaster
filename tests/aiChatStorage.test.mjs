@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
+import { createTicketChatStore, AI_RETENTION_KEY } from '../services/storage/aiChatStorage.ts';
 import { installStorage, installDom } from './helpers.mjs';
 import { createTicketChatPersistence } from '../services/ai/ticketChatPersistence.ts';
 const key = 'a'.repeat(64), otherKey = 'b'.repeat(64);
@@ -11,9 +11,10 @@ test('persistent chats survive store recreation, remain per ticket and never sto
   try {
     const first = createTicketChatStore(); assert.equal((await first.handle('AI_CHAT_LOAD', key)).chat, null);
     const saved = await first.handle('AI_CHAT_SAVE', key, null, content);
-    assert.deepEqual((await createTicketChatStore().handle('AI_CHAT_LOAD', key)).chat, saved.chat);
+    const restored = (await createTicketChatStore().handle('AI_CHAT_LOAD', key)).chat;
+    assert.deepEqual(restored.messages, saved.chat.messages); assert.equal(restored.revision, saved.chat.revision); assert.ok(restored.usedAt >= saved.chat.usedAt);
     assert.equal((await first.handle('AI_CHAT_LOAD', otherKey)).chat, null);
-    assert.deepEqual(Object.keys(saved.chat).sort(), ['contextDigest', 'draft', 'messages', 'revision', 'updatedAt', 'version']);
+    assert.deepEqual(Object.keys(saved.chat).sort(), ['contextDigest', 'createdAt', 'draft', 'messages', 'revision', 'updatedAt', 'usedAt', 'version']);
   } finally { storage.restore(); }
 });
 
@@ -69,4 +70,28 @@ test('immediate reopen waits for the closing window to finish saving its latest 
     assert.deepEqual(actions, ['AI_CHAT_LOAD', 'AI_CHAT_SAVE']);
     finish(); await writing; assert.equal((await reading).draft, content.draft);
   } finally { dom.restore(); }
+});
+
+test('retention deletes idle chats and absolute age still applies to frequently reopened conversations', async () => {
+  const storage = installStorage({ [AI_RETENTION_KEY]: { idleDays: 3, maxDays: 7 } }); let now = 1000;
+  const store = createTicketChatStore(() => browser.storage.local, () => now);
+  try {
+    await store.handle('AI_CHAT_SAVE', key, null, content); await store.handle('AI_CHAT_SAVE', otherKey, null, content);
+    now += 2 * 86400_000; await store.handle('AI_CHAT_LOAD', otherKey); now += 2 * 86400_000;
+    assert.equal((await store.cleanup()).deleted, 1); assert.equal((await store.handle('AI_CHAT_LOAD', key)).chat, null);
+    const active = (await store.handle('AI_CHAT_LOAD', otherKey)).chat; assert.ok(active);
+    now += 2 * 86400_000; await store.handle('AI_CHAT_LOAD', otherKey); now += 2 * 86400_000;
+    assert.equal((await store.handle('AI_CHAT_LOAD', otherKey)).chat, null);
+  } finally { storage.restore(); }
+});
+
+test('team credentials get a separate local history namespace without changing existing personal ticket keys', async () => {
+  const storage = installStorage(), dom = installDom('<section ticket-id="A"></section>');
+  try {
+    const scope = dom.document.querySelector('section'), personal = await createTicketChatPersistence(scope).identity();
+    await browser.storage.local.set({ octablaster_ai_history_namespace: 'gateway_user_a' }); const first = await createTicketChatPersistence(scope).identity();
+    await browser.storage.local.set({ octablaster_ai_history_namespace: 'gateway_user_b' }); const second = await createTicketChatPersistence(scope).identity();
+    assert.notEqual(personal, first); assert.notEqual(first, second);
+    await browser.storage.local.set({ octablaster_ai_history_namespace: 'local' }); assert.equal(await createTicketChatPersistence(scope).identity(), personal);
+  } finally { dom.restore(); storage.restore(); }
 });

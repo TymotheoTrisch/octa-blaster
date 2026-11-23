@@ -60,7 +60,7 @@ test('ticket modal contains only conversation, generates an initial summary and 
   try {
     lifecycle.scan(); dom.document.querySelector('.octa-ticket-summary-button').click(); await settle();
     const dialog = dom.document.querySelector('.octa-ticket-chat');
-    assert.equal(dialog.querySelectorAll('button').length, 2); // Fechar e copiar a resposta; nenhum menu de rascunho.
+    assert.equal(dialog.querySelectorAll('button').length, 3); // Fechar, copiar e pedir uma sugestão para revisão.
     assert.equal(calls[0].data.input.task, 'summary_full');
     assert.ok(!calls[0].data.input.context.includes('SEGREDO B'));
     const input = dialog.querySelector('textarea'); input.value = 'O que falta?';
@@ -238,5 +238,16 @@ test('closing an in-flight question saves its text but never appends the cancell
     dom.document.querySelector('.octa-ticket-chat header button').click(); finish({ text: 'Resposta cancelada' }); open(); await settle();
     assert.equal(calls.length, 2); assert.equal(dom.document.querySelector('.octa-ticket-chat footer textarea').value, 'Pergunta em andamento');
     assert.ok(!dom.document.querySelector('[role="log"]').textContent.includes('Resposta cancelada'));
+  } finally { lifecycle.dispose(); await settle(); dom.restore(); }
+});
+
+test('style suggestion is an explicit chat question and preserves both the ticket draft and an unsent question', async () => {
+  const dom = fixture(), calls = [], lifecycle = createSummaryLifecycle(dom.document, async (_action, data) => { calls.push(data); return { text: 'Texto para revisão' }; });
+  try {
+    lifecycle.scan(); dom.document.querySelector('.octa-ticket-summary-button').click(); await settle();
+    const dialog = dom.document.querySelector('.octa-ticket-chat'); dialog.querySelector('footer textarea').value = 'Pergunta a preservar';
+    dialog.querySelector('.octa-chat-suggest').click(); await settle();
+    assert.equal(calls[1].input.task, 'chat'); assert.match(calls[1].input.instruction, /perfil de escrita/); assert.match(calls[1].input.conversationKey, /^[a-f0-9]{64}$/);
+    assert.equal(dialog.querySelector('footer textarea').value, 'Pergunta a preservar'); assert.equal(dom.document.querySelector('section textarea').value, 'Rascunho preservado');
   } finally { lifecycle.dispose(); await settle(); dom.restore(); }
 });

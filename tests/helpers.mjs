@@ -29,9 +29,11 @@ export function installStorage(initial = {}) {
     storage: {
       local: {
         async get(keys) {
+          if (keys === null) keys = Object.keys(data);
           return Object.fromEntries(keys.filter((key) => key in data).map((key) => [key, structuredClone(data[key])]));
         },
         async set(items) { Object.assign(data, structuredClone(items)); },
+        async remove(keys) { for (const key of Array.isArray(keys) ? keys : [keys]) delete data[key]; },
       },
     },
   };

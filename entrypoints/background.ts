@@ -8,11 +8,15 @@ export default defineBackground(() => {
   const storageQueue = createStorageQueue();
   const ticketRouter = createTicketRouter();
   const aiRouter = createAiRouter();
+  void aiRouter.cleanup().catch(() => {});
+  const cleanupTimer = setInterval(() => void aiRouter.cleanup().catch(() => {}), 3600_000);
+  (cleanupTimer as unknown as { unref?: () => void }).unref?.();
   void browser.storage.local.remove?.('octablaster_ai_local_connection')?.catch?.(() => {});
 
   void syncBrowserBrandIconFromStorage();
 
   browser.runtime?.onStartup?.addListener?.(() => {
+    void aiRouter.cleanup().catch(() => {});
     void syncBrowserBrandIconFromStorage();
   });
 

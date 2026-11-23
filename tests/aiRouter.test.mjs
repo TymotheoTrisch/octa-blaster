@@ -54,3 +54,14 @@ test('chat persistence uses extension-local storage and rejects other sites, fra
     assert.equal(nativeCalls, 0);
   } finally { storage.restore(); }
 });
+
+test('cancelling while private history identity is loading prevents dispatching a later inference', async () => {
+  const calls = []; let release;
+  const { storage, call } = setup({ call: async action => { calls.push(action); return {}; } });
+  browser.storage.local.get = async () => new Promise(resolve => { release = () => resolve({}); });
+  try {
+    const pending = call({ action: 'AI_GENERATE', requestId: 'before-dispatch', input });
+    await call({ action: 'AI_CANCEL', requestId: 'before-dispatch' }); release();
+    assert.equal((await pending).success, false); assert.ok(!calls.includes('generate'));
+  } finally { storage.restore(); }
+});
