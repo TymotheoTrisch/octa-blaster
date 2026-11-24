@@ -1,3 +1,4 @@
+import { writingIdentity } from '@/services/ai/writingMemory';
 import { insertTextIntoElement } from './insertText';
 import {
   detectLicenseTicket,
@@ -134,6 +135,16 @@ export function initEditorContext(doc: Document = document): EditorContext {
 
   browser.runtime.onMessage.addListener(
     (message: unknown, sender, sendResponse: (res: InsertMessageResponse) => void) => {
+      const inspect = message as {action?:string;editorToken?:string};
+      if(inspect?.action==='AI_WRITING_CONTEXT' && sender.id===browser.runtime.id){
+        const editor=findBestEditableElement();
+        if(!editor || inspect.editorToken!==editorTokens.get(editor)){sendResponse({success:false,error:'Clique no campo de resposta do ticket e atualize esta tela.'});return true;}
+        const label=editor.closest('.comment-panel')?.querySelector('bexs-thumb[user-logged] img')?.getAttribute('alt')?.trim() || '';
+        void writingIdentity(editor).then(identity=>{
+          if(!identity || !isCurrentContext(editor) || inspect.editorToken!==editorTokens.get(editor))throw new Error('Não foi possível confirmar o atendente deste editor.');
+          sendResponse({success:true,data:{identity,label}});
+        }).catch(error=>sendResponse({success:false,error:error.message}));return true;
+      }
       const req = message as InsertMessageRequest;
       if (!req || sender.id !== browser.runtime.id || !['INSERT_REPLY', 'CHECK_LICENSE_TICKET', 'AUTOMATE_LICENSE_MENTIONS'].includes(req.action)) return;
       const selected = findBestEditableElement();

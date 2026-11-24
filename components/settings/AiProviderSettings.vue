@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { AI_BEHAVIOR_KEY, AI_WRITING_KEY, readAiBehavior } from '@/services/ai/writingMemory';
 import { aiLocalMessage } from '@/services/ai/localClient';
 import type { AiConfig, AiProvider } from '@/types/ai';
 const emit = defineEmits<{ configured: [] }>();
 const config = ref<AiConfig | null>(null), key = ref(''), busy = ref(false), feedback = ref('');
-const behavior = ref({ automaticReplies: false, learnWriting: true });
-async function resetWriting() { await browser.storage.local.remove(AI_WRITING_KEY); feedback.value = 'Padrões de escrita apagados.'; }
 const selected = computed(() => config.value?.providers[config.value.provider]);
 const choices: { id: AiProvider; name: string }[] = [{ id: 'chatgpt', name: 'Login ChatGPT' }, { id: 'openai', name: 'OpenAI — chave de API' }, { id: 'gemini', name: 'Google Gemini — chave de API' }, { id: 'claude', name: 'Anthropic Claude — chave de API' }, { id: 'nvidia', name: 'NVIDIA Nemotron — chave de API' }, { id: 'gateway', name: 'Servidor da equipe' }];
-async function refresh() { try { const result = await aiLocalMessage('AI_CONFIG'); if (!result?.providers || !Array.isArray(result.profiles) || !result.retention) throw new Error('Configuração indisponível.'); config.value = result; behavior.value = await readAiBehavior(); } catch { feedback.value = 'Não foi possível ler as configurações. Confira a conexão e atualize o auxiliar para configurar a conexão e a retenção.'; } }
+async function refresh() { try { const result = await aiLocalMessage('AI_CONFIG'); if (!result?.providers || !Array.isArray(result.profiles) || !result.retention) throw new Error('Configuração indisponível.'); config.value = result; } catch { feedback.value = 'Não foi possível ler as configurações. Confira a conexão e atualize o auxiliar para configurar a conexão e a retenção.'; } }
 async function save(removeKey = false) {
   if (!config.value) return;
   busy.value = true; feedback.value = '';
@@ -18,8 +15,6 @@ async function save(removeKey = false) {
     payload.profiles = [{ id: 'default', name: '', role: '', products: '', tone: '', preferences: '', aliases: [], examples: [] }]; payload.profileId = 'default';
     if (payload.provider !== 'chatgpt') { if (key.value) payload.providers[payload.provider].apiKey = key.value.trim(); if (removeKey) payload.providers[payload.provider].removeKey = true; }
     config.value = await aiLocalMessage('AI_CONFIG_SAVE', { config: payload }); key.value = '';
-    await browser.storage.local.set({ [AI_BEHAVIOR_KEY]: { ...behavior.value } });
-    if (!behavior.value.learnWriting) await browser.storage.local.remove(AI_WRITING_KEY);
     feedback.value = 'Configurações salvas. As próximas solicitações usarão estas configurações.'; emit('configured');
   } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível salvar.'; }
   finally { busy.value = false; }
@@ -46,12 +41,6 @@ onMounted(refresh);
         <template v-if="config.provider === 'nvidia'"><p>O endpoint NVIDIA Build é de prototipagem e restringe dados pessoais/confidenciais. Para produção, use um serviço aprovado ou o servidor da equipe.</p><label class="ai-check"><input v-model="selected.approvedData" type="checkbox">Meu acordo com este endpoint permite os dados de atendimento que vou enviar</label></template>
       </template>
       <p v-else>O login ChatGPT exige contexto enviado a cada chamada. A conversa continua salva no OctaBlaster; um recorte do ticket ajuda a reduzir a entrada.</p>
-      <div class="ai-behavior-section"><h4>Respostas no editor</h4>
-        <p>Digite no próprio editor o que deseja responder. O ícone de IA aparece no canto superior direito quando há texto; clique para gerar no chat lateral. Cada mensagem da IA pode ser inserida no ticket para revisão.</p>
-        <label class="ai-check"><input v-model="behavior.learnWriting" type="checkbox">Adaptar o estilo com minhas respostas enviadas</label>
-        <p>Após confirmar a publicação, guarda apenas médias de tamanho, parágrafos e uso de saudação/encerramento. Não aprende assinaturas, nomes ou empresas e não treina o modelo. Usado após três respostas confirmadas; apagado após 90 dias sem novas respostas.</p>
-        <button type="button" class="ai-text-action" :disabled="busy" @click="resetWriting">Apagar aprendizado de escrita</button>
-      </div>
       <details><summary>Retenção do histórico</summary>
         <label>Apagar após quantos dias sem uso?<input v-model.number="config.retention.idleDays" type="number" min="1" max="365"></label>
         <label>Idade máxima dos dados, em dias<input v-model.number="config.retention.maxDays" type="number" :min="config.retention.idleDays" max="365"></label>

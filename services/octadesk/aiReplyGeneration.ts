@@ -1,7 +1,7 @@
 import type { AiTriggerProgress } from '@/types/aiPanel';
 import { createSummaryRequest } from '@/services/ai/summaryRequest';
 import { createTicketChatPersistence } from '@/services/ai/ticketChatPersistence';
-import { writingGuidance, writingIdentity } from '@/services/ai/writingMemory';
+import { writingGuidance, writingIdentity, readWritingPreferences, applyWritingPreferences } from '@/services/ai/writingMemory';
 import { withoutGeneratedSignature } from '@/services/ai/replySignature';
 import { collectAiTicketContext, getAiTicketIdentity, readAiMessage } from './aiTicketContext';
 import { getScopedTicketContainer, isTicketElementVisible } from './licenseDetector';
@@ -34,14 +34,15 @@ export async function generateTicketReply(editor: HTMLElement, report: (state: A
     if(cancelled||!current()){if(!cancelled)cancel();return;}
     if(!expanded)throw new Error('Expanda Todas as interações e tente novamente.');
     const context=collectAiTicketContext(scope).context;
-    const style=await writingGuidance(await writingIdentity(editor));
+    const identity=await writingIdentity(editor);
+    const style=await writingGuidance(identity),preferences=await readWritingPreferences(identity);
     const namespace=await createTicketChatPersistence(scope).namespace();
     if(cancelled||!current()){if(!cancelled)cancel();return;}
     report({busy:true,status:'Gerando resposta no campo do e-mail…'});
     const answer=await request.run('chat',context,`Redija somente o corpo da resposta ao cliente a partir desta orientação: ${instruction.slice(0,2000)}${style ? `\n\n${style.slice(0,1500)}` : ''}`,[],undefined,namespace);
     if(cancelled||!current()){if(!cancelled)cancel();return;}
     if(!empty(editor)){cancel();return;}
-    const text=withoutGeneratedSignature(answer || '').text;
+    const text=applyWritingPreferences(withoutGeneratedSignature(answer || '').text,preferences);
     if(!text.trim())throw new Error('A IA não retornou uma resposta utilizável.');
     editor.removeEventListener('input',input);
     if(!replace(editor,text))throw new Error('Não foi possível inserir a resposta no campo.');

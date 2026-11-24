@@ -54,6 +54,18 @@ O modelo/provedor ainda pode levar tempo para produzir o resultado; não há pro
 
 O chat/draft ficam em `browser.storage.local`, fora dos backups de respostas rápidas e do localStorage do Octadesk. O contexto bruto permanece transitório na memória do background; não é arquivado como HTML. Mensagens do chat podem conter dados do atendimento. Falha no armazenamento é informada sem esconder a resposta gerada. Troca de conexão da equipe separa namespaces do histórico.
 
+## Consultar aprendizado e configurar início/encerramento
+
+Clique no editor de resposta de um ticket e abra **Inteligência artificial → Meu aprendizado e escrita**. A tela identifica o atendente daquele editor e exibe publicações observadas (20 ou mais quando a contagem ponderada atinge esse limite), tamanho/parágrafos médios, frequência de saudações/fechos reconhecidos e data da última atualização. São estatísticas aproximadas com maior peso nas publicações recentes; não é um relato inventado pelo modelo sobre o que ele sabe.
+
+O aprendizado ocorre somente quando uma nova publicação corresponde ao rascunho enviado pelo editor do Octadesk. Gerar/editar um rascunho, mensagens antigas e e-mails enviados fora do Octadesk não contam. A memória usa dados numéricos, sem arquivar exemplos, assinaturas ou dados de clientes, e só orienta sugestões após três publicações confirmadas. Não treina o modelo. O contexto do ticket e o histórico do chat são memórias separadas.
+
+Em **Como começar e terminar**, escolha **Automático**, **Texto personalizado** ou **Sem saudação/Sem despedida** para cada limite da resposta. Campos personalizados aceitam até 160 caracteres no início e 240 no encerramento (até quatro linhas). São aplicados localmente depois da geração e da remoção de assinaturas inferidas; esses campos não são anexados como exemplos ao prompt de estilo. A assinatura do Octadesk continua separada. Preferências são vinculadas ao atendente e ambiente, respeitando o namespace da conexão quando houver; guardar a configuração não consulta a IA.
+
+Pausar o aprendizado desativa novas observações e o uso das estatísticas neste navegador, mantendo os dados visíveis e as escolhas explícitas de início/encerramento. **Apagar aprendizado deste atendente** remove só as estatísticas daquela identidade e preserva os textos configurados. Para limpar estes textos, selecione Automático nos dois campos e salve. Os padrões automáticos expiram após 90 dias sem publicações; preferências manuais persistem até serem alteradas.
+
+A leitura e a gravação validam o frame/token do editor registrado, a aba ativa e a identidade novamente antes de salvar. Se trocar de atendente/conexão, atualize a tela. Essa configuração está disponível sem depender de uma consulta ao auxiliar de IA.
+
 A adaptação opcional de estilo guarda somente médias numéricas de tamanho/parágrafos/saudação/encerramento, após publicação confirmada do rascunho. Não aprende assinaturas/nomes/empresas nem treina o modelo. Usa padrões após três respostas; permite apagar/desabilitar. Retenção de padrões: 90 dias sem novas respostas. Retenção padrão de chats: 30 dias sem uso e 90 dias de idade máxima, configurável entre 1 e 365 dias.
 
 Credenciais, sessões e referências remotas ficam protegidas pela DPAPI no Windows. APIs disponíveis: OpenAI Responses, Gemini Interactions, Claude Messages, NVIDIA Chat Completions; gateway HTTPS de equipe opcional em `apps/team-gateway`, ainda não implantado. O endpoint NVIDIA Build exige confirmação de que o acordo permite os dados de atendimento. O login ChatGPT não importa chats/memórias do site e usa `store:false`; APIs com estado remoto não tornam tokens anteriores gratuitos.

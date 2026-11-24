@@ -4,6 +4,7 @@ import { ArrowLeft, LogIn, LogOut, RefreshCw, Cpu } from 'lucide-vue-next';
 import { aiLocalMessage } from '@/services/ai/localClient';
 import type { AiPublicConnection } from '@/types/ai';
 import './management.css';
+import AiWritingSettings from './AiWritingSettings.vue';
 import AiProviderSettings from './AiProviderSettings.vue';
 const emit = defineEmits<{ back: [] }>();
 const state = ref<AiPublicConnection | null>(null), busy = ref(false), message = ref('');
@@ -56,6 +57,7 @@ onMounted(() => void refresh()); onUnmounted(() => clearInterval(timer));
         <label v-if="models.length" class="ai-model-label">Modelo<select v-model="model" :disabled="busy" @change="saveModel"><option v-for="item in models" :key="item.slug" :value="item.slug">{{ item.name }}</option></select></label>
       </article>
       <AiProviderSettings @configured="refresh" />
+      <AiWritingSettings />
       <p class="ai-connection-status" role="status">{{ message }}</p>
       <button type="button" class="ai-refresh" :disabled="busy" @click="refresh"><RefreshCw :size="14" /> Verificar conexão</button>
       <details class="ai-setup"><summary>Primeiro uso neste computador</summary><p>Execute <strong>Instalar-IA-Firefox.exe</strong> uma vez. Depois volte aqui e entre com ChatGPT. Não é necessário abrir o site local, testar uma mensagem ou copiar códigos.</p><p>Os tokens são protegidos pelo Windows. A validade é definida pelo provedor e renovada automaticamente; não é uma chave com duração configurável. Sair do site ChatGPT não revoga automaticamente esta autorização.</p><p>Confira os limites e créditos nas configurações do ChatGPT. Os resumos usam o contexto carregado; nenhuma resposta é enviada ao cliente.</p></details>
