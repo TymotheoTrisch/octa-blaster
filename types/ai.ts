@@ -3,7 +3,7 @@ export type AiProvider = 'chatgpt' | 'openai' | 'gemini' | 'claude' | 'nvidia' |
 export interface AiProfile { id: string; name: string; role: string; products: string; tone: string; preferences: string; aliases: string[]; examples: string[] }
 export interface AiProviderConfig { model: string; hasKey?: boolean; apiKey?: string; removeKey?: boolean; remoteStore: boolean; approvedData: boolean; baseUrl: string }
 export interface AiConfig { provider: AiProvider; providers: Partial<Record<AiProvider, AiProviderConfig>>; profiles: AiProfile[]; profileId: string; retention: { idleDays: number; maxDays: number }; pendingDeletes?: number; storedTickets?: number }
-export type AiTask = 'summary_latest' | 'summary_full' | 'chat';
+export type AiTask = 'summary_latest' | 'summary_full' | 'chat' | 'general';
 export interface AiSummaryInput {
   model?: string;
   task: AiTask;

@@ -2,6 +2,13 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Conversas independentes e histórico — auxiliar 0.3.5
+
+- Entrada Conversas com a IA em Inteligência artificial, com novo chat, busca e lista de chats/tickets por atualização. Título local pela primeira pergunta; nenhuma inferência ao criar ou retomar. Uma chave por ticket e contextos/conversas independentes para chats livres.
+- 175 testes da extensão, 57 do auxiliar e 4 do gateway aprovados. TypeScript, build Chrome e pacote Firefox verificados. Cobertura de instrução geral e histórico no ChatGPT, API com modelo configurado, continuação remota, bridge e Native Messaging usando transportes fictícios.
+- Chromium com extensão real e fixture: novo chat vazio, geração com tarefa geral, ausência de contexto de tickets, retomada de mensagens/rascunho, isolamento entre chats, histórico de ticket, inserção desabilitada fora do editor de origem e retomada após reload do painel. IA simulada, sem chamadas pagas.
+- Firefox real com fixture: entrada de conversas, dois chats independentes e retomada de rascunhos sem inferência. O texto extraído do ticket é salvo no storage privado da extensão junto do chat e expira pela mesma retenção. A cópia salva é indicada na interface; abrir pelo ticket atualiza o contexto.
+
 ## Escrita e seleção de texto — extensão 1.3.0
 
 - Falha de transporte ao consultar o atendente agora orienta atualizar o Octadesk, clicar no editor e atualizar o atendente; não grava preferências ou modifica aprendizado durante a falha. Firefox real com ticket fictício confirmou identificação, erro de frame indisponível e recuperação após reload/foco. Não houve inferência.

@@ -6,6 +6,22 @@ import { createTicketChatPersistence } from '../services/ai/ticketChatPersistenc
 const key = 'a'.repeat(64), otherKey = 'b'.repeat(64);
 const content = { messages: [{ role: 'assistant', content: 'Resumo fictício' }], draft: 'Continuar depois', contextDigest: 'c'.repeat(64) };
 
+test('conversation metadata survives recreation and history lists one entry per key with namespace and retention isolation',async()=>{
+ const f=installStorage();let time=1000000;try{
+  const store=createTicketChatStore(undefined,()=>time);
+  const details={kind:'ticket',title:'Solicitação fictícia',namespace:'local',context:'Texto do ticket sem HTML.',ticketUrl:'https://app.octadesk.com/ticket/edit/123'};
+  const saved=await store.handle('AI_CHAT_SAVE',key,null,{...content,details});
+  await store.handle('AI_CHAT_SAVE',key,saved.chat.revision,{...content,draft:'Rascunho atualizado'});
+  await store.handle('AI_CHAT_SAVE',otherKey,null,{...content,details:{...details,kind:'general',namespace:'gateway_other',ticketUrl:undefined}});
+  const recreated=createTicketChatStore(undefined,()=>time),list=await recreated.list('local');
+  assert.equal(list.length,1);assert.equal(list[0].title,'#123 · Solicitação fictícia');assert.equal(list[0].context,undefined);
+  assert.deepEqual((await recreated.handle('AI_CHAT_LOAD',key)).chat.details,details);
+  assert.equal((await recreated.list('gateway_other')).length,1);
+  time+=31*86400000;assert.equal((await recreated.list('local')).length,0);
+  assert.equal((await recreated.handle('AI_CHAT_LOAD',key)).chat,null);
+ }finally{f.restore();}
+});
+
 test('persistent chats survive store recreation, remain per ticket and never store raw email HTML', async () => {
   const storage = installStorage();
   try {

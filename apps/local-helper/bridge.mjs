@@ -37,7 +37,7 @@ export function createBridge({ auth, vault, fetcher, engine, now = Date.now }) {
       } else if (!preferences.enabled) throw new PrototypeError('generation_disabled');
       if (url.pathname === '/bridge/models') { send(200, { models: await listModels(await auth.authorizedAccess(), fetcher), preferredModel: preferences.model }); return true; }
       if (url.pathname === '/bridge/draft') {
-        if (!['summary_latest', 'summary_full', 'chat'].includes(input.task)) throw new PrototypeError('invalid_body');
+        if (!['summary_latest', 'summary_full', 'chat', 'general'].includes(input.task)) throw new PrototypeError('invalid_body');
         if (engine) {
           const controller = new AbortController(), cancel = () => { if (!res.writableEnded) controller.abort(); };
           res.once('close', cancel);

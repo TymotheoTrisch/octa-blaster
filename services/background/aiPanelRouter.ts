@@ -4,6 +4,7 @@ import { TICKET_SUMMARY_PROMPT, SUMMARY_FORMAT_VERSION, summaryContextDigest } f
 import { boundedChat } from '@/services/ai/summaryRequest';
 import { textDigest } from '@/services/ai/ticketChatPersistence';
 import { withoutGeneratedSignature } from '@/services/ai/replySignature';
+import type { ChatDetails } from '@/services/storage/aiChatStorage';
 
 const FULL = TICKET_SUMMARY_PROMPT;
 type AiCall = (message: any, sender: any) => Promise<any>;
@@ -29,6 +30,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
   const pendingReveal = new Map<number, number>();
   const cache = new Map<string, { text: string; at: number }>();
   const progress = (session: Session, override?: {busy:boolean; status:string; error?:string}) => {
+    if (!session.sender.tab) return;
     const state = session.state;
     void browser.tabs.sendMessage(session.sender.tab.id, {action:'AI_PANEL_PROGRESS',id:state.id,identity:session.identity,progress: override || {busy:state.busy || (!state.ready && !state.error && !session.cancelled),status:(state.status+(deferredSidebarWindows.has(session.sender.tab.windowId) ? ' Abra o ícone da extensão e escolha Abrir resumo na lateral.' : '')).slice(0,500),error:state.busy ? '' : state.error.slice(0,2000)}}, {frameId:session.sender.frameId ?? 0}).catch(() => {});
   };
@@ -40,7 +42,8 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
   const cancel = (session: Session) => { session.cancelled = true; if (session.request) void callAi({ action: 'AI_CANCEL', requestId: session.request }, session.sender).catch(() => {}); };
   const persist = (session: Session) => {
     if (!session.snapshot || !session.state.ready || session.persistent === false) return Promise.resolve();
-    const content = structuredClone({ messages: session.state.messages, draft: session.state.draft, contextDigest: session.summaryDigest || '0'.repeat(64) });
+    const details: ChatDetails = {kind:session.state.kind || 'ticket',title:session.state.title,namespace:session.snapshot.namespace,context:session.snapshot.context,...(session.state.ticketUrl?{ticketUrl:session.state.ticketUrl}:{}),...(session.summaryQuestion?{summaryQuestion:session.summaryQuestion}:{})};
+    const content = structuredClone({ messages: session.state.messages, draft: session.state.draft, contextDigest: session.summaryDigest || '0'.repeat(64), details });
     session.save = session.save.catch(() => {}).then(async () => {
       const result = await callAi({ action: 'AI_CHAT_SAVE', key: session.snapshot!.key, revision: session.revision, content }, session.sender);
       session.revision = result.chat.revision;
@@ -48,6 +51,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
     return session.save;
   };
   async function snapshot(session: Session): Promise<PanelSnapshot> {
+    if (session.state.detached) return session.snapshot!;
     const tab = await browser.tabs.get(session.sender.tab.id);
     if (!tab.active || tab.windowId !== session.sender.tab.windowId) throw new Error('Volte à aba deste ticket para continuar.');
     const data = await browser.tabs.sendMessage(session.sender.tab.id, { action: 'AI_PANEL_SNAPSHOT', id: session.state.id, identity: session.identity }, { frameId: session.sender.frameId ?? 0 });
@@ -63,14 +67,19 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
     session.state.busy = true; session.state.error = session.warning || ''; session.state.status = 'Preparando o contexto…'; changed(windowId);
     const original = [...session.state.messages];
     const base = editIndex === undefined ? original : original.slice(0, editIndex);
-    const before = task === 'summary_full' || task === 'summary_latest' ? [] : boundedChat(base[0]?.role === 'assistant' ? [{ role: 'user' as const, content: session.summaryQuestion || FULL }, ...base] : base);
+    const allTurns = base[0]?.role === 'assistant' ? [{ role: 'user' as const, content: session.summaryQuestion || FULL }, ...base] : base;
+    const before = task === 'summary_full' || task === 'summary_latest' ? [] : boundedChat(allTurns);
     try {
       const fresh = await snapshot(session);
       if (!active(windowId, session)) return;
       if (fresh.key !== session.snapshot!.key || fresh.namespace !== session.snapshot!.namespace) throw new Error('A conexão ou o ticket mudou. Reabra pelo botão do ticket.');
       session.snapshot = fresh;
       if (source && source !== fresh.selection) throw new Error('O e-mail mudou. Resuma a versão atual novamente.');
-      const context = source || fresh.context;
+      const storedNamespace=(await browser.storage.local.get(['octablaster_ai_history_namespace'])).octablaster_ai_history_namespace;
+      const namespace=typeof storedNamespace==='string'?storedNamespace:'local';
+      if(namespace!==fresh.namespace)throw new Error('A conexão mudou. Volte ao histórico e reabra a conversa.');
+      const earlier=session.state.detached ? allTurns.slice(0,allTurns.length-before.length).map(turn=>`${turn.role}: ${turn.content}`).join('\n\n').slice(-30000) : '';
+      const context = (source || fresh.context).slice(0,50000-(earlier ? earlier.length+40 : 0))+(earlier ? `\n\nHistórico anterior desta conversa:\n${earlier}` : '');
       const revision = (await browser.storage.local.get(['octablaster_ai_config_revision'])).octablaster_ai_config_revision || '';
       const cacheKey = await textDigest(JSON.stringify([revision, fresh.namespace, task, context, question]));
       const cached = useCache ? cache.get(cacheKey) : undefined;
@@ -79,7 +88,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
       if (!text) {
         session.state.status = 'Aguardando a IA…'; session.request = crypto.randomUUID(); changed(windowId);
         const start = Date.now();
-        const result = await callAi({ action: 'AI_GENERATE', requestId: session.request, input: { task, context, instruction: question, history: before, conversationKey: task === 'summary_latest' ? undefined : fresh.key, memoryNamespace: fresh.namespace } }, session.sender);
+        const result = await callAi({ action: 'AI_GENERATE', requestId: session.request, input: { task:session.state.kind==='general'?'general':task, context, instruction: question, history: before, conversationKey: task === 'summary_latest' ? undefined : fresh.key, memoryNamespace: fresh.namespace } }, session.sender);
         session.state.queryMs = Date.now() - start; text = result.text;
         if (!active(windowId, session)) return;
         if (useCache) { cache.set(cacheKey, { text, at: Date.now() }); while (cache.size > 20) cache.delete(cache.keys().next().value!); }
@@ -99,21 +108,22 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
       if (session.task === 'reply' && fresh.draftToken) session.insertions.set(session.state.messages.length - 1, fresh.draftToken);
       if(task === 'summary_full') session.summaryDigest=await textDigest(summaryContextDigest(fresh.digest,question));
       if(task === 'chat') session.state.draft = '';
+      if(session.state.kind==='general' && !original.length)session.state.title=question.replace(/\s+/g,' ').slice(0,80);
       session.state.status = session.state.cached ? 'Resumo reaproveitado; nenhuma nova consulta à IA.' : 'Pronto para revisar.';
       try { await persist(session); } catch { session.warning = 'Resposta exibida, mas o histórico não pôde ser salvo neste computador.'; session.state.error = session.warning; }
     } catch (error) { if (active(windowId, session)) { session.state.error = error instanceof Error ? error.message : 'Não foi possível consultar a IA.'; session.state.messages = original; if (task === 'chat') session.state.draft = question; } }
     finally { session.request = undefined; if (active(windowId, session)) { session.state.busy = false; changed(windowId); } }
   }
   return {
-    clearTab(tabId: number) { for (const [windowId, session] of sessions) if (session.sender.tab.id === tabId) { cancel(session); sessions.delete(windowId); pendingReveal.delete(windowId); deferredSidebarWindows.delete(windowId); changed(windowId); } },
+    clearTab(tabId: number) { for (const [windowId, session] of sessions) if (!session.state.detached && session.sender.tab?.id === tabId) { cancel(session); sessions.delete(windowId); pendingReveal.delete(windowId); deferredSidebarWindows.delete(windowId); changed(windowId); } },
     handleMessage(message: any, sender: any, respond: (value: any) => void): boolean | undefined {
-      if (!['AI_PANEL_ACCESS', 'AI_PANEL_ACTIVATE', 'AI_PANEL_SHOW', 'AI_PANEL_OPEN', 'AI_PANEL_CONTEXT', 'AI_PANEL_GET', 'AI_PANEL_REVEAL', 'AI_PANEL_SEND', 'AI_PANEL_DRAFT', 'AI_PANEL_INSERT', 'AI_PANEL_CANCEL'].includes(message.action)) return;
+      if (!['AI_PANEL_NEW', 'AI_PANEL_RESUME', 'AI_PANEL_ACCESS', 'AI_PANEL_ACTIVATE', 'AI_PANEL_SHOW', 'AI_PANEL_OPEN', 'AI_PANEL_CONTEXT', 'AI_PANEL_GET', 'AI_PANEL_REVEAL', 'AI_PANEL_SEND', 'AI_PANEL_DRAFT', 'AI_PANEL_INSERT', 'AI_PANEL_CANCEL'].includes(message.action)) return;
       const content = !!sender.tab && allowed(sender.tab.url) && allowed(sender.url || sender.tab.url);
       const extension = !sender.tab || sender.url?.startsWith(browser.runtime.getURL('/'));
       const respondError = (error: unknown) => respond({ success: false, error: error instanceof Error ? error.message : 'Falha no painel de IA.' });
       if (message.action === 'AI_PANEL_SHOW') {
         const session=sessions.get(sender.tab?.windowId);
-        if(!content || !session || session.identity!==message.identity || session.sender.tab.id!==sender.tab.id || session.sender.frameId!==sender.frameId){respondError(new Error('Abra o resumo deste ticket novamente.'));return true;}
+        if(!content || !session || session.identity!==message.identity || session.sender.tab?.id!==sender.tab.id || session.sender.frameId!==sender.frameId){respondError(new Error('Abra o resumo deste ticket novamente.'));return true;}
         try {
           const opened=openSidebar(sender.tab.windowId,message.alreadyOpened===true);
           pendingReveal.set(sender.tab.windowId,Date.now());changed(sender.tab.windowId,true);
@@ -127,7 +137,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           // Chama a API na pilha do clique; não aguarda storage, DOM ou rede antes de abrir.
           const opened = openSidebar(sender.tab.windowId, message.alreadyOpened === true);
           const old = sessions.get(sender.tab.windowId); const previousSave = old ? persist(old).catch(() => {}) : Promise.resolve(); if (old) { cancel(old); progress(old, {busy:false,status:'Consulta anterior encerrada.'}); }
-          const session: Session = { state: { id: message.id, title: 'Conversa do ticket', messages: [], draft: '', busy: false, ready: false, status: 'Carregando o ticket…', error: '' }, sender, identity: message.identity, task: message.task, revision: null, save: previousSave, insertions: new Map(), cancelled: false };
+          const session: Session = { state: { id: message.id, title: 'Conversa do ticket', kind:'ticket',ticketUrl:sender.tab.url, messages: [], draft: '', busy: false, ready: false, status: 'Carregando o ticket…', error: '' }, sender, identity: message.identity, task: message.task, revision: null, save: previousSave, insertions: new Map(), cancelled: false };
           sessions.set(sender.tab.windowId, session); pendingReveal.set(sender.tab.windowId, Date.now()); changed(sender.tab.windowId, true);
           Promise.resolve(opened).then(() => { changed(sender.tab.windowId); respond({ success: true }); }, respondError);
         } catch (error) { respondError(error); }
@@ -136,6 +146,22 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
       void (async () => {
         const windowId = content ? sender.tab.windowId : message.windowId;
         if (!content && !extension) throw new Error('Origem não autorizada.');
+        if (['AI_PANEL_NEW','AI_PANEL_RESUME'].includes(message.action)) {
+          if(!extension || !Number.isInteger(windowId))throw new Error('Abra as conversas na extensão.');
+          const old=sessions.get(windowId);if(old?.state.busy)throw new Error('Aguarde a consulta atual antes de trocar de conversa.');
+          if(old)await old.save;
+          const storedNamespace=(await browser.storage.local.get(['octablaster_ai_history_namespace'])).octablaster_ai_history_namespace;
+          const namespace=typeof storedNamespace==='string'?storedNamespace:'local';
+          const key=message.action==='AI_PANEL_NEW'?await textDigest(`general:${namespace}:${crypto.randomUUID()}`):message.key;
+          const saved=await callAi({action:'AI_CHAT_LOAD',key},sender);
+          if(message.action==='AI_PANEL_RESUME' && !saved.chat)throw new Error('A conversa expirou ou não está mais salva.');
+          const details=saved.chat?.details;
+          if(details && details.namespace!==namespace)throw new Error('Esta conversa pertence a outra conexão.');
+          const context=details?.context || (message.action==='AI_PANEL_NEW'?'Conversa independente. Nenhum ticket vinculado.':'Conversa retomada pelo histórico salvo. O texto original do ticket não está disponível.');
+          const restored: Session={state:{id:crypto.randomUUID(),kind:details?.kind || (saved.chat?'ticket':'general'),detached:true,ticketUrl:details?.ticketUrl,title:details?.title || (saved.chat?'Ticket salvo':'Novo chat'),messages:saved.chat?.messages || [],draft:saved.chat?.draft || '',busy:false,ready:true,status:saved.chat?'Conversa recuperada.':'Nova conversa sem dados de tickets.',error:''},sender,identity:key,task:'summary_full',snapshot:{key,context,digest:await textDigest(context),namespace,title:details?.title || 'Novo chat'},revision:saved.chat?.revision || null,save:Promise.resolve(),insertions:new Map(),cancelled:false,summaryDigest:saved.chat?.contextDigest,summaryQuestion:details?.summaryQuestion};
+          if(old)cancel(old);sessions.set(windowId,restored);
+          await persist(restored);changed(windowId);return {};
+        }
         const session = sessions.get(windowId);
         if (message.action === 'AI_PANEL_ACCESS') {
           if(!extension)throw new Error('Abra a extensão para continuar.');
@@ -164,6 +190,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           try { saved = await callAi({ action: 'AI_CHAT_LOAD', key: value.key }, session.sender); } catch { session.persistent = false; session.warning = 'O histórico não pôde ser recuperado; esta conversa não será salva.'; session.state.error = session.warning; }
           if (!active(windowId, session)) return {};
           session.summaryDigest = saved.chat?.contextDigest || '0'.repeat(64); session.revision = saved.chat?.revision || null; session.state.messages = saved.chat?.messages || []; session.state.draft = saved.chat?.draft || ''; session.state.ready = true;
+          await persist(session);
           const marker=await textDigest(summaryContextDigest(value.digest,fullPrompt));
           const legacyDefault=prompts.ticket===TICKET_SUMMARY_PROMPT && saved.chat?.contextDigest===await textDigest(`${SUMMARY_FORMAT_VERSION}:${value.digest}`);
           if (session.task === 'summary_full' && session.state.messages.length && (saved.chat?.contextDigest===marker || legacyDefault)) { session.summaryDigest=marker; session.state.status = 'Conversa recuperada; nenhuma nova consulta à IA.'; changed(windowId); return {}; }
@@ -180,6 +207,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           session.state.draft = message.text; void run(windowId, session, message.text.trim(), 'chat', false, undefined, message.editIndex); return {};
         }
         if (message.action === 'AI_PANEL_INSERT') {
+          if(session.state.detached)throw new Error('Abra o resumo pelo ticket para inserir no editor correto.');
           const turn = session.state.messages[message.index];
           if (!Number.isInteger(message.index) || turn?.role !== 'assistant') throw new Error('Resposta não encontrada.');
           const tab = await browser.tabs.get(session.sender.tab.id); if (!tab.active || tab.windowId !== windowId) throw new Error('Volte à aba deste ticket antes de inserir.');

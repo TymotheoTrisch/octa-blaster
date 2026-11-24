@@ -7,6 +7,55 @@ import { createAiPanelRouter } from '../services/background/aiPanelRouter.ts';
 import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
 import { installStorage } from './helpers.mjs';
 const source = { id: 'extension', tab: { id: 1, windowId: 9, active: true, url: 'https://app.octadesk.com/ticket/edit/1' }, frameId: 2, url: 'https://app.octadesk.com/embed/main/home/ticket/edit/1' };
+
+test('new chats use the configured model without ticket context and restore their independent history and draft', async () => {
+ const f=setup();try{
+  await f.open();await f.done();
+  const initialCalls=f.calls.filter(m=>m.action==='AI_GENERATE').length;
+  assert.equal((await f.call({action:'AI_PANEL_NEW',windowId:9})).success,true);
+  let state=await f.get();assert.equal(state.kind,'general');assert.deepEqual(state.messages,[]);
+  assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,initialCalls);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Explique a fotografia.'});await f.done();
+  const generated=f.calls.filter(m=>m.action==='AI_GENERATE').at(-1);
+  assert.equal(generated.input.task,'general');assert.ok(!generated.input.context.includes('cliente fictício'));assert.deepEqual(generated.input.history,[]);
+  const list=await f.store.list('local'),chat=list.find(item=>item.kind==='general');assert.equal(chat.title,'Explique a fotografia.');
+  await f.call({action:'AI_PANEL_DRAFT',windowId:9,id:state.id,text:'Continuar a fotografia depois'});
+  await f.call({action:'AI_PANEL_NEW',windowId:9});state=await f.get();
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Outra conversa isolada.'});await f.done();
+  await f.call({action:'AI_PANEL_RESUME',windowId:9,key:chat.key});state=await f.get();
+  assert.equal(state.messages[0].content,'Explique a fotografia.');assert.equal(state.draft,'Continuar a fotografia depois');
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Continue a explicação.'});await f.done();
+  const followup=f.calls.filter(m=>m.action==='AI_GENERATE').at(-1);
+  assert.equal(followup.input.history[0].content,'Explique a fotografia.');assert.ok(!JSON.stringify(followup).includes('Outra conversa isolada.'));
+  f.router.clearTab(1);assert.equal((await f.get()).kind,'general');
+ }finally{f.storage.restore();}
+});
+
+test('the history resumes a ticket using saved plaintext and returning through its button keeps one conversation',async()=>{
+ const f=setup();try{
+  await f.open();await f.done();
+  await f.call({action:'AI_PANEL_NEW',windowId:9});
+  const before=f.calls.filter(m=>m.action==='AI_GENERATE').length;
+  await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'a'.repeat(64)});let state=await f.get();
+  assert.equal(state.kind,'ticket');assert.equal(state.detached,true);assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,before);
+  assert.equal((await f.call({action:'AI_PANEL_INSERT',windowId:9,id:state.id,index:0})).success,false);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'O que falta neste ticket?'});state=await f.done();
+  assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input.context,'Mensagem do cliente fictício.');
+  await f.open('returning');state=await f.done();assert.equal(state.detached,undefined);assert.equal(state.messages.length,3);
+  assert.equal((await f.store.list('local')).filter(item=>item.kind==='ticket').length,1);
+ }finally{f.storage.restore();}
+});
+
+test('history entry points reject content scripts, unknown keys and another connection namespace',async()=>{
+ const f=setup();try{
+  assert.equal((await f.call({action:'AI_PANEL_NEW',windowId:9},source)).success,false);
+  assert.equal((await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'f'.repeat(64)})).success,false);
+  await f.call({action:'AI_PANEL_NEW',windowId:9});const [entry]=await f.store.list('local');
+  await browser.storage.local.set({octablaster_ai_history_namespace:'gateway_other'});
+  assert.equal((await f.store.list('gateway_other')).length,0);
+  assert.equal((await f.call({action:'AI_PANEL_RESUME',windowId:9,key:entry.key})).success,false);
+ }finally{f.storage.restore();}
+});
 const ui = { id: 'extension', url: 'moz-extension://extension/sidepanel.html' };
 function setup(generate = async () => ({ text: 'Resposta fictícia' }), nativeSidebar = false) {
   const storage = installStorage(), store = createTicketChatStore(), calls = [], events = [];
@@ -18,7 +67,7 @@ function setup(generate = async () => ({ text: 'Resposta fictícia' }), nativeSi
   const get = async () => (await call({ action: 'AI_PANEL_GET', windowId: 9 })).data;
   const open = async (id = 'one', task = 'summary_full') => { assert.equal((await call({ action: 'AI_PANEL_OPEN', id, identity: 'ticket-A', task }, source)).success, true); return call({ action: 'AI_PANEL_CONTEXT', id, snapshot: value }, source); };
   const done = async () => { for (let i = 0; i < 100; i++) { const state = await get(); if (state?.ready && !state.busy) return state; await new Promise(resolve => setTimeout(resolve, 5)); } throw new Error('Panel did not finish'); };
-  return { storage, calls, events, call, get, open, done, setSnapshot: next => { value = { ...value, ...next }; }, router };
+  return { storage, store, calls, events, call, get, open, done, setSnapshot: next => { value = { ...value, ...next }; }, router };
 }
 test('summary button opens native sidebar before any storage/model work and restores chat without another inference', async () => {
   const f = setup(); try {

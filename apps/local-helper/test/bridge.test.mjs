@@ -13,8 +13,8 @@ test('extension pairing is one-use, origin-bound, revocable and sends only expli
     const body = JSON.parse(options.body);
     assert.equal(body.store, false); assert.equal(body.stream, true);
     const input = JSON.parse(body.input[0].content);
-    assert.equal(input.conversa_do_ticket, 'Contexto autorizado fictício');
-    assert.deepEqual(input.exemplos_de_estilo, []);
+    if(input.tarefa==='general'){assert.equal(input.contexto_da_conversa,'Conversa independente.');assert.ok(!body.instructions.includes('atendente de suporte'));}
+    else {assert.equal(input.conversa_do_ticket, 'Contexto autorizado fictício');assert.deepEqual(input.exemplos_de_estilo, []);}
     assert.ok(!options.body.includes('OAUTH_MUST_NOT_LEAVE_HELPER'));
     return Response.json({ id: 'resp_fake', object: 'response', status: 'completed', output: [{ content: [{ type: 'output_text', text: 'Resposta fictícia.' }] }] });
   } });
@@ -34,8 +34,10 @@ test('extension pairing is one-use, origin-bound, revocable and sends only expli
     assert.ok(!status.includes('OAUTH_MUST_NOT_LEAVE_HELPER'));
     const response = await (await bridge('draft', { task: 'summary_full', model: 'fake-model', context: 'Contexto autorizado fictício', instruction: 'Resuma o atendimento.', examples: [] }, pairing.key)).json();
     assert.equal(response.text, 'Resposta fictícia.'); assert.equal(generations, 1);
+    const general=await (await bridge('draft',{task:'general',model:'fake-model',context:'Conversa independente.',instruction:'Explique fotografia.',history:[]},pairing.key)).json();
+    assert.equal(general.text,'Resposta fictícia.');assert.equal(generations,2);
     await local('/pairing/revoke');
     assert.notEqual((await bridge('status', {}, pairing.key)).status, 200);
-    assert.equal(generations, 1);
+    assert.equal(generations, 2);
   } finally { await app.close(); }
 });

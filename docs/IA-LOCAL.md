@@ -2,7 +2,7 @@
 
 O painel lateral abre nas respostas rápidas, sem abas extras. O chat de IA só aparece após acioná-lo no ticket; a seta de voltar retorna às respostas rápidas. Reabrir a lateral não revela conversas antigas automaticamente.
 
-A integração opcional usa o painel lateral nativo da extensão para resumos, perguntas e respostas. Não abre modais ou campos extras na página do ticket. Auxiliar Windows 0.3.4; versão sujeita à aprovação da PR, sem release/tag publicada.
+A integração opcional usa o painel lateral nativo da extensão para resumos, perguntas e respostas. Não abre modais ou campos extras na página do ticket. Auxiliar Windows 0.3.5; versão sujeita à aprovação da PR, sem release/tag publicada.
 
 ## Usar e atualizar
 
@@ -52,7 +52,7 @@ O modelo/provedor ainda pode levar tempo para produzir o resultado; não há pro
 
 ## Dados, estilo e credenciais
 
-O chat/draft ficam em `browser.storage.local`, fora dos backups de respostas rápidas e do localStorage do Octadesk. O contexto bruto permanece transitório na memória do background; não é arquivado como HTML. Mensagens do chat podem conter dados do atendimento. Falha no armazenamento é informada sem esconder a resposta gerada. Troca de conexão da equipe separa namespaces do histórico.
+O chat/draft ficam em `browser.storage.local`, fora dos backups de respostas rápidas e do localStorage do Octadesk. Para retomar um ticket pelo histórico, o texto extraído das mensagens carregadas é salvo junto da conversa, no armazenamento privado da extensão; não é arquivado como HTML. Mensagens do chat podem conter dados do atendimento. Falha no armazenamento é informada sem esconder a resposta gerada. Troca de conexão da equipe separa namespaces do histórico.
 
 ## Configurações por categoria
 
@@ -89,3 +89,11 @@ Use `pnpm compile`, `pnpm test`, `pnpm build`, `pnpm build:firefox`, `pnpm --dir
 Validar no Octadesk real antes da aprovação: histórico longo e múltiplos autores, origem do editor, rascunho modificado durante espera, retomada de chat, cache/expiração e qualidade/latência das respostas do provedor. Resultados e limites em [VALIDATION.md](../apps/local-helper/VALIDATION.md).
 
 Ao acionar uma consulta, o botão mostra processamento. A geração de resposta bloqueia cliques repetidos; os botões de resumo continuam permitindo reabrir a lateral sem duplicar consultas. Um aviso próximo informa carregamento, conclusão ou erro; falhas ficam visíveis até fechar o aviso ou tentar novamente. Erros de resumo também aparecem no chat. Falhas na resposta direta restauram a orientação somente quando o campo segue intacto.
+
+## Conversas independentes e histórico
+
+Em **Inteligência artificial → Conversas com a IA**, **Novo chat** inicia uma conversa vazia com o mesmo provedor/modelo configurado, sem importar contexto de tickets ou de outros chats. O título vem da primeira pergunta, sem uma chamada extra ao modelo. O botão de histórico lista chats e tickets por atualização, permite buscar pelo título/número e retomar mensagens e rascunho. Não há abas permanentes de IA na tela inicial.
+
+Cada ticket conserva sua chave e sua única conversa, compartilhada entre Resumir mensagem e Resumir ticket. O histórico permite conversar usando a última cópia de texto salva, mesmo sem o ticket aberto. Um aviso identifica esse contexto salvo. Reabrir o resumo pelo próprio ticket atualiza as mensagens carregadas e habilita a inserção no editor, com validação de ticket/frame. Chats antigos sem metadados aparecem como Ticket salvo até serem reabertos pelo ticket.
+
+Chats, rascunhos e contexto em texto seguem a retenção configurada e não entram no backup das respostas rápidas. O histórico completo é preservado localmente dentro dos limites de armazenamento; consultas usam um recorte limitado do contexto e do histórico para caber no contrato do modelo. Contextos remotos continuam sujeitos às regras e custos do provedor. A conexão do servidor de equipe usa um histórico separado por credencial.

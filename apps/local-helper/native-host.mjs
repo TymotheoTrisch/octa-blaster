@@ -65,7 +65,7 @@ export function startNativeHost({ input = process.stdin, output = process.stdout
       if (message.action === 'models') return bridge('models');
       if (message.action === 'preferences') return local.preferences(message.model);
       if (message.action === 'generate') {
-        if (!['summary_latest', 'summary_full', 'chat'].includes(message.input?.task)) throw new Error('Somente resumos e perguntas estão habilitados nesta versão.');
+        if (!['summary_latest', 'summary_full', 'chat', 'general'].includes(message.input?.task)) throw new Error('Somente resumos e perguntas estão habilitados nesta versão.');
         const status = await bridge('status');
         return bridge('draft', { ...message.input, model: status.model }, AbortSignal.any([controller.signal, AbortSignal.timeout(120_000)]));
       }

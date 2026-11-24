@@ -1,8 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { collectResponse, FICTIONAL_INPUT, runFictionalTest } from '../inference.mjs';
+import { collectResponse, FICTIONAL_INPUT, runFictionalTest, runSummary } from '../inference.mjs';
 
 const frame = event => `data: ${JSON.stringify(event)}\n\n`;
+
+test('ChatGPT independent chat preserves its history and does not use the ticket-only instructions',async()=>{
+ const history=[{role:'user',content:'Explique fotografia.'},{role:'assistant',content:'Fotografia fictícia.'}];
+ const result=await runSummary('fictional-token','configured-model',{task:'general',context:'Conversa independente.',instruction:'Continue.',history},async(_url,options)=>{
+  const body=JSON.parse(options.body),data=JSON.parse(body.input[0].content);
+  assert.equal(body.model,'configured-model');assert.match(body.instructions,/assistente de IA/);assert.ok(!body.instructions.includes('atendente de suporte'));
+  assert.deepEqual(data.historico_do_chat,history);assert.equal(data.conversa_do_ticket,undefined);
+  return new Response(stream([{type:'response.output_text.delta',delta:'Continuação fictícia.'},{type:'response.completed',response:{status:'completed'}}]));
+ });assert.equal(result.text,'Continuação fictícia.');
+});
 function stream(events, fragmented = false) {
   const data = Buffer.from(events.map(frame).join(''));
   return new ReadableStream({ start(controller) { for (let at = 0; at < data.length; at += fragmented ? 3 : data.length) controller.enqueue(data.subarray(at, at + (fragmented ? 3 : data.length))); controller.close(); } });

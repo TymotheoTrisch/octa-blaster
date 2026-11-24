@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { aiSettings, personaPrompt, publicSettings } from './ai-settings.mjs';
 import { generateProvider, deleteProviderState } from './provider-http.mjs';
+import { GENERAL_INSTRUCTIONS } from './general-instructions.mjs';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const bounded = history => { const result = [...history]; while (result.length > 12 || result.reduce((sum, turn) => sum + turn.content.length, 0) > 24_000) result.splice(0, 2); return result; };
@@ -24,7 +25,7 @@ export function compactTicketContext(context, question, memo = '', budget = 14_0
 }
 
 function validateInput(input) {
-  if (!input || !['summary_latest', 'summary_full', 'chat'].includes(input.task) || typeof input.context !== 'string' || !input.context.trim() || input.context.length > 50_000 || typeof input.instruction !== 'string' || !input.instruction.trim() || input.instruction.length > 4000 || (input.conversationKey !== undefined && !/^[a-f0-9]{64}$/.test(input.conversationKey))) throw new Error('Solicitação de IA inválida.');
+  if (!input || !['summary_latest', 'summary_full', 'chat', 'general'].includes(input.task) || typeof input.context !== 'string' || !input.context.trim() || input.context.length > 50_000 || typeof input.instruction !== 'string' || !input.instruction.trim() || input.instruction.length > 4000 || (input.conversationKey !== undefined && !/^[a-f0-9]{64}$/.test(input.conversationKey))) throw new Error('Solicitação de IA inválida.');
   const history = input.history || [];
   if (!Array.isArray(history) || history.length > 12 || history.length % 2 || history.some((turn, index) => turn?.role !== (index % 2 ? 'assistant' : 'user') || typeof turn.content !== 'string' || !turn.content.trim()) || JSON.stringify(history).length > 26_000) throw new Error('Histórico inválido.');
   return history;
@@ -72,18 +73,18 @@ export function createProviderEngine({ vault, fetcher = fetch, chatgpt, now = Da
       const persona = allowClientPersona && input.persona ? input.persona : personaPrompt(ai, input.instruction), key = input.task !== 'summary_latest' ? input.conversationKey : undefined;
       const previous = key ? ai.sessions[key] : null;
       const credentialId = config.apiKey ? hash(config.apiKey) : 'chatgpt';
-      const fingerprint = hash([provider, config.model || '', credentialId, allowClientPersona && input.persona ? input.persona : personaPrompt(ai), input.context]);
+      const fingerprint = hash([provider, config.model || '', credentialId, allowClientPersona && input.persona ? input.persona : personaPrompt(ai), input.context,...(input.task==='general'?['general']:[])]);
       const remoteStore = !!key && ['openai', 'gemini'].includes(provider) && config.remoteStore !== false;
-      const reusable = input.task === 'chat' && previous?.fingerprint === fingerprint && previous.historyDigest === hash(history) && previous.turns < 12 && previous.refs?.length && remoteStore;
+      const reusable = ['chat','general'].includes(input.task) && previous?.fingerprint === fingerprint && previous.historyDigest === hash(history) && previous.turns < 12 && previous.refs?.length && remoteStore;
       const previousId = reusable ? previous.refs.at(-1).id : undefined;
       if (previous && !reusable && previous.refs?.length) { await retire(previous); await vault.update(state => { const settings = aiSettings(state), sessions = { ...settings.sessions }; delete sessions[key]; return { ...state, ai: { ...settings, sessions } }; }); }
       const context = input.task === 'chat' && !previousId ? compactTicketContext(input.context, input.instruction, previous?.fingerprint === fingerprint ? previous.memo : '') : input.context;
-      const instructions = `${BASE}\nPerfil e exemplo somente para estilo, sem fatos de outros tickets:\n${persona}`;
-      const prompt = JSON.stringify({ ...(previousId ? {} : { conversa_do_ticket: context }), pergunta: input.instruction });
+      const instructions = input.task === 'general' ? GENERAL_INSTRUCTIONS : `${BASE}\nPerfil e exemplo somente para estilo, sem fatos de outros tickets:\n${persona}`;
+      const prompt = JSON.stringify({ ...(previousId ? {} : input.task==='general'?{contexto_da_conversa:context}:{ conversa_do_ticket: context }), pergunta: input.instruction });
       let result;
       const maxOutputTokens = input.task === 'summary_latest' ? 768 : input.task === 'summary_full' ? 1536 : 2048;
       try {
-        result = provider === 'chatgpt' ? await chatgpt({ ...input, context, persona }, signal) : await generateProvider(provider, config, { maxOutputTokens, instructions: provider === 'claude' ? `${instructions}\nDados do ticket atual:\n${context}` : instructions, prompt: provider === 'claude' ? input.instruction : prompt, history: previousId ? [] : history, previousId, remoteStore }, { fetcher, signal });
+        result = provider === 'chatgpt' ? await chatgpt({ ...input, context, persona }, signal) : await generateProvider(provider, config, { maxOutputTokens, instructions: provider === 'claude' ? `${instructions}\n${input.task==='general'?'Contexto desta conversa':'Dados do ticket atual'}:\n${context}` : instructions, prompt: provider === 'claude' ? input.instruction : prompt, history: previousId ? [] : history, previousId, remoteStore }, { fetcher, signal });
       } catch (error) {
         if (previousId && error.status === 404) { await retire(previous); await vault.update(state => { const settings = aiSettings(state), sessions = { ...settings.sessions }; delete sessions[key]; return { ...state, ai: { ...settings, sessions } }; }); }
         throw error;

@@ -36,6 +36,10 @@ test('native channel performs setup internally, restricts tasks, cancels and exp
   input.write(encodeNativeMessage({ id: 'summary', action: 'generate', input: { task: 'summary_latest', context: 'Fictício' } })); await settle();
   input.write(encodeNativeMessage({ id: 'cancel', action: 'cancel', requestId: 'summary' })); await settle(); await settle();
   assert.equal(replies.find(item => item.id === 'summary').success, false); assert.match(replies.find(item => item.id === 'summary').error, /cancelada/);
+  input.write(encodeNativeMessage({id:'general',action:'generate',input:{task:'general',context:'Conversa independente.',instruction:'Explique fotografia.'}}));await settle();await settle();
+  assert.ok(requests.some(item=>item.url.endsWith('/bridge/draft')&&JSON.parse(item.options.body).task==='general'));
+  input.write(encodeNativeMessage({id:'cancel-general',action:'cancel',requestId:'general'}));await settle();await settle();
+  assert.equal(replies.find(item=>item.id==='general').success,false);
   input.end(); await settle(); assert.ok(requests.some(item => item.url.endsWith('/bridge/unpair')));
 });
 test('ready helper is reused without launching another process', async () => {

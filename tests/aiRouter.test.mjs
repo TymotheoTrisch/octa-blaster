@@ -5,6 +5,18 @@ import { installStorage } from './helpers.mjs';
 const content = { id: 'extension', tab: { id: 1, url: 'https://app.octadesk.com/tickets' }, frameId: 0 };
 const ui = { id: 'extension', url: 'moz-extension://extension/popup.html' };
 const input = { task: 'summary_full', context: 'Conversa fictícia A', instruction: 'Resuma o ticket.' };
+
+test('independent inference and the conversation list are extension-only and preserve configured routing',async()=>{
+ let generated;const f=setup({call:async(action,data)=>{generated={action,data};return {text:'Resultado fictício'};}});try{
+  const general={...input,task:'general',context:'Conversa independente.'};
+  assert.equal((await f.call({action:'AI_GENERATE',requestId:'general',input:general})).success,false);
+  assert.equal((await f.call({action:'AI_CHAT_LIST'})).success,false);
+  assert.equal(generated,undefined);
+  assert.equal((await f.call({action:'AI_GENERATE',requestId:'general',input:general},ui)).success,true);
+  assert.equal(generated.action,'generate');assert.equal(generated.data.input.task,'general');
+  assert.deepEqual((await f.call({action:'AI_CHAT_LIST'},ui)).data,[]);
+ }finally{f.storage.restore();}
+});
 function setup(client) {
   const storage = installStorage(); browser.runtime = { id: 'extension', getURL: path => `moz-extension://extension${path}` }; browser.tabs = { create: async () => {} };
   const router = createAiRouter(client);
