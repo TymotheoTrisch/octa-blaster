@@ -28,6 +28,20 @@ test('the page registers the ticket frame without editor focus and snapshots inc
   assert.equal((await f.respond({...message,expectedKey:'d'.repeat(64)})).success,false);
  }finally{f.restore();}
 });
+
+test('the Octadesk header number identifies ticket 272402 even when the URL contains another number',async()=>{
+ const f=setup();try{
+  f.scope.querySelector('header').outerHTML='<header class="header header-info header-lg"><div class="col-sm-8 space-less"><div class="clearfix"><span class="label label-md label-default ng-binding">272402<pop-over-merge></pop-over-merge><pop-over-copy></pop-over-copy></span></div><h2>Atendimento atual</h2></div></header>';
+  f.window.history.replaceState({},'', '/embed/main/home/ticket/edit/999999/');
+  await openAiSidebar(f.scope,'summary_full');await f.prepared();
+  const result=f.calls.find(message=>message.snapshot).snapshot;
+  assert.equal(result.ticketNumber,'272402');assert.match(result.context,/Número do ticket: 272402/);
+  f.scope.querySelector('.label').firstChild.textContent='272403';
+  await openAiSidebar(f.scope,'summary_full');
+  for(let i=0;i<100&&!f.calls.some(message=>message.snapshot?.ticketNumber==='272403');i++)await new Promise(resolve=>setTimeout(resolve,5));
+  assert.notEqual(f.calls.find(message=>message.snapshot?.ticketNumber==='272403').snapshot.key,result.key);
+ }finally{f.restore();}
+});
 function setup(){
  const storage=installStorage(),dom=installDom('<form id="ticketA" ticket="ticket"><header class="ticket-header"><h2>Ticket A</h2></header><article class="interaction"><header class="interaction-header">Cliente</header><div class="content-comment-interaction">Pedido do cliente.</div></article><div class="comment-panel"><div ng-if="ticketViewModel.typeInteractionSelected == 2"><div class="note-editable" contenteditable="true"><p><br></p></div></div></div></form>');
  dom.window.HTMLElement.prototype.getBoundingClientRect=()=>({width:800,height:200});

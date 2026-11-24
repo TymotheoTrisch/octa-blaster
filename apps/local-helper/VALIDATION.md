@@ -2,6 +2,13 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Conversa automática pelo número do ticket
+
+- Entrada do chat identifica o número no cabeçalho HTML, recupera a conversa canônica ou cria uma vazia, sem inferência. Mudança de ticket/aba sincroniza a conversa; retorno preserva mensagens e rascunho daquele número. Novo chat em ticket ativo reutiliza a conversa do atendimento.
+- Removidos a engrenagem e Usar ticket aberto. Entrada sempre na área de mensagens com histórico fechado; seta retorna para Inteligência artificial. Cabeçalho e histórico identificam o número, que prevalece sobre uma URL antiga do iframe.
+- 184 testes da extensão aprovados, incluindo o cabeçalho 272402, troca para 272403, isolamento de históricos/rascunhos, rejeição de envio antigo e descarte de resposta tardia. Frame não disponível em rota de ticket gera orientação, sem criar um chat avulso por engano. Compilação TypeScript e builds Chrome/Firefox concluídos.
+- Chromium com fixture e IA simulada confirmou entrada vazia, troca automática por mudança do HTML, restauração de histórico/rascunho, ausência dos botões, histórico fechado e navegação de volta. Firefox real confirmou o mesmo fluxo com histórico fictício salvo, sem inferência. Auxiliar 0.3.5 permanece sem alterações.
+
 ## Histórico em menu lateral
 
 - Histórico abre como menu sobreposto à esquerda, com ícone de painel, Novo chat, busca, lista Recentes e rolagem independente. Mantém a geometria da conversa ao fundo e usa as cores da extensão nos temas claro/escuro.

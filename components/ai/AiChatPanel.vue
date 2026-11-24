@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, nextTick, computed, watch } from 'vue';
-import { ArrowLeft, Copy, Pencil, CornerDownLeft, Loader2, Send, Settings, PanelLeft, Plus, X, ExternalLink } from 'lucide-vue-next';
+import { ArrowLeft, Copy, Pencil, CornerDownLeft, Loader2, Send, PanelLeft, Plus, X, ExternalLink } from 'lucide-vue-next';
 import type { AiPanelState } from '@/types/aiPanel';
 import { TICKET_SUMMARY_PROMPT, EMAIL_SUMMARY_PROMPT, summaryTextParts } from '@/services/ai/summaryFormat';
 import { aiLocalMessage } from '@/services/ai/localClient';
-const emit = defineEmits<{ settings: []; back: [] }>();
-const props=defineProps<{historyInitially?:boolean}>();
-const showHistory=ref(!!props.historyInitially),historyBusy=ref(false),search=ref(''),historyError=ref('');
+const emit = defineEmits<{ back: [] }>();
+const showHistory=ref(false),historyBusy=ref(false),search=ref(''),historyError=ref('');
 const historyDrawer=ref<HTMLElement|null>(null),historyToggle=ref<HTMLButtonElement|null>(null);
 watch(showHistory,async open=>{await nextTick();if(open)historyDrawer.value?.querySelector<HTMLButtonElement>('button')?.focus();else historyToggle.value?.focus();},{immediate:true});
 function historyKeydown(event:KeyboardEvent){
@@ -24,28 +23,40 @@ async function refreshHistory(){historyBusy.value=true;try{chats.value=await aiL
 async function browse(){showHistory.value=!showHistory.value;if(showHistory.value){historyError.value='';await refreshHistory();}}
 async function openChat(key?:string){historyBusy.value=true;historyError.value='';try{if(!await saveDraft()){historyError.value=feedback.value;return;}await aiLocalMessage(key?'AI_PANEL_RESUME':'AI_PANEL_NEW',{windowId,key});showHistory.value=false;await refresh();await nextTick();composer.value?.focus();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível abrir a conversa.';historyError.value=feedback.value;}finally{historyBusy.value=false;}}
 async function openTicket(){if(state.value?.ticketUrl)await browser.tabs.create({url:state.value.ticketUrl});}
-async function useTicket(){historyBusy.value=true;try{if(!await saveDraft())return;await aiLocalMessage('AI_PANEL_ATTACH',{windowId});showHistory.value=false;await refresh();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível ler o ticket.';}finally{historyBusy.value=false;}}
+const contextBusy=ref(true);
 const state = ref<AiPanelState | null>(null), draft = ref(''), feedback = ref(''), seconds = ref(0);
 const log = ref<HTMLElement | null>(null), composer = ref<HTMLTextAreaElement | null>(null), editIndex = ref<number | undefined>();
 function visibleText(text:string) { if(text===EMAIL_SUMMARY_PROMPT||text.startsWith('Resumir esta mensagem de e-mail.\n\nInstruções:\n'))return 'Resuma esta mensagem de e-mail.';if(text===TICKET_SUMMARY_PROMPT||text.startsWith('Resumir o ticket.\n\nInstruções:\n'))return 'Resuma o ticket com objetivo, status e pendências.'; return text.startsWith('Prepare uma resposta ao cliente a partir desta orientação:') ? text.split('\n\nPadrões de escrita observados')[0] : text; }
 function edit(index:number) { editIndex.value=index; draft.value=visibleText(state.value!.messages[index]!.content) || ''; composer.value?.focus(); }
+let refreshSequence=0;
 let windowId = 0, started = 0, timer: ReturnType<typeof setInterval> | undefined;
 async function refresh() {
-  try { const value = await aiLocalMessage('AI_PANEL_GET', { windowId }); const changed = value?.id !== state.value?.id || (!!value?.error && !value.busy && !!state.value?.busy); if (value?.busy && !state.value?.busy) started = Date.now(); state.value = value; if (changed) { draft.value = value?.draft || ''; feedback.value=''; editIndex.value=undefined; } await nextTick(); if (window.getSelection()?.isCollapsed !== false) log.value?.scrollTo?.({ top: log.value.scrollHeight }); } catch (error) { feedback.value = error instanceof Error ? error.message : 'Painel indisponível.'; }
+  try { const sequence=++refreshSequence;const value = await aiLocalMessage('AI_PANEL_GET', { windowId });if(sequence!==refreshSequence)return; const changed = (value?.conversationKey || value?.id) !== (state.value?.conversationKey || state.value?.id) || (!!value?.error && !value.busy && !!state.value?.busy); if (value?.busy && !state.value?.busy) started = Date.now(); state.value = value; if (changed) { draft.value = value?.draft || ''; feedback.value=''; editIndex.value=undefined; } await nextTick(); if (window.getSelection()?.isCollapsed !== false) log.value?.scrollTo?.({ top: log.value.scrollHeight }); } catch (error) { feedback.value = error instanceof Error ? error.message : 'Painel indisponível.'; }
 }
-const notify = (message: any) => { if (message.action === 'AI_PANEL_CHANGED' && message.windowId === windowId) {void refresh();if(showHistory.value)void refreshHistory();} };
-async function ask() { if (!state.value || !draft.value.trim() || state.value.busy) return; const text = draft.value; try { await aiLocalMessage('AI_PANEL_SEND', { windowId, id: state.value.id, text, editIndex: editIndex.value }); draft.value = ''; editIndex.value=undefined; feedback.value = ''; } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível enviar.'; } }
+let syncing:Promise<void>|undefined;
+function syncTicket(enter=false):Promise<void>{
+ if(syncing)return syncing;
+ contextBusy.value=true;
+ syncing=(async()=>{try{await aiLocalMessage(enter?'AI_PANEL_ENTER':'AI_PANEL_SYNC',{windowId});await refresh();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível identificar o ticket.';}finally{contextBusy.value=false;syncing=undefined;}})();return syncing;
+}
+const notify=(message:any)=>{if(message.windowId!==windowId)return;if(message.action==='AI_PAGE_CHANGED')void syncTicket();else if(message.action==='AI_PANEL_CHANGED'){void refresh();if(showHistory.value)void refreshHistory();}};
+async function ask(){
+ if(!state.value||!draft.value.trim()||state.value.busy)return;
+ const key=state.value.conversationKey || state.value.id,text=draft.value;await syncTicket();
+ if((state.value?.conversationKey || state.value?.id)!==key){feedback.value='O ticket mudou. Revise sua pergunta na conversa deste atendimento.';return;}
+ try{await aiLocalMessage('AI_PANEL_SEND',{windowId,id:state.value!.id,text,editIndex:editIndex.value});draft.value='';editIndex.value=undefined;feedback.value='';}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível enviar.';}
+}
 async function insert(index: number) { try { await aiLocalMessage('AI_PANEL_INSERT', { windowId, id: state.value?.id, index }); feedback.value = 'Texto inserido no ticket. Revise antes de enviar.'; } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível inserir.'; } }
 async function copy(text: string) { try { await navigator.clipboard.writeText(text); feedback.value = 'Copiado.'; } catch { feedback.value = 'Não foi possível copiar.'; } }
 async function saveDraft() { if (!state.value) return true; try {await aiLocalMessage('AI_PANEL_DRAFT', { windowId, id: state.value.id, text: draft.value });return true;}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível salvar o rascunho.';return false;} }
-onMounted(async () => { windowId = (await browser.windows.getCurrent()).id!; browser.runtime.onMessage.addListener(notify); await refresh();if(!state.value)showHistory.value=true;if(showHistory.value)await refreshHistory(); timer = setInterval(() => { seconds.value = started ? Math.floor((Date.now() - started) / 1000) : 0; }, 1000); });
+onMounted(async () => { windowId = (await browser.windows.getCurrent()).id!; browser.runtime.onMessage.addListener(notify); await syncTicket(true);await nextTick();composer.value?.focus(); timer = setInterval(() => { seconds.value = started ? Math.floor((Date.now() - started) / 1000) : 0; }, 1000); });
 onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListener(notify); });
 </script>
 <template>
   <section class="ai-panel" aria-label="Conversas com a IA" @keydown="historyKeydown">
    <div class="ai-conversation" :inert="showHistory || undefined">
-    <header><button ref="historyToggle" type="button" title="Histórico de conversas" aria-label="Histórico de conversas" :aria-expanded="showHistory" aria-controls="ai-chat-history" @click="browse"><PanelLeft :size="17" /></button><div class="ai-panel-heading"><strong>{{state?.kind==='general'?'Chat com a IA':state?'Chat do ticket':'Conversas com a IA'}}</strong><p>{{ state?.title || 'Comece uma conversa ou retome pelo histórico' }}</p></div><button type="button" title="Voltar às respostas rápidas" aria-label="Voltar às respostas rápidas" @click="emit('back')"><ArrowLeft :size="16" /></button><button type="button" title="Configurar IA" aria-label="Configurar IA" @click="emit('settings')"><Settings :size="16" /></button></header>
-    <div class="ai-ticket-access"><span>{{state?.kind==='ticket'&&!state.detached?'Ticket conectado · leitura atualizada a cada pergunta':'Conecte o ticket para consultar o HTML da página'}}</span><button type="button" :disabled="historyBusy||state?.busy" @click="useTicket">Usar ticket aberto</button></div>
+    <header><button ref="historyToggle" type="button" title="Histórico de conversas" aria-label="Histórico de conversas" :aria-expanded="showHistory" aria-controls="ai-chat-history" @click="browse"><PanelLeft :size="17" /></button><div class="ai-panel-heading"><strong>{{state?.kind==='general'?'Chat com a IA':state?.ticketNumber?'Ticket #'+state.ticketNumber:state?'Chat do ticket':'Conversas com a IA'}}</strong><p>{{ state?.title || 'Comece uma conversa ou retome pelo histórico' }}</p></div><button type="button" title="Voltar para Inteligência artificial" aria-label="Voltar para Inteligência artificial" @click="emit('back')"><ArrowLeft :size="16" /></button></header>
+    <p v-if="state?.kind==='ticket'" class="ai-ticket-access">{{state.ticketNumber?'Ticket #'+state.ticketNumber+' · ':''}}{{contextBusy?'Identificando atendimento…':state.detached?'Contexto salvo':'Conversa vinculada ao atendimento aberto'}}</p>
 
     <p v-if="state?.detached&&state.kind==='ticket'" class="ai-panel-feedback">Usando o contexto salvo. Ao retornar a este ticket, a conversa reconecta à página para ler o conteúdo atual. <button v-if="state.ticketUrl" type="button" @click="openTicket"><ExternalLink :size="12"/>Abrir ticket</button></p>
     <div ref="log" class="ai-panel-log" role="log">
@@ -55,17 +66,17 @@ onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListen
     </div>
     <p v-if="state?.error" role="alert" class="ai-panel-error">{{ state.error }}</p>
     <p class="ai-panel-feedback" role="status">{{ feedback || (!state?.busy ? state?.status : '') }}<span v-if="!state?.busy && state?.queryMs"> · {{ (state.queryMs/1000).toFixed(1) }}s de consulta</span></p>
-    <form @submit.prevent="ask"><textarea ref="composer" v-model="draft" :aria-label="state?.kind==='general'?'Mensagem para a IA':'Pergunte sobre o ticket'" :placeholder="state?.kind==='general'?'Escreva sua mensagem…':'Pergunte sobre o ticket…'" maxlength="4000" :disabled="historyBusy || !state?.ready || state.busy" @input="saveDraft" @keydown.enter.exact.prevent="ask"></textarea><button type="submit" aria-label="Enviar pergunta" :disabled="historyBusy || !draft.trim() || !state?.ready || state.busy"><Send :size="16" /></button></form>
+    <form @submit.prevent="ask"><textarea ref="composer" v-model="draft" :aria-label="state?.kind==='general'?'Mensagem para a IA':'Pergunte sobre o ticket'" :placeholder="state?.kind==='general'?'Escreva sua mensagem…':'Pergunte sobre o ticket…'" maxlength="4000" :disabled="contextBusy || historyBusy || !state?.ready || state.busy" @input="saveDraft" @keydown.enter.exact.prevent="ask"></textarea><button type="submit" aria-label="Enviar pergunta" :disabled="contextBusy || historyBusy || !draft.trim() || !state?.ready || state.busy"><Send :size="16" /></button></form>
    </div>
    <template v-if="showHistory">
     <div class="ai-history-backdrop" aria-hidden="true" @click="showHistory=false"></div>
     <aside id="ai-chat-history" ref="historyDrawer" class="ai-chat-history" aria-label="Histórico de conversas">
       <div class="ai-history-heading"><strong>Conversas</strong><button type="button" aria-label="Fechar histórico" title="Fechar histórico" @click="showHistory=false"><X :size="16"/></button></div>
-      <button type="button" class="ai-new-chat" :disabled="historyBusy||state?.busy" @click="openChat()"><Plus :size="15"/>Novo chat</button>
+      <button type="button" class="ai-new-chat" :disabled="contextBusy||historyBusy||state?.busy" @click="openChat()"><Plus :size="15"/>Novo chat</button>
       <input v-model="search" type="search" aria-label="Buscar conversa" placeholder="Buscar conversa…">
       <p class="ai-history-label">Recentes</p>
       <p v-if="historyError" class="ai-history-note" role="status">{{historyError}}</p>
-      <div class="ai-history-list"><button v-for="chat in filteredChats" :key="chat.key" type="button" class="ai-history-chat" :title="chat.title" :disabled="historyBusy||state?.busy" @click="openChat(chat.key)"><span>{{chat.title}}</span><small>{{chat.kind==='ticket'?'Ticket':'Chat'}} · {{new Date(chat.updatedAt).toLocaleDateString('pt-BR')}}</small></button><p v-if="!filteredChats.length" class="ai-panel-hint">{{historyBusy?'Carregando…':'Nenhuma conversa encontrada.'}}</p></div>
+      <div class="ai-history-list"><button v-for="chat in filteredChats" :key="chat.key" type="button" class="ai-history-chat" :title="chat.title" :disabled="contextBusy||historyBusy||state?.busy" @click="openChat(chat.key)"><span>{{chat.title}}</span><small>{{chat.kind==='ticket'?'Ticket':'Chat'}} · {{new Date(chat.updatedAt).toLocaleDateString('pt-BR')}}</small></button><p v-if="!filteredChats.length" class="ai-panel-hint">{{historyBusy?'Carregando…':'Nenhuma conversa encontrada.'}}</p></div>
       <p class="ai-history-note">Salvo neste navegador, conforme a retenção configurada.</p>
     </aside>
    </template>

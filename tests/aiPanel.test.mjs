@@ -58,6 +58,62 @@ test('history entry points reject content scripts, unknown keys and another conn
 });
 const ui = { id: 'extension', url: 'moz-extension://extension/sidepanel.html' };
 
+test('entering chat follows the HTML ticket number, restores its history and creates a blank conversation for another ticket',async()=>{
+ const f=setup();try{
+  f.setSnapshot({ticketNumber:'272402'});
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-A',identity:'ticket-A'}]},source);
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});let state=await f.get();
+  assert.equal(state.ticketNumber,'272402');assert.equal(state.kind,'ticket');assert.deepEqual(state.messages,[]);assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,0);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Pergunta do ticket A'});await f.done();
+  await f.call({action:'AI_PANEL_DRAFT',windowId:9,id:state.id,text:'Rascunho exclusivo A'});
+  f.setSnapshot({key:'b'.repeat(64),digest:'c'.repeat(64),ticketNumber:'272403',context:'Conteúdo exclusivo B'});
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-B',identity:'ticket-B'}]},source);
+  await f.call({action:'AI_PANEL_SYNC',windowId:9});state=await f.get();
+  assert.equal(state.ticketNumber,'272403');assert.deepEqual(state.messages,[]);assert.equal(state.draft,'');
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Pergunta do ticket B'});await f.done();
+  const request=f.calls.filter(m=>m.action==='AI_GENERATE').at(-1);assert.deepEqual(request.input.history,[]);assert.equal(request.input.context,'Conteúdo exclusivo B');
+  f.setSnapshot({key:'a'.repeat(64),digest:'b'.repeat(64),ticketNumber:'272402',context:'Mensagem do cliente fictício.'});
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-A-again',identity:'ticket-A'}]},source);
+  await f.call({action:'AI_PANEL_SYNC',windowId:9});state=await f.get();
+  assert.equal(state.ticketNumber,'272402');assert.equal(state.messages[0].content,'Pergunta do ticket A');assert.equal(state.draft,'Rascunho exclusivo A');
+  assert.equal((await f.store.list('local')).filter(item=>item.kind==='ticket').length,2);
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,2);
+ }finally{f.storage.restore();}
+});
+
+test('a ticket change before send opens its blank chat and rejects the stale submission',async()=>{
+ const f=setup();try{
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-A',identity:'ticket-A'}]},source);
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});const state=await f.get();
+  f.setSnapshot({key:'b'.repeat(64),ticketNumber:'272403',context:'Outro atendimento'});
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-B',identity:'ticket-B'}]},source);
+  const result=await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Não misturar esta pergunta'});
+  assert.equal(result.success,false);assert.match(result.error,/ticket mudou/);assert.deepEqual((await f.get()).messages,[]);assert.equal((await f.get()).ticketNumber,'272403');assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,0);
+ }finally{f.storage.restore();}
+});
+
+test('an Octadesk ticket with no ready content frame cannot silently become an unrelated general chat',async()=>{
+ const f=setup();try{
+  const result=await f.call({action:'AI_PANEL_ENTER',windowId:9});assert.equal(result.success,false);assert.match(result.error,/identificar o ticket/);
+  assert.equal(await f.get(),null);assert.equal((await f.store.list('local')).length,0);assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,0);
+ }finally{f.storage.restore();}
+});
+
+test('a late model result after automatic ticket switching cannot populate either ticket incorrectly',async()=>{
+ let finish;const f=setup(()=>new Promise(resolve=>{finish=resolve;}));try{
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-A',identity:'ticket-A'}]},source);
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});let state=await f.get();
+  await f.call({action:'AI_PANEL_DRAFT',windowId:9,id:state.id,text:'Pergunta antiga'});
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Pergunta antiga'});
+  for(let i=0;!finish&&i<100;i++)await new Promise(resolve=>setTimeout(resolve,5));assert.ok(finish);
+  f.setSnapshot({key:'b'.repeat(64),ticketNumber:'272403',context:'Ticket B'});
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-B',identity:'ticket-B'}]},source);
+  await f.call({action:'AI_PANEL_SYNC',windowId:9});finish({text:'Retorno tardio do ticket A'});await new Promise(resolve=>setTimeout(resolve,20));
+  state=await f.get();assert.equal(state.ticketNumber,'272403');assert.deepEqual(state.messages,[]);assert.ok(f.calls.some(m=>m.action==='AI_CANCEL'));
+  assert.deepEqual((await f.store.handle('AI_CHAT_LOAD','a'.repeat(64))).chat.messages,[]);
+ }finally{f.storage.restore();}
+});
+
 test('chat can bind the active ticket without a summary, reads fresh page data and keeps one canonical ticket history',async()=>{
  const f=setup();try{
   browser.tabs.query=async()=>[source.tab];
@@ -90,6 +146,7 @@ test('active-page access rejects foreign sites, ambiguous frames and reconnectin
   await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'a'.repeat(64)});let state=await f.get();assert.equal(state.detached,true);
   await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Continue o ticket original'});await f.done();
   assert.ok(!f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input.context.includes('OUTRO_TICKET'));
+  const originalSend=browser.tabs.sendMessage;browser.tabs.sendMessage=async(tab,message,options)=>message.action==='AI_PAGE_CHECK'?{success:true}:originalSend(tab,message,options);
   await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'second-page',identity:'other2'}]},{...source,frameId:3});
   assert.equal((await f.call({action:'AI_PANEL_ATTACH',windowId:9})).success,false);
  }finally{f.storage.restore();}
@@ -98,7 +155,7 @@ function setup(generate = async () => ({ text: 'Resposta fictícia' }), nativeSi
   const storage = installStorage(), store = createTicketChatStore(), calls = [], events = [];
   let value = { title: 'Ticket fictício', key: 'a'.repeat(64), digest: 'b'.repeat(64), namespace: 'local', context: 'Mensagem do cliente fictício.' };
   browser.runtime = { getURL: path => `moz-extension://extension${path}`, sendMessage: async event => { events.push(event); } };
-  browser.tabs = { get: async () => source.tab, sendMessage: async (_tab, message, options) => { assert.equal(options.frameId, 2); if (message.action === 'AI_PANEL_SNAPSHOT') return { success: true, data: value }; calls.push(message); return { success: true }; } };
+  browser.tabs = { query:async()=>[source.tab], get: async () => source.tab, sendMessage: async (_tab, message, options) => { assert.equal(options.frameId, 2); if (message.action === 'AI_PANEL_SNAPSHOT') return { success: true, data: value }; calls.push(message); return { success: true }; } };
   const router = createAiPanelRouter(async (message) => { calls.push(message); if (['AI_CHAT_LOAD','AI_CHAT_SAVE'].includes(message.action)) return store.handle(message.action, message.key, message.revision, message.content); if (message.action === 'AI_CANCEL') return {}; return generate(message); }, nativeSidebar ? undefined : () => { events.push({ action: 'sidebar-open' }); return Promise.resolve(); });
   const call = (message, sender = ui) => new Promise(resolve => router.handleMessage(message, sender, result => resolve(structuredClone(result))));
   const get = async () => (await call({ action: 'AI_PANEL_GET', windowId: 9 })).data;

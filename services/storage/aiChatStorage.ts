@@ -1,6 +1,6 @@
 import type { AiChatTurn } from '@/types/ai';
 
-export interface ChatDetails { kind: 'general' | 'ticket'; title: string; namespace: string; context: string; ticketUrl?: string; summaryQuestion?: string }
+export interface ChatDetails { kind: 'general' | 'ticket'; title: string; namespace: string; context: string; ticketUrl?: string; ticketNumber?: string; summaryQuestion?: string }
 
 export interface SavedTicketChat {
   version: 1;
@@ -22,9 +22,10 @@ function retention(data: any) { const value = data[AI_RETENTION_KEY]; return val
 function validate(value: any): TicketChatContent {
   if (!value || !Array.isArray(value.messages) || value.messages.length > 1000 || value.messages.some((turn: any) => !['user', 'assistant'].includes(turn?.role) || typeof turn.content !== 'string' || !turn.content.trim() || turn.content.length > 100_000) || typeof value.draft !== 'string' || value.draft.length > 4000 || typeof value.contextDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.contextDigest) || JSON.stringify(value).length > 1_000_000) throw new Error('Conversa inválida ou acima do limite local.');
   const d = value.details;
+  if(d?.ticketNumber!==undefined && (typeof d.ticketNumber!=='string'||!/^\d{1,20}$/.test(d.ticketNumber)))throw new Error('Número do ticket inválido.');
   if (d && (!['general','ticket'].includes(d.kind) || typeof d.title !== 'string' || d.title.length > 1000 || typeof d.context !== 'string' || d.context.length > 50000 || typeof d.namespace !== 'string' || !/^[\w-]{1,90}$/.test(d.namespace) || (d.summaryQuestion !== undefined && (typeof d.summaryQuestion !== 'string' || d.summaryQuestion.length > 4000)))) throw new Error('Dados da conversa inválidos.');
   if (d?.ticketUrl) { const url = new URL(d.ticketUrl); if (url.protocol !== 'https:' || !(url.hostname === 'app.octadesk.com' || url.hostname.endsWith('.octadesk.com')) || url.username || url.password) throw new Error('Endereço do ticket inválido.'); }
-  return { messages: value.messages.map((turn: AiChatTurn) => ({ role: turn.role, content: turn.content })), draft: value.draft, contextDigest: value.contextDigest, ...(d ? { details: {kind:d.kind,title:d.title,namespace:d.namespace,context:d.context,...(d.ticketUrl?{ticketUrl:d.ticketUrl}:{}),...(d.summaryQuestion?{summaryQuestion:d.summaryQuestion}:{})} } : {}) };
+  return { messages: value.messages.map((turn: AiChatTurn) => ({ role: turn.role, content: turn.content })), draft: value.draft, contextDigest: value.contextDigest, ...(d ? { details: {kind:d.kind,title:d.title,namespace:d.namespace,context:d.context,...(d.ticketUrl?{ticketUrl:d.ticketUrl}:{}),...(d.ticketNumber?{ticketNumber:d.ticketNumber}:{}),...(d.summaryQuestion?{summaryQuestion:d.summaryQuestion}:{})} } : {}) };
 }
 
 /** Fila no background e revisão otimista evitam sobrescrever o chat de outra aba. */
@@ -40,7 +41,7 @@ export function createTicketChatStore(storage = () => browser.storage.local, now
           if (expired(chat,policy,now())) { await area.remove(name); continue; }
           try { validate(chat); } catch { continue; }
           if ((chat.details?.namespace || 'local') !== namespace) continue;
-          const number=chat.details?.ticketUrl?.match(/\/ticket\/(?:edit|view)\/(\d+)/)?.[1];
+          const number=chat.details?.ticketNumber || chat.details?.ticketUrl?.match(/\/ticket\/(?:edit|view)\/(\d+)/)?.[1];
           result.push({key:name.slice(PREFIX.length),kind:chat.details?.kind || 'ticket',title:(number?`#${number} · `:'')+(chat.details?.title || 'Ticket salvo'),updatedAt:chat.updatedAt});
         }
         return result.sort((a,b)=>b.updatedAt-a.updatedAt);

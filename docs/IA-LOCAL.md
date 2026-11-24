@@ -92,7 +92,7 @@ Ao acionar uma consulta, o botão mostra processamento. A geração de resposta 
 
 ## Conversas independentes e histórico
 
-Em **Inteligência artificial → Conversas com a IA**, **Novo chat** inicia uma conversa vazia com o mesmo provedor/modelo configurado, sem importar contexto de tickets ou de outros chats. O título vem da primeira pergunta, sem uma chamada extra ao modelo. O ícone de painel à esquerda abre o histórico em um menu lateral sobreposto, com Novo chat, busca e lista Recentes. Permite buscar pelo título/número e retomar mensagens e rascunho, sem deslocar a conversa. Feche pelo X, Esc ou clique fora. Não há abas permanentes de IA na tela inicial.
+Em **Inteligência artificial → Conversas com a IA**, a tela abre na conversa, com o histórico fechado. Quando há um ticket ativo, identifica seu número no cabeçalho HTML e recupera a conversa correspondente ou cria uma vazia. Sem ticket ativo, Novo chat permite uma conversa independente com o mesmo provedor/modelo configurado. No ticket ativo, Novo chat reutiliza a conversa daquele número, sem duplicá-la. O título vem da primeira pergunta, sem uma chamada extra ao modelo. O ícone de painel à esquerda abre o histórico em um menu lateral sobreposto, com Novo chat, busca e lista Recentes. Permite buscar pelo título/número e retomar mensagens e rascunho, sem deslocar a conversa. Feche pelo X, Esc ou clique fora. Não há abas permanentes de IA na tela inicial.
 
 Cada ticket conserva sua chave e sua única conversa, compartilhada entre Resumir mensagem e Resumir ticket. O histórico permite conversar usando a última cópia de texto salva, mesmo sem o ticket aberto. Um aviso identifica esse contexto salvo. Ao retomar com o mesmo ticket ativo, o chat reconecta à página e habilita a inserção no editor validado. Cada pergunta relê o DOM. Sem o ticket correspondente aberto, mantém a cópia salva e informa isso. Chats antigos sem metadados aparecem como Ticket salvo até serem reabertos pelo ticket.
 
@@ -100,6 +100,12 @@ Chats, rascunhos e contexto em texto seguem a retenção configurada e não entr
 
 ## Consultar a página do ticket no chat
 
-**Usar ticket aberto** conecta a conversa à aba ativa do Octadesk, inclusive quando o atendimento está dentro do iframe, sem depender do foco no editor. Mantém a única conversa daquele ticket e não gera uma resposta por si só. O chat passa a reler a página a cada pergunta; título, status, campos com valores atuais, mensagens e trecho de HTML sanitizado entram como dados para o modelo.
+A conexão ao ticket da aba ativa do Octadesk é automática, inclusive quando o atendimento está dentro do iframe, sem depender do foco no editor ou de um botão de conexão. Mantém a única conversa daquele ticket e não gera uma resposta por si só. O chat passa a reler a página a cada pergunta; título, status, campos com valores atuais, mensagens e trecho de HTML sanitizado entram como dados para o modelo.
 
 A leitura se restringe ao contêiner do ticket. Remove scripts, atributos de execução, URLs de recursos, senhas/campos ocultos, controles da extensão, outros tickets e o rascunho do editor. Tenta expandir as interações disponíveis; não lê anexos nem dados ainda não carregados. O contexto enviado, incluindo o trecho HTML, permanece abaixo de 50.000 caracteres e segue a retenção dos chats. A navegação para outro ticket não troca silenciosamente o contexto de uma conversa existente.
+
+## Troca de atendimento e navegação do chat
+
+O número visível no cabeçalho do ticket tem prioridade sobre o número da URL. A chave continua combinando número, workspace/origem e namespace da conexão. Trocar de ticket carrega uma conversa separada; voltar recupera mensagens e rascunho daquele número. Criar ou recuperar não faz inferência. A troca invalida consultas antigas, e um envio iniciado com o ticket anterior é rejeitado para revisão na conversa atual.
+
+O cabeçalho identifica o atendimento, por exemplo **Ticket #272402**. A seta volta para Inteligência artificial, onde ficam as configurações; o chat não mostra mais engrenagem ou Usar ticket aberto. O menu de histórico só abre pelo ícone de painel. Se o frame do ticket ainda não estiver disponível, a interface pede aguardar ou recarregar o Octadesk, evitando criar uma conversa avulsa por engano.

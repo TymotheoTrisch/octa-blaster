@@ -50,6 +50,7 @@ export default defineBackground(() => {
     return ticketRouter.handleMessage(message, sender, respond);
   });
 
+  browser.tabs.onActivated?.addListener(({windowId})=>panelRouter.activeTabChanged(windowId));
   browser.tabs.onRemoved.addListener((tabId) => {
     ticketRouter.clearTab(tabId);
     aiRouter.clearTab(tabId);

@@ -61,7 +61,6 @@ const searchQuery = ref('');
 const selectedTagId = ref('');
 
 const currentView = ref<PopupView>('templates');
-const aiHistoryRequested = ref(false);
 const viewHistory: PopupView[] = [];
 
 const showForm = ref(false);
@@ -98,7 +97,7 @@ async function openRequestedSidebar() {
 }
 async function revealRequestedChat() {
   const result = await browser.runtime.sendMessage({ action: 'AI_PANEL_REVEAL', windowId: aiWindowId });
-  if (result?.success && result.data) { aiHistoryRequested.value=false; currentView.value = 'ai-chat'; }
+  if (result?.success && result.data) { currentView.value = 'ai-chat'; }
 }
 const panelNotification = (message: any) => { if (isSidebar.value && message.action === 'AI_PANEL_CHANGED' && message.reveal && message.windowId === aiWindowId) void revealRequestedChat().catch(() => {}); };
 
@@ -182,6 +181,8 @@ function openView(view: PopupView) {
   if (currentView.value !== view) viewHistory.push(currentView.value);
   currentView.value = view;
 }
+
+function backFromAiChat(){if(viewHistory.at(-1)==='ai')returnToPreviousView();else currentView.value='ai';}
 
 function returnToPreviousView() {
   currentView.value = viewHistory.pop() || 'templates';
@@ -605,8 +606,8 @@ function preserveTextSelection(event: MouseEvent) {
       @back="returnToPreviousView"
       @changed="refreshCatalogs"
     />
-    <AiChatPanel v-else-if="currentView === 'ai-chat'" :history-initially="aiHistoryRequested" @back="currentView = 'templates'" @settings="openView('ai')" />
-    <AiSettingsView v-else-if="currentView === 'ai'" @back="returnToPreviousView" @chats="aiHistoryRequested=true;openView('ai-chat')" />
+    <AiChatPanel v-else-if="currentView === 'ai-chat'" @back="backFromAiChat" />
+    <AiSettingsView v-else-if="currentView === 'ai'" @back="returnToPreviousView" @chats="openView('ai-chat')" />
     <TechniciansView
       v-else-if="currentView === 'technicians'"
       @back="returnToPreviousView"
