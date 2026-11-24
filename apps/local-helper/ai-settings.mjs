@@ -12,7 +12,7 @@ export function publicSettings(state) {
   const historyNamespace = ai.provider === 'gateway' ? `gateway_${createHash('sha256').update(`${gateway.baseUrl || ''}|${gateway.apiKey || ''}`).digest('hex')}` : 'local';
   return { provider: ai.provider, historyNamespace, providers: Object.fromEntries(PROVIDERS.filter(id => id !== 'chatgpt').map(id => {
     const value = ai.providers[id] || {};
-    return [id, { model: value.model || (id === 'nvidia' ? 'nvidia/nemotron-3-ultra-550b-a55b' : ''), hasKey: !!value.apiKey, remoteStore: value.remoteStore !== false, approvedData: value.approvedData === true, baseUrl: value.baseUrl || '' }];
+    return [id, { model: value.model || '', hasKey: !!value.apiKey, remoteStore: value.remoteStore !== false, approvedData: value.approvedData === true, baseUrl: value.baseUrl || '' }];
   })), profiles: ai.profiles, profileId: ai.profileId, retention: ai.retention, pendingDeletes: ai.pendingDeletes.length, storedTickets: Object.keys(ai.sessions).length };
 }
 export function updateSettings(state, input) {

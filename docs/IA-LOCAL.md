@@ -2,7 +2,7 @@
 
 O painel lateral abre nas respostas rápidas, sem abas extras. O chat de IA só aparece após acioná-lo no ticket; a seta de voltar retorna às respostas rápidas. Reabrir a lateral não revela conversas antigas automaticamente.
 
-A integração opcional usa o painel lateral nativo da extensão para resumos, perguntas e respostas. Não abre modais ou campos extras na página do ticket. Auxiliar Windows 0.3.3; versão sujeita à aprovação da PR, sem release/tag publicada.
+A integração opcional usa o painel lateral nativo da extensão para resumos, perguntas e respostas. Não abre modais ou campos extras na página do ticket. Auxiliar Windows 0.3.4; versão sujeita à aprovação da PR, sem release/tag publicada.
 
 ## Usar e atualizar
 
@@ -42,7 +42,7 @@ Não infere equipe/empresa do atendente a partir do rodapé do cliente. Os cabe�
 
 ## Espera, cache e limites
 
-A consulta mostra preparação, espera pela IA e tempo total de consulta. A duração inclui transporte/auxiliar/provedor; não é uma medição isolada da geração no servidor. Os testes usam respostas simuladas e não permitem estimar a latência real do Nemotron na conta do usuário.
+A consulta mostra preparação, espera pela IA e tempo total de consulta. A duração inclui transporte/auxiliar/provedor; não é uma medição isolada da geração no servidor. Os testes usam respostas simuladas e não permitem estimar a latência real do modelo escolhido na conta do usuário.
 
 Resumos idênticos usam cache em memória de até 20 entradas/15 minutos, chaveado por conteúdo/tarefa/conexão/revisão de configuração. Mudança de conteúdo ou configuração invalida o reuso. Reabrir o chat do ticket com o mesmo digest recupera a conversa salva. O cache não é usado para gerar uma resposta nova a partir de outra orientação.
 
@@ -78,7 +78,7 @@ A leitura e a gravação validam o frame/token do editor registrado, a aba ativa
 
 A adaptação opcional de estilo guarda somente médias numéricas de tamanho/parágrafos/saudação/encerramento, após publicação confirmada do rascunho. Não aprende assinaturas/nomes/empresas nem treina o modelo. Usa padrões após três respostas; permite apagar/desabilitar. Retenção de padrões: 90 dias sem novas respostas. Retenção padrão de chats: 30 dias sem uso e 90 dias de idade máxima, configurável entre 1 e 365 dias.
 
-Credenciais, sessões e referências remotas ficam protegidas pela DPAPI no Windows. APIs disponíveis: OpenAI Responses, Gemini Interactions, Claude Messages, NVIDIA Chat Completions; gateway HTTPS de equipe opcional em `apps/team-gateway`, ainda não implantado. O endpoint NVIDIA Build exige confirmação de que o acordo permite os dados de atendimento. O login ChatGPT não importa chats/memórias do site e usa `store:false`; APIs com estado remoto não tornam tokens anteriores gratuitos.
+Credenciais, sessões e referências remotas ficam protegidas pela DPAPI no Windows. APIs disponíveis: OpenAI Responses, Gemini Interactions, Claude Messages, NVIDIA Chat Completions (modelo configurável pelo identificador, sem parâmetros exclusivos do Nemotron); gateway HTTPS de equipe opcional em `apps/team-gateway`, ainda não implantado. O endpoint NVIDIA Build exige confirmação de que o acordo permite os dados de atendimento. O login ChatGPT não importa chats/memórias do site e usa `store:false`; APIs com estado remoto não tornam tokens anteriores gratuitos.
 
 O gateway e o auxiliar reutilizam os adaptadores e o motor de contexto. O runtime local/instalador foi homologado no Windows/Firefox. Os testes do Chrome usam transporte fictício; a instalação nativa do Chrome não é fornecida por esse instalador Firefox.
 

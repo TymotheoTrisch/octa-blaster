@@ -24,7 +24,7 @@ pnpm test
 - `windows/InstallGui.cs` e `BuildInstaller.ps1`: instalador gráfico compilado com Windows PowerShell/.NET Framework; o EXE deve ficar junto da pasta `windows` no pacote extraído.
 - `processIdentity.mjs`: diferencia o dono do lock de um PID reaproveitado pelo Windows, preservando as credenciais ao recuperar um lock antigo.
 
-O auxiliar 0.3.3 oferece APIs OpenAI, Gemini, Claude, NVIDIA e servidor da equipe. O login ChatGPT continua disponível. Chaves, tokens, referências remotas e notas curtas de resumo são protegidos com DPAPI, sem entrar nos backups ou logs. Chaves/tokens não são devolvidos à interface. O chat completo fica no storage privado do navegador; o HTML integral não é arquivado. A retenção padrão dos tickets é 30 dias sem uso/90 dias de idade máxima. Exclusões remotas sem confirmação ficam pendentes.
+O auxiliar 0.3.4 oferece APIs OpenAI, Gemini, Claude, NVIDIA e servidor da equipe. O login ChatGPT continua disponível. Chaves, tokens, referências remotas e notas curtas de resumo são protegidos com DPAPI, sem entrar nos backups ou logs. Chaves/tokens não são devolvidos à interface. O chat completo fica no storage privado do navegador; o HTML integral não é arquivado. A retenção padrão dos tickets é 30 dias sem uso/90 dias de idade máxima. Exclusões remotas sem confirmação ficam pendentes.
 
 `provider-engine.mjs` controla contexto, mudanças de modelo/perfil, recorte e limpeza; `provider-http.mjs` adapta as APIs. Não há retry de inferência nem fallback pago automático. Veja também [servidor da equipe](../team-gateway/README.md). Login ChatGPT exige `store: false`; usar estado remoto nas APIs não torna tokens de contexto gratuitos.
 
@@ -35,3 +35,5 @@ O perfil manual foi retirado das novas gerações. O aprendizado atual usa padr�
 A versão 0.3.2 orienta os provedores a distinguir cliente e atendente e a não gerar assinaturas; preserva metadados de autoria nos recortes de mensagens longas.
 
 A versão 0.3.3 separa limpeza remota da inferência e aplica orçamentos de saída por tarefa nas APIs (768/1536/2048 tokens). Não altera automaticamente o modelo nem faz fallback pago.
+
+A conexão NVIDIA permite escolher o identificador de qualquer modelo de chat compatível com o endpoint Chat Completions da NVIDIA. Não define um modelo padrão nem envia parâmetros exclusivos do Nemotron. Modelos e credenciais já salvos são preservados.

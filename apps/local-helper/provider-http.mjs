@@ -38,7 +38,7 @@ export async function generateProvider(provider, config, payload, options) {
     if (!['end_turn', 'stop_sequence'].includes(result.stop_reason) || result.error) throw new Error('A resposta foi interrompida ou não foi concluída.');
     return textResult(result.content?.filter(item => item.type === 'text').map(item => item.text).join(''), null, result.usage);
   }
-  const result = await providerFetch(provider, config, 'chat/completions', { model: config.model, messages: [{ role: 'system', content: instructions }, ...history, { role: 'user', content: prompt }], max_tokens: maxOutputTokens, stream: false, chat_template_kwargs: { enable_thinking: false } }, options);
+  const result = await providerFetch(provider, config, 'chat/completions', { model: config.model, messages: [{ role: 'system', content: instructions }, ...history, { role: 'user', content: prompt }], max_tokens: maxOutputTokens, stream: false }, options);
   if (result.choices?.[0]?.finish_reason !== 'stop' || result.error) throw new Error('A resposta foi interrompida ou não foi concluída.');
   return textResult(result.choices[0].message?.content, null, result.usage);
 }

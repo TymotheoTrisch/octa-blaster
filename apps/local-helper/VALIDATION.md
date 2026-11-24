@@ -2,6 +2,11 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## NVIDIA configurável — auxiliar 0.3.4
+
+- Opção NVIDIA genérica, modelo sem padrão obrigatório e chamada Chat Completions sem parâmetros exclusivos do Nemotron. Teste verifica troca do identificador de modelo e preservação da credencial.
+- 169 testes da extensão, 55 do auxiliar e 4 do gateway aprovados; TypeScript e builds Chrome/Firefox concluídos. Auxiliar 0.3.4 instalado neste computador e arquivos instalados conferidos. Sem chamada a modelos reais nesta validação.
+
 ## Painel lateral e orientação no editor — extensão 1.3.0 / auxiliar 0.3.3
 
 - 169 testes da extensão, 54 do auxiliar e 4 do gateway aprovados; TypeScript e builds Chrome/Firefox verificados nesta entrega.

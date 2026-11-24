@@ -5,7 +5,7 @@ import type { AiConfig, AiProvider } from '@/types/ai';
 const emit = defineEmits<{ configured: []; selected:[provider:AiProvider] }>();
 const config = ref<AiConfig | null>(null), key = ref(''), busy = ref(false), feedback = ref('');
 const selected = computed(() => config.value?.providers[config.value.provider]);
-const choices: { id: AiProvider; name: string }[] = [{ id: 'chatgpt', name: 'Login ChatGPT' }, { id: 'openai', name: 'OpenAI — chave de API' }, { id: 'gemini', name: 'Google Gemini — chave de API' }, { id: 'claude', name: 'Anthropic Claude — chave de API' }, { id: 'nvidia', name: 'NVIDIA Nemotron — chave de API' }, { id: 'gateway', name: 'Servidor da equipe' }];
+const choices: { id: AiProvider; name: string }[] = [{ id: 'chatgpt', name: 'Login ChatGPT' }, { id: 'openai', name: 'OpenAI — chave de API' }, { id: 'gemini', name: 'Google Gemini — chave de API' }, { id: 'claude', name: 'Anthropic Claude — chave de API' }, { id: 'nvidia', name: 'NVIDIA — chave de API' }, { id: 'gateway', name: 'Servidor da equipe' }];
 async function refresh() { try { const result = await aiLocalMessage('AI_CONFIG'); if (!result?.providers || !Array.isArray(result.profiles) || !result.retention) throw new Error('Configuração indisponível.'); config.value = result; emit('selected',result.provider); } catch { feedback.value = 'Não foi possível ler as configurações. Confira a conexão e atualize o auxiliar para configurar a conexão e a retenção.'; } }
 async function save(removeKey = false) {
   if (!config.value) return;
@@ -35,7 +35,7 @@ onMounted(refresh);
         <button v-if="selected.hasKey" type="button" class="ai-inline-button" :disabled="busy" @click="save(true)">Remover credencial</button>
         <label v-if="['openai','gemini'].includes(config.provider)" class="ai-check"><input v-model="selected.remoteStore" type="checkbox">Continuar usando contexto guardado no provedor</label>
         <p v-if="['openai','gemini'].includes(config.provider)" class="ai-help">O histórico anterior ainda pode consumir tokens.</p>
-        <template v-if="config.provider==='nvidia'"><p class="ai-help">NVIDIA Build restringe dados pessoais e confidenciais no endpoint de prototipagem.</p><label class="ai-check"><input v-model="selected.approvedData" type="checkbox">Meu acordo permite os dados de atendimento enviados</label></template>
+        <template v-if="config.provider==='nvidia'"><p class="ai-help">Informe o identificador de um modelo de chat disponível na API NVIDIA. NVIDIA Build restringe dados pessoais e confidenciais no endpoint de prototipagem.</p><label class="ai-check"><input v-model="selected.approvedData" type="checkbox">Meu acordo permite os dados de atendimento enviados</label></template>
       </template>
       <p v-else class="ai-help">Salve esta opção para usar o login ChatGPT.</p>
       <div class="ai-actions"><button type="button" class="btn-primary" :disabled="busy" @click="save(false)">Salvar conexão</button></div>

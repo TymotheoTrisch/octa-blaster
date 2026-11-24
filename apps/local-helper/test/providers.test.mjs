@@ -83,12 +83,26 @@ test('NVIDIA rejects unapproved customer-data use without making a provider requ
   const { engine, calls } = await setup('nvidia', { approvedData: false }); await assert.rejects(engine.generate(input), /prototipagem/); assert.equal(calls.length, 0);
 });
 
-test('NVIDIA and Claude use portable history, bounded context, no invented remote IDs and explicit cache hints', async () => {
+test('NVIDIA accepts a chosen chat model without model-specific parameters and preserves the saved credential', async () => {
+  assert.equal(publicSettings({}).providers.nvidia.model, '');
+  const { vault, engine, calls } = await setup('nvidia', { model: 'organization/chat-model-a' });
+  await engine.generate(input);
+  assert.equal(calls[0].body.model, 'organization/chat-model-a');
+  assert.equal(calls[0].body.chat_template_kwargs, undefined);
+  const config = publicSettings(vault.read()); config.providers.nvidia.model = 'organization/chat-model-b';
+  await vault.update(state => updateSettings(state, config));
+  await engine.generate(input);
+  assert.equal(calls[1].body.model, 'organization/chat-model-b');
+  assert.equal(publicSettings(vault.read()).providers.nvidia.model, 'organization/chat-model-b');
+  assert.equal(aiSettings(vault.read()).providers.nvidia.apiKey, 'fictional-provider-secret');
+});
+
+test('NVIDIA and Claude use portable history, bounded context, no invented remote IDs and supported cache hints', async () => {
   for (const provider of ['nvidia', 'claude']) {
     const { engine, calls } = await setup(provider); const initial = await engine.generate(input); const result = await engine.generate(followup(initial));
     assert.equal(result.contextMode, 'full'); assert.equal(calls[1].body.previous_response_id, undefined); assert.equal(calls[1].body.store, undefined);
     if (provider === 'claude') assert.equal(calls[1].body.system[0].cache_control.type, 'ephemeral');
-    else assert.equal(calls[1].body.chat_template_kwargs.enable_thinking, false);
+    else assert.equal(calls[1].body.chat_template_kwargs, undefined);
   }
   const context = `Assunto: teste\nMensagem 1: início\n${'Mensagem 2: texto genérico '.repeat(2000)}\nMensagem 3: O equipamento zebra aguarda confirmação.`;
   const compact = compactTicketContext(context, 'Qual a situação do equipamento zebra?'); assert.ok(compact.length <= 14_000); assert.match(compact, /equipamento zebra/);
