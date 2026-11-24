@@ -2,6 +2,13 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Chat com leitura da página do ticket
+
+- Usar ticket aberto conecta o chat ao frame real do ticket sem exigir clique no editor ou gerar um resumo. Reutiliza a conversa canônica do ticket; um chat livre permanece independente até essa ação. Tickets retomados pelo histórico reconectam quando o mesmo ticket está ativo.
+- Cada pergunta lê novamente mensagens, campos atuais do formulário e um trecho de HTML sanitizado do contêiner do ticket. A captura tenta expandir as interações disponíveis. Limite total inferior a 50.000 caracteres; anexos e conteúdos ainda não carregados continuam fora do escopo.
+- Registro e leitura limitados a frames Octadesk, com validação de aba ativa, janela, identidade e chave do ticket. Campos ocultos/senhas, scripts, atributos executáveis, URLs de recursos, outros tickets e rascunho de resposta são excluídos do trecho HTML.
+- 179 testes da extensão aprovados. Chromium com fixture confirmou campos editados chegando ao modelo na pergunta seguinte, conexão sem inferência e retomada automática do ticket. Firefox real confirmou conexão sem registro de editor e leitura de alteração no DOM, sem inferência. Auxiliar 0.3.5 sem mudanças; suíte anterior de 57 testes e gateway de 4 testes mantidas.
+
 ## Conversas independentes e histórico — auxiliar 0.3.5
 
 - Entrada Conversas com a IA em Inteligência artificial, com novo chat, busca e lista de chats/tickets por atualização. Título local pela primeira pergunta; nenhuma inferência ao criar ou retomar. Uma chave por ticket e contextos/conversas independentes para chats livres.

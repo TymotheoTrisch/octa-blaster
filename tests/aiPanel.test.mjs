@@ -57,6 +57,43 @@ test('history entry points reject content scripts, unknown keys and another conn
  }finally{f.storage.restore();}
 });
 const ui = { id: 'extension', url: 'moz-extension://extension/sidepanel.html' };
+
+test('chat can bind the active ticket without a summary, reads fresh page data and keeps one canonical ticket history',async()=>{
+ const f=setup();try{
+  browser.tabs.query=async()=>[source.tab];
+  assert.equal((await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-one',identity:'ticket-A'}]},source)).success,true);
+  await f.call({action:'AI_PANEL_NEW',windowId:9});
+  assert.equal((await f.call({action:'AI_PANEL_ATTACH',windowId:9})).success,true);
+  let state=await f.get();assert.equal(state.kind,'ticket');assert.equal(state.detached,false);assert.deepEqual(state.messages,[]);
+  assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,0);
+  f.setSnapshot({context:'HTML do ticket: <form><span>id_case: Atual</span></form>',digest:'c'.repeat(64)});
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Qual é o case atual?'});await f.done();
+  assert.match(f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input.context,/id_case: Atual/);
+  assert.equal((await f.store.list('local')).filter(item=>item.kind==='ticket').length,1);
+  await f.call({action:'AI_PANEL_NEW',windowId:9});
+  await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'a'.repeat(64)});state=await f.get();
+  assert.equal(state.detached,false);assert.equal(state.messages.length,2);
+  browser.tabs.get=async()=>({...source.tab,active:false});
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Não consultar em outra aba'});await f.done();
+  assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,1);
+ }finally{f.storage.restore();}
+});
+
+test('active-page access rejects foreign sites, ambiguous frames and reconnecting a saved chat to a different ticket',async()=>{
+ const f=setup();try{
+  browser.tabs.query=async()=>[source.tab];
+  assert.equal((await f.call({action:'AI_PANEL_ATTACH',windowId:9},source)).success,false);
+  assert.equal((await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'foreign',identity:'foreign'}]},{...source,tab:{...source.tab,url:'https://example.invalid'},url:'https://example.invalid'})).success,false);
+  await f.open();await f.done();await f.call({action:'AI_PANEL_NEW',windowId:9});
+  f.setSnapshot({key:'b'.repeat(64),context:'OUTRO_TICKET'});
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-other',identity:'other'}]},source);
+  await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'a'.repeat(64)});let state=await f.get();assert.equal(state.detached,true);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Continue o ticket original'});await f.done();
+  assert.ok(!f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input.context.includes('OUTRO_TICKET'));
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'second-page',identity:'other2'}]},{...source,frameId:3});
+  assert.equal((await f.call({action:'AI_PANEL_ATTACH',windowId:9})).success,false);
+ }finally{f.storage.restore();}
+});
 function setup(generate = async () => ({ text: 'Resposta fictícia' }), nativeSidebar = false) {
   const storage = installStorage(), store = createTicketChatStore(), calls = [], events = [];
   let value = { title: 'Ticket fictício', key: 'a'.repeat(64), digest: 'b'.repeat(64), namespace: 'local', context: 'Mensagem do cliente fictício.' };

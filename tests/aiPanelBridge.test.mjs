@@ -4,17 +4,38 @@ import { installDom, installStorage } from './helpers.mjs';
 import { startReplyAssistance } from '../services/octadesk/aiReply.ts';
 import { openAiSidebar, startAiPanelBridge } from '../services/octadesk/aiPanelBridge.ts';
 import { createAiTrigger } from '../services/octadesk/aiTrigger.ts';
-import { collectAiTicketContext } from '../services/octadesk/aiTicketContext.ts';
+import { collectAiTicketContext, ticketHtmlContext } from '../services/octadesk/aiTicketContext.ts';
 import { createSummaryLifecycle } from '../services/octadesk/aiSummaryLifecycle.ts';
 const settle=()=>new Promise(r=>setTimeout(r,35));
+
+test('page HTML reads current field values and excludes executable content, hidden secrets, other tickets and the draft',()=>{
+ const dom=installDom('<form ticket="ticket" id="ticket-html"><h2>Ticket atual</h2><label>Pendência</label><select name="pendencia"><option>Antiga</option><option>Atual</option></select><input name="id_case" value="antigo"><input type="password" value="SEGREDO"><input type="hidden" value="TOKEN"><input name="invisivel" style="display:none" value="OCULTO"><a href="https://example.invalid/?token=URL_SECRETA" onclick="ALERTA()">Referência</a><script>CODIGO_SECRETO</script><div class="comment-panel"><div contenteditable="true">RASCUNHO_PRIVADO</div></div><div data-ticket-id="other">OUTRO_TICKET</div></form>');
+ try{dom.window.HTMLElement.prototype.getBoundingClientRect=()=>({width:800,height:200});
+  const scope=dom.document.querySelector('form');dom.document.querySelector('select').selectedIndex=1;dom.document.querySelector('[name=id_case]').value='caso-atual';
+  const html=ticketHtmlContext(scope);assert.match(html,/<form/);assert.match(html,/pendencia: Atual/);assert.match(html,/id_case: caso-atual/);
+  for(const secret of ['SEGREDO','TOKEN','OCULTO','URL_SECRETA','ALERTA','CODIGO_SECRETO','RASCUNHO_PRIVADO','OUTRO_TICKET'])assert.ok(!html.includes(secret),secret);
+  assert.equal(dom.document.querySelector('[name=id_case]').value,'caso-atual');assert.ok(dom.document.querySelector('script'));
+ }finally{dom.restore();}
+});
+
+test('the page registers the ticket frame without editor focus and snapshots include current sanitized HTML',async()=>{
+ const f=setup();try{
+  const page=f.registrations.at(-1).tickets[0];assert.ok(page);assert.equal(f.calls.length,0);
+  const message={action:'AI_PANEL_SNAPSHOT',...page};const initial=await f.respond(message);
+  assert.equal(initial.success,true);assert.match(initial.data.context,/HTML do ticket/);assert.match(initial.data.context,/<form/);
+  f.scope.querySelector('.content-comment-interaction').textContent='Informação atualizada no HTML.';
+  const next=await f.respond({...message,expectedKey:initial.data.key});assert.match(next.data.context,/Informação atualizada/);assert.notEqual(next.data.digest,initial.data.digest);
+  assert.equal((await f.respond({...message,expectedKey:'d'.repeat(64)})).success,false);
+ }finally{f.restore();}
+});
 function setup(){
  const storage=installStorage(),dom=installDom('<form id="ticketA" ticket="ticket"><header class="ticket-header"><h2>Ticket A</h2></header><article class="interaction"><header class="interaction-header">Cliente</header><div class="content-comment-interaction">Pedido do cliente.</div></article><div class="comment-panel"><div ng-if="ticketViewModel.typeInteractionSelected == 2"><div class="note-editable" contenteditable="true"><p><br></p></div></div></div></form>');
  dom.window.HTMLElement.prototype.getBoundingClientRect=()=>({width:800,height:200});
- const calls=[],listeners=[];browser.runtime={id:'extension',getURL:path=>`moz-extension://extension${path}`,getManifest:()=>({manifest_version:3}),sendMessage:async message=>{calls.push(message);return {success:true};},onMessage:{addListener:fn=>listeners.push(fn),removeListener:()=>{}}};
+ const calls=[],registrations=[],listeners=[];browser.runtime={id:'extension',getURL:path=>`moz-extension://extension${path}`,getManifest:()=>({manifest_version:3}),sendMessage:async message=>{if(message.action==='AI_PAGE_REGISTER')registrations.push(message);else calls.push(message);return {success:true};},onMessage:{addListener:fn=>listeners.push(fn),removeListener:()=>{}}};
  const editor=dom.document.querySelector('.note-editable'),scope=dom.document.querySelector('form');
  const bridge=startAiPanelBridge(dom.document,{findEditorForWidget:()=>editor,isUsableEditor:()=>true,activateEditor:()=>{},isCurrentContext:()=>true});
  const respond=message=>new Promise(resolve=>{for(const fn of listeners)if(fn(message,{id:'extension'},resolve))break;});
- return {...dom,editor,scope,calls,respond,async prepared(){for(let i=0;i<200;i++){if(calls.some(m=>m.action==='AI_PANEL_CONTEXT'&&m.snapshot))return;const error=calls.find(m=>m.action==='AI_PANEL_CONTEXT'&&m.error);if(error)throw new Error(error.error);await new Promise(r=>setTimeout(r,5));}throw new Error('Context was not prepared');},restore(){bridge();dom.restore();storage.restore();}};
+ return {...dom,editor,scope,calls,registrations,respond,async prepared(){for(let i=0;i<200;i++){if(calls.some(m=>m.action==='AI_PANEL_CONTEXT'&&m.snapshot))return;const error=calls.find(m=>m.action==='AI_PANEL_CONTEXT'&&m.error);if(error)throw new Error(error.error);await new Promise(r=>setTimeout(r,5));}throw new Error('Context was not prepared');},restore(){bridge();dom.restore();storage.restore();}};
 }
 test('typing only shows the editor AI icon; clicking opens the sidebar with no extra field or modal',async()=>{
  const f=setup(),stop=startReplyAssistance(f.document);try{

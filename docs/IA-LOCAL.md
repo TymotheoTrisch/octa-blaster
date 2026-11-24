@@ -52,7 +52,7 @@ O modelo/provedor ainda pode levar tempo para produzir o resultado; não há pro
 
 ## Dados, estilo e credenciais
 
-O chat/draft ficam em `browser.storage.local`, fora dos backups de respostas rápidas e do localStorage do Octadesk. Para retomar um ticket pelo histórico, o texto extraído das mensagens carregadas é salvo junto da conversa, no armazenamento privado da extensão; não é arquivado como HTML. Mensagens do chat podem conter dados do atendimento. Falha no armazenamento é informada sem esconder a resposta gerada. Troca de conexão da equipe separa namespaces do histórico.
+O chat/draft ficam em `browser.storage.local`, fora dos backups de respostas rápidas e do localStorage do Octadesk. Para retomar um ticket pelo histórico, o texto extraído e um trecho de HTML sanitizado do ticket são salvos junto da conversa, no armazenamento privado da extensão; não é arquivado como HTML. Mensagens do chat podem conter dados do atendimento. Falha no armazenamento é informada sem esconder a resposta gerada. Troca de conexão da equipe separa namespaces do histórico.
 
 ## Configurações por categoria
 
@@ -94,6 +94,12 @@ Ao acionar uma consulta, o botão mostra processamento. A geração de resposta 
 
 Em **Inteligência artificial → Conversas com a IA**, **Novo chat** inicia uma conversa vazia com o mesmo provedor/modelo configurado, sem importar contexto de tickets ou de outros chats. O título vem da primeira pergunta, sem uma chamada extra ao modelo. O botão de histórico lista chats e tickets por atualização, permite buscar pelo título/número e retomar mensagens e rascunho. Não há abas permanentes de IA na tela inicial.
 
-Cada ticket conserva sua chave e sua única conversa, compartilhada entre Resumir mensagem e Resumir ticket. O histórico permite conversar usando a última cópia de texto salva, mesmo sem o ticket aberto. Um aviso identifica esse contexto salvo. Reabrir o resumo pelo próprio ticket atualiza as mensagens carregadas e habilita a inserção no editor, com validação de ticket/frame. Chats antigos sem metadados aparecem como Ticket salvo até serem reabertos pelo ticket.
+Cada ticket conserva sua chave e sua única conversa, compartilhada entre Resumir mensagem e Resumir ticket. O histórico permite conversar usando a última cópia de texto salva, mesmo sem o ticket aberto. Um aviso identifica esse contexto salvo. Ao retomar com o mesmo ticket ativo, o chat reconecta à página e habilita a inserção no editor validado. Cada pergunta relê o DOM. Sem o ticket correspondente aberto, mantém a cópia salva e informa isso. Chats antigos sem metadados aparecem como Ticket salvo até serem reabertos pelo ticket.
 
 Chats, rascunhos e contexto em texto seguem a retenção configurada e não entram no backup das respostas rápidas. O histórico completo é preservado localmente dentro dos limites de armazenamento; consultas usam um recorte limitado do contexto e do histórico para caber no contrato do modelo. Contextos remotos continuam sujeitos às regras e custos do provedor. A conexão do servidor de equipe usa um histórico separado por credencial.
+
+## Consultar a página do ticket no chat
+
+**Usar ticket aberto** conecta a conversa à aba ativa do Octadesk, inclusive quando o atendimento está dentro do iframe, sem depender do foco no editor. Mantém a única conversa daquele ticket e não gera uma resposta por si só. O chat passa a reler a página a cada pergunta; título, status, campos com valores atuais, mensagens e trecho de HTML sanitizado entram como dados para o modelo.
+
+A leitura se restringe ao contêiner do ticket. Remove scripts, atributos de execução, URLs de recursos, senhas/campos ocultos, controles da extensão, outros tickets e o rascunho do editor. Tenta expandir as interações disponíveis; não lê anexos nem dados ainda não carregados. O contexto enviado, incluindo o trecho HTML, permanece abaixo de 50.000 caracteres e segue a retenção dos chats. A navegação para outro ticket não troca silenciosamente o contexto de uma conversa existente.
