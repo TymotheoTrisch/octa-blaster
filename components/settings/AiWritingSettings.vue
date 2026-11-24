@@ -11,6 +11,7 @@ onMounted(refresh);
 </script>
 <template>
  <article class="writing-card ai-page" aria-label="Meu aprendizado e escrita">
+  <p class="ai-help">Identifica o atendente pelo ticket aberto no Octadesk. Clique no campo de resposta antes de atualizar.</p>
   <div class="ai-actions start"><button type="button" class="btn-secondary" :disabled="busy" @click="refresh">Atualizar atendente</button></div>
   <template v-if="state">
    <p class="ai-notice">Atendente: <strong>{{state.label}}</strong></p>

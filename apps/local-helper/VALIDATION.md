@@ -2,6 +2,12 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Escrita e seleção de texto — extensão 1.3.0
+
+- Falha de transporte ao consultar o atendente agora orienta atualizar o Octadesk, clicar no editor e atualizar o atendente; não grava preferências ou modifica aprendizado durante a falha. Firefox real com ticket fictício confirmou identificação, erro de frame indisponível e recuperação após reload/foco. Não houve inferência.
+- Painel lateral permite seleção de texto inclusive em botões; arrastar uma seleção dentro de botão não ativa sua ação. Alças de reordenação mantêm seleção desativada. Firefox real confirmou seleção por arraste do mouse em explicação e botão, além do atalho Ctrl+C.
+- 170 testes da extensão aprovados; TypeScript e builds Firefox/Chrome concluídos. Auxiliar 0.3.4 sem mudanças nesta correção.
+
 ## NVIDIA configurável — auxiliar 0.3.4
 
 - Opção NVIDIA genérica, modelo sem padrão obrigatório e chamada Chat Completions sem parâmetros exclusivos do Nemotron. Teste verifica troca do identificador de modelo e preservação da credencial.

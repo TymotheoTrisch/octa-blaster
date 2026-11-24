@@ -46,3 +46,15 @@ test('ticket scripts and stale active tabs cannot use the settings interface',as
   f.inactivate();assert.equal((await f.call('AI_WRITING_SAVE',{identity,preferences:custom,learnWriting:true})).success,false);assert.equal(f.data[AI_WRITING_PREFERENCES_KEY],undefined);
  }finally{f.restore();}
 });
+
+test('a disconnected ticket shows recovery instructions and can be inspected again after reconnection',async()=>{
+ const f=routerFixture();try{
+  const connected=browser.tabs.sendMessage;
+  browser.tabs.sendMessage=async()=>{throw new Error('Could not establish connection. Receiving end does not exist.');};
+  const failed=await f.call('AI_WRITING_SAVE',{identity,preferences:custom,learnWriting:false});
+  assert.equal(failed.success,false);assert.match(failed.error,/Atualize a página do Octadesk/);assert.ok(!failed.error.includes('Receiving end'));
+  assert.equal(f.data[AI_WRITING_PREFERENCES_KEY],undefined);assert.equal(f.data[AI_BEHAVIOR_KEY],undefined);assert.equal(f.native(),0);
+  browser.tabs.sendMessage=connected;
+  assert.equal((await f.call('AI_WRITING_STATE')).data.identity,identity);
+ }finally{f.restore();}
+});

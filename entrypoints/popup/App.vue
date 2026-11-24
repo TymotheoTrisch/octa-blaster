@@ -544,10 +544,20 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleEscape);
   browser.runtime.onMessage.removeListener(panelNotification);
 });
+function preserveTextSelection(event: MouseEvent) {
+  if (!isSidebar.value || event.detail === 0) return;
+  const button = (event.target as Element)?.closest?.('button');
+  const selection = window.getSelection();
+  if (button && selection && !selection.isCollapsed && selection.toString().trim() &&
+      button.contains(selection.anchorNode) && button.contains(selection.focusNode)) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
 </script>
 
 <template>
-  <div class="popup-container">
+  <div class="popup-container" @click.capture="preserveTextSelection">
     <AppHeader
       ref="headerRef"
       :is-sidebar="isSidebar"

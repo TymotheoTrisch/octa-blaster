@@ -35,7 +35,12 @@ export function createAiRouter(client = createNativeAiClient()) {
           if(!tab || !validTab || !Number.isInteger(tab.id))throw new Error('Abra um ticket do Octadesk e clique no campo de resposta.');
           const key=`octablaster_editor_${tab.id}`,data=await browser.storage.local.get([key]),target=data[key] as {frameId?:number;editorToken?:string}|undefined;
           if(!target || typeof target.frameId!=='number' || !Number.isInteger(target.frameId) || typeof target.editorToken!=='string')throw new Error('Clique no campo de resposta do ticket e atualize esta tela.');
-          const source=await browser.tabs.sendMessage(tab.id!,{action:'AI_WRITING_CONTEXT',editorToken:target.editorToken},{frameId:target.frameId});
+          let source;
+          try {
+            source=await browser.tabs.sendMessage(tab.id!,{action:'AI_WRITING_CONTEXT',editorToken:target.editorToken},{frameId:target.frameId});
+          } catch {
+            throw new Error('A conexão com o ticket foi interrompida. Atualize a página do Octadesk, clique no campo de resposta e depois em Atualizar atendente.');
+          }
           if(!source?.success || !/^[a-f0-9]{64}$/.test(source.data?.identity || '') || typeof source.data?.label!=='string')throw new Error(source?.error || 'Não foi possível confirmar o atendente do ticket.');
           if(!(await browser.tabs.get(tab.id!)).active)throw new Error('A aba mudou. Volte ao ticket e atualize esta tela.');
           const identity=source.data.identity;
