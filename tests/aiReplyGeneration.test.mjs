@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installDom,installStorage} from './helpers.mjs';
+import {defaultAiPrompts,AI_PROMPTS_KEY} from '../services/ai/promptSettings.ts';
 import {generateTicketReply} from '../services/octadesk/aiReplyGeneration.ts';
 const tick=()=>new Promise(r=>setTimeout(r,10));
 function setup(){
@@ -28,4 +29,12 @@ test('typing cancels the pending draft and a late answer cannot overwrite the ne
 });
 test('switching ticket during generation discards the late result without restoring text into another ticket',async()=>{
  const f=setup();try{const promise=f.run();await f.started();f.scope.querySelector('.label').textContent='654321';f.finish('RESPOSTA DE OUTRO TICKET');await promise;assert.ok(!f.editor.textContent.includes('RESPOSTA'));assert.equal(f.progress.at(-1).busy,false);}finally{f.restore();}
+});
+
+test('the configured reply prompt is combined with the editor direction without opening chat',async()=>{
+ const f=setup();try{
+  await browser.storage.local.set({[AI_PROMPTS_KEY]:{prompts:{...defaultAiPrompts(),reply:'CUSTOM REPLY: seja direto e mantenha as informações do cliente.'},revision:'saved'}});
+  const promise=f.run();await f.started();const input=f.calls.find(m=>m.action==='AI_GENERATE').input;
+  assert.match(input.instruction,/CUSTOM REPLY/);assert.match(input.instruction,/Solicite confirmação/);f.finish('Confirme os dados para prosseguir.');await promise;assert.equal(f.editor.textContent,'Confirme os dados para prosseguir.');
+ }finally{f.restore();}
 });

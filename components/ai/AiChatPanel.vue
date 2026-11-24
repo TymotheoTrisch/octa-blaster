@@ -7,7 +7,7 @@ import { aiLocalMessage } from '@/services/ai/localClient';
 const emit = defineEmits<{ settings: []; back: [] }>();
 const state = ref<AiPanelState | null>(null), draft = ref(''), feedback = ref(''), seconds = ref(0);
 const log = ref<HTMLElement | null>(null), composer = ref<HTMLTextAreaElement | null>(null), editIndex = ref<number | undefined>();
-function visibleText(text:string) { if(text===EMAIL_SUMMARY_PROMPT)return 'Resuma esta mensagem de e-mail.';if(text===TICKET_SUMMARY_PROMPT)return 'Resuma o ticket com objetivo, status e pendências.'; return text.startsWith('Prepare uma resposta ao cliente a partir desta orientação:') ? text.split('\n\nPadrões de escrita observados')[0] : text; }
+function visibleText(text:string) { if(text===EMAIL_SUMMARY_PROMPT||text.startsWith('Resumir esta mensagem de e-mail.\n\nInstruções:\n'))return 'Resuma esta mensagem de e-mail.';if(text===TICKET_SUMMARY_PROMPT||text.startsWith('Resumir o ticket.\n\nInstruções:\n'))return 'Resuma o ticket com objetivo, status e pendências.'; return text.startsWith('Prepare uma resposta ao cliente a partir desta orientação:') ? text.split('\n\nPadrões de escrita observados')[0] : text; }
 function edit(index:number) { editIndex.value=index; draft.value=visibleText(state.value!.messages[index]!.content) || ''; composer.value?.focus(); }
 let windowId = 0, started = 0, timer: ReturnType<typeof setInterval> | undefined;
 async function refresh() {

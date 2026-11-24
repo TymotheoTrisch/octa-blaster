@@ -1,8 +1,9 @@
+import {readAiPrompts,saveAiPrompts} from '@/services/ai/promptSettings';
 import { cleanupWriting, rememberWritingLocally, writingProfile, saveWritingPreferences, clearWriting, AI_BEHAVIOR_KEY } from '@/services/ai/writingMemory';
 import { createNativeAiClient } from '@/services/ai/nativeClient';
 import { createTicketChatStore, AI_RETENTION_KEY } from '@/services/storage/aiChatStorage';
 
-const actions = ['AI_WRITING_STATE', 'AI_WRITING_SAVE', 'AI_WRITING_CLEAR','AI_WRITING_LEARN', 'AI_STATUS', 'AI_CONNECT', 'AI_ACCOUNTS', 'AI_SELECT_ACCOUNT', 'AI_DISCONNECT', 'AI_MODELS', 'AI_PREFERENCES', 'AI_GENERATE', 'AI_CANCEL', 'AI_CHAT_LOAD', 'AI_CHAT_SAVE', 'AI_CONFIG', 'AI_CONFIG_SAVE', 'AI_PROFILE', 'AI_STYLE_SAVE', 'AI_CLEANUP'];
+const actions = ['AI_PROMPTS_GET','AI_PROMPTS_SAVE','AI_RETENTION_SAVE','AI_WRITING_STATE', 'AI_WRITING_SAVE', 'AI_WRITING_CLEAR','AI_WRITING_LEARN', 'AI_STATUS', 'AI_CONNECT', 'AI_ACCOUNTS', 'AI_SELECT_ACCOUNT', 'AI_DISCONNECT', 'AI_MODELS', 'AI_PREFERENCES', 'AI_GENERATE', 'AI_CANCEL', 'AI_CHAT_LOAD', 'AI_CHAT_SAVE', 'AI_CONFIG', 'AI_CONFIG_SAVE', 'AI_PROFILE', 'AI_STYLE_SAVE', 'AI_CLEANUP'];
 export function createAiRouter(client = createNativeAiClient()) {
   const chats = createTicketChatStore();
   const pending = new Map<string, string>();
@@ -17,6 +18,16 @@ export function createAiRouter(client = createNativeAiClient()) {
       const ticketPage = (() => { try { const url = new URL(sender.tab?.url); return url.protocol === 'https:' && (url.hostname === 'app.octadesk.com' || url.hostname.endsWith('.octadesk.com')); } catch { return false; } })();
       if (!extensionPage && !ticketPage) { respond({ success: false, error: 'Origem não autorizada.' }); return true; }
       void (async () => {
+        if(['AI_PROMPTS_GET','AI_PROMPTS_SAVE','AI_RETENTION_SAVE'].includes(message.action)){
+          if(!extensionPage)throw new Error('Use as configurações da extensão.');
+          if(message.action==='AI_PROMPTS_GET')return readAiPrompts();
+          if(message.action==='AI_PROMPTS_SAVE')return saveAiPrompts(message.prompts,message.revision);
+          const policy=message.retention;
+          if(!policy||!Number.isInteger(policy.idleDays)||!Number.isInteger(policy.maxDays)||policy.idleDays<1||policy.maxDays<policy.idleDays||policy.maxDays>365)throw new Error('Use entre 1 e 365 dias; a idade máxima deve ser igual ou maior que a inatividade.');
+          const config=await client.call('config');
+          const result=await client.call('configure',{config:{...config,retention:{idleDays:policy.idleDays,maxDays:policy.maxDays}}});
+          await browser.storage.local.set({[AI_RETENTION_KEY]:result.retention});await chats.cleanup();return {retention:result.retention};
+        }
         if(['AI_WRITING_STATE','AI_WRITING_SAVE','AI_WRITING_CLEAR'].includes(message.action)){
           if(!extensionPage)throw new Error('Abra as configurações de escrita na extensão.');
           const [tab]=await browser.tabs.query({active:true,currentWindow:true});

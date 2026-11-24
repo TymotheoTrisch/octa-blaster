@@ -27,9 +27,9 @@ Liste somente fatos, identificadores, datas e condições relevantes explicitame
 Ação esperada:
 Indique o que esta mensagem pede ao destinatário, com responsável ou prazo apenas se explícitos. Se não houver pedido, diga que é uma mensagem informativa; se a ação não estiver clara, indique [FALTA INFORMAR]. Não conclua o status geral do ticket a partir desta mensagem nem incorpore fatos de outras interações.
 ${RULES}`;
-export const summaryContextDigest = (digest: string) => `${SUMMARY_FORMAT_VERSION}:${digest}`;
+export const summaryContextDigest = (digest: string,prompt=TICKET_SUMMARY_PROMPT) => `${SUMMARY_FORMAT_VERSION}:${prompt}:${digest}`;
 const HEADINGS = new Set(['Título do ticket:', 'Objetivo:', 'Status atual:', 'Detalhamento:', 'Pendências e próximos passos:', 'A confirmar:', 'Remetente e data:', 'Assunto da mensagem:', 'Mensagem em resumo:', 'Detalhes relevantes:', 'Ação esperada:']);
-/** Apenas texto e títulos conhecidos: nunca interpreta HTML ou conteúdo executável. */
+/** Apenas texto e títulos simples: nunca interpreta HTML ou conteúdo executável. */
 export function summaryTextParts(text: string) {
-  return text.split('\n').map((line,index,lines)=>({text:line+(index<lines.length-1?'\n':''),heading:HEADINGS.has(line.trim())}));
+  return text.split('\n').map((line,index,lines)=>({text:line+(index<lines.length-1?'\n':''),heading:HEADINGS.has(line.trim())||/^[\p{L}\p{N}][\p{L}\p{N} \/()–-]{1,70}:$/u.test(line.trim())}));
 }

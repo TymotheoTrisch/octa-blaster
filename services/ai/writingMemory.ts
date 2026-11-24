@@ -93,7 +93,7 @@ export async function writingGuidance(identity: string | null) {
     const data = await browser.storage.local.get([AI_WRITING_KEY]);
     const pattern = (data[AI_WRITING_KEY] as Record<string, Pattern> | undefined)?.[identity];
     if(pattern && Object.values(pattern).every(Number.isFinite) && pattern.count>=3 && Date.now()-pattern.updated<=90*86400000)
-      hints.unshift(`Padrões de escrita observados em respostas enviadas por este atendente: aproximadamente ${Math.round(pattern.words)} palavras e ${Math.max(1, Math.round(pattern.paragraphs))} parágrafos; ${pattern.greeting >= .6 ? 'costuma iniciar com saudação' : 'prefere iniciar diretamente'}; ${pattern.closing >= .6 ? 'costuma usar um encerramento cordial' : 'prefere encerramento breve'}. Adapte a extensão à necessidade deste ticket. Esses padrões não fornecem fatos do cliente.`);
+      hints.push(`Padrões de escrita observados em respostas enviadas por este atendente: aproximadamente ${Math.round(pattern.words)} palavras e ${Math.max(1, Math.round(pattern.paragraphs))} parágrafos; ${pattern.greeting >= .6 ? 'costuma iniciar com saudação' : 'prefere iniciar diretamente'}; ${pattern.closing >= .6 ? 'costuma usar um encerramento cordial' : 'prefere encerramento breve'}. Adapte a extensão à necessidade deste ticket. Esses padrões não fornecem fatos do cliente.`);
   }
   return hints.join(' ');
 }

@@ -1,12 +1,13 @@
 import type { AiPanelState, PanelSnapshot, PanelTask } from '@/types/aiPanel';
-import { TICKET_SUMMARY_PROMPT, EMAIL_SUMMARY_PROMPT, summaryContextDigest } from '@/services/ai/summaryFormat';
+import {readAiPrompts,summaryPrompt} from '@/services/ai/promptSettings';
+import { TICKET_SUMMARY_PROMPT, SUMMARY_FORMAT_VERSION, summaryContextDigest } from '@/services/ai/summaryFormat';
 import { boundedChat } from '@/services/ai/summaryRequest';
 import { textDigest } from '@/services/ai/ticketChatPersistence';
 import { withoutGeneratedSignature } from '@/services/ai/replySignature';
 
 const FULL = TICKET_SUMMARY_PROMPT;
 type AiCall = (message: any, sender: any) => Promise<any>;
-interface Session { state: AiPanelState; sender: any; identity: string; task: PanelTask; snapshot?: PanelSnapshot; revision: string | null; request?: string; save: Promise<unknown>; insertions: Map<number, string>; cancelled: boolean; warning?: string; persistent?: boolean; summaryDigest?: string }
+interface Session { state: AiPanelState; sender: any; identity: string; task: PanelTask; snapshot?: PanelSnapshot; revision: string | null; request?: string; save: Promise<unknown>; insertions: Map<number, string>; cancelled: boolean; warning?: string; persistent?: boolean; summaryDigest?: string; summaryQuestion?: string }
 const allowed = (url: string) => { try { const value = new URL(url); return value.protocol === 'https:' && (value.hostname === 'app.octadesk.com' || value.hostname.endsWith('.octadesk.com')); } catch { return false; } };
 const deferredSidebarWindows = new Set<number>();
 export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: number, _alreadyOpened = false) => {
@@ -62,7 +63,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
     session.state.busy = true; session.state.error = session.warning || ''; session.state.status = 'Preparando o contexto…'; changed(windowId);
     const original = [...session.state.messages];
     const base = editIndex === undefined ? original : original.slice(0, editIndex);
-    const before = task === 'summary_full' || task === 'summary_latest' ? [] : boundedChat(base[0]?.role === 'assistant' ? [{ role: 'user' as const, content: FULL }, ...base] : base);
+    const before = task === 'summary_full' || task === 'summary_latest' ? [] : boundedChat(base[0]?.role === 'assistant' ? [{ role: 'user' as const, content: session.summaryQuestion || FULL }, ...base] : base);
     try {
       const fresh = await snapshot(session);
       if (!active(windowId, session)) return;
@@ -96,7 +97,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
         session.state.messages = task === 'summary_full' && !original.length ? [{ role: 'assistant', content: text }] : [...base, { role: 'user', content: question }, { role: 'assistant', content: text }];
       }
       if (session.task === 'reply' && fresh.draftToken) session.insertions.set(session.state.messages.length - 1, fresh.draftToken);
-      if(task === 'summary_full') session.summaryDigest=await textDigest(summaryContextDigest(fresh.digest));
+      if(task === 'summary_full') session.summaryDigest=await textDigest(summaryContextDigest(fresh.digest,question));
       if(task === 'chat') session.state.draft = '';
       session.state.status = session.state.cached ? 'Resumo reaproveitado; nenhuma nova consulta à IA.' : 'Pronto para revisar.';
       try { await persist(session); } catch { session.warning = 'Resposta exibida, mas o histórico não pôde ser salvo neste computador.'; session.state.error = session.warning; }
@@ -154,14 +155,19 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
         if (message.action === 'AI_PANEL_CONTEXT') {
           if (!content || sender.tab.id !== session.sender.tab.id || sender.frameId !== session.sender.frameId) throw new Error('Frame do ticket inválido.');
           if (message.error) { cancel(session); session.state.busy = false; session.state.ready = false; session.state.error = String(message.error).slice(0, 500); session.state.status = ''; changed(windowId); return {}; }
+          const prompts=(await readAiPrompts()).prompts;
+          const fullPrompt=summaryPrompt('ticket',prompts.ticket),emailPrompt=summaryPrompt('email',prompts.email);
+          session.summaryQuestion=fullPrompt;
           const value = validateSnapshot(message.snapshot); session.snapshot = value; session.state.title = value.title;
           await session.save;
           let saved: any = {};
           try { saved = await callAi({ action: 'AI_CHAT_LOAD', key: value.key }, session.sender); } catch { session.persistent = false; session.warning = 'O histórico não pôde ser recuperado; esta conversa não será salva.'; session.state.error = session.warning; }
           if (!active(windowId, session)) return {};
           session.summaryDigest = saved.chat?.contextDigest || '0'.repeat(64); session.revision = saved.chat?.revision || null; session.state.messages = saved.chat?.messages || []; session.state.draft = saved.chat?.draft || ''; session.state.ready = true;
-          if (session.task === 'summary_full' && session.state.messages.length && saved.chat?.contextDigest === await textDigest(summaryContextDigest(value.digest))) { session.state.status = 'Conversa recuperada; nenhuma nova consulta à IA.'; changed(windowId); return {}; }
-          const question = session.task === 'summary_full' ? FULL : session.task === 'summary_latest' ? EMAIL_SUMMARY_PROMPT : `Prepare uma resposta ao cliente a partir desta orientação:\n${value.direction || ''}${value.style ? `\n\n${value.style}` : ''}`;
+          const marker=await textDigest(summaryContextDigest(value.digest,fullPrompt));
+          const legacyDefault=prompts.ticket===TICKET_SUMMARY_PROMPT && saved.chat?.contextDigest===await textDigest(`${SUMMARY_FORMAT_VERSION}:${value.digest}`);
+          if (session.task === 'summary_full' && session.state.messages.length && (saved.chat?.contextDigest===marker || legacyDefault)) { session.summaryDigest=marker; session.state.status = 'Conversa recuperada; nenhuma nova consulta à IA.'; changed(windowId); return {}; }
+          const question = session.task === 'summary_full' ? fullPrompt : session.task === 'summary_latest' ? emailPrompt : `Prepare uma resposta ao cliente a partir desta orientação:\n${value.direction || ''}${value.style ? `\n\n${value.style}` : ''}`;
           void run(windowId, session, question, session.task === 'summary_full' ? 'summary_full' : session.task === 'summary_latest' ? 'summary_latest' : 'chat', session.task !== 'reply', session.task === 'summary_latest' ? value.selection : undefined);
           return {};
         }

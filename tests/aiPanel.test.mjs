@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {SUMMARY_FORMAT_VERSION} from '../services/ai/summaryFormat.ts';
+import {textDigest} from '../services/ai/ticketChatPersistence.ts';
+import {saveAiPrompts,readAiPrompts} from '../services/ai/promptSettings.ts';
 import { createAiPanelRouter } from '../services/background/aiPanelRouter.ts';
 import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
 import { installStorage } from './helpers.mjs';
@@ -145,5 +148,24 @@ test('old-format summaries refresh once while retaining prior conversation and t
   f.storage.data['octablaster_ticket_chat_v1_'+'a'.repeat(64)]={version:1,revision:'legacy',contextDigest:'b'.repeat(64),messages:[{role:'assistant',content:'Resumo anterior sem campos.'}],draft:'Rascunho preservado',createdAt:Date.now(),updatedAt:Date.now(),usedAt:Date.now()};
   await f.open('upgrade');let state=await f.done();assert.ok(state.messages.some(m=>m.content==='Resumo anterior sem campos.'));assert.equal(state.draft,'Rascunho preservado');assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,1);
   await f.open('reused');state=await f.done();assert.match(state.status,/recuperada/);assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,1);
+ }finally{f.storage.restore();}
+});
+
+test('custom summary prompts invalidate the relevant summaries while preserving conversation and subsequent cache reuse',async()=>{
+ const f=setup();try{
+  await f.open();await f.done();
+  const initial=await readAiPrompts();await saveAiPrompts({...initial.prompts,ticket:'CUSTOM TICKET: objetivo, estado e pendências.',email:'CUSTOM EMAIL: detalhe só esta mensagem.'},initial.revision);
+  await f.open('custom-ticket');let state=await f.done();assert.ok(state.messages.length>1);
+  assert.match(f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input.instruction,/CUSTOM TICKET/);
+  const count=f.calls.filter(m=>m.action==='AI_GENERATE').length;await f.open('repeat-ticket');await f.done();assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,count);
+  f.setSnapshot({selection:'Email isolado'});await f.open('custom-email','summary_latest');await f.done();
+  const email=f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input;assert.match(email.instruction,/CUSTOM EMAIL/);assert.equal(email.context,'Email isolado');
+ }finally{f.storage.restore();}
+});
+
+test('introducing editable prompts keeps a valid earlier default-format summary without another inference',async()=>{
+ const f=setup();try{
+  f.storage.data['octablaster_ticket_chat_v1_'+'a'.repeat(64)]={version:1,revision:'prior-format',contextDigest:await textDigest(`${SUMMARY_FORMAT_VERSION}:${'b'.repeat(64)}`),messages:[{role:'assistant',content:'Objetivo:\nResumo estruturado já salvo.'}],draft:'Pergunta preservada',createdAt:Date.now(),updatedAt:Date.now(),usedAt:Date.now()};
+  await f.open();const state=await f.done();assert.match(state.status,/recuperada/);assert.equal(state.draft,'Pergunta preservada');assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,0);
  }finally{f.storage.restore();}
 });

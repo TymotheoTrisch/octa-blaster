@@ -1,3 +1,4 @@
+import {readAiPrompts,replyPrompt} from '@/services/ai/promptSettings';
 import type { AiTriggerProgress } from '@/types/aiPanel';
 import { createSummaryRequest } from '@/services/ai/summaryRequest';
 import { createTicketChatPersistence } from '@/services/ai/ticketChatPersistence';
@@ -37,9 +38,10 @@ export async function generateTicketReply(editor: HTMLElement, report: (state: A
     const identity=await writingIdentity(editor);
     const style=await writingGuidance(identity),preferences=await readWritingPreferences(identity);
     const namespace=await createTicketChatPersistence(scope).namespace();
+    const prompts=(await readAiPrompts()).prompts;
     if(cancelled||!current()){if(!cancelled)cancel();return;}
     report({busy:true,status:'Gerando resposta no campo do e-mail…'});
-    const answer=await request.run('chat',context,`Redija somente o corpo da resposta ao cliente a partir desta orientação: ${instruction.slice(0,2000)}${style ? `\n\n${style.slice(0,1500)}` : ''}`,[],undefined,namespace);
+    const answer=await request.run('chat',context,replyPrompt(prompts.reply,instruction,style),[],undefined,namespace);
     if(cancelled||!current()){if(!cancelled)cancel();return;}
     if(!empty(editor)){cancel();return;}
     const text=applyWritingPreferences(withoutGeneratedSignature(answer || '').text,preferences);

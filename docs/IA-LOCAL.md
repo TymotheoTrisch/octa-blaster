@@ -54,9 +54,19 @@ O modelo/provedor ainda pode levar tempo para produzir o resultado; não há pro
 
 O chat/draft ficam em `browser.storage.local`, fora dos backups de respostas rápidas e do localStorage do Octadesk. O contexto bruto permanece transitório na memória do background; não é arquivado como HTML. Mensagens do chat podem conter dados do atendimento. Falha no armazenamento é informada sem esconder a resposta gerada. Troca de conexão da equipe separa namespaces do histórico.
 
+## Configurações por categoria
+
+**Inteligência artificial** abre quatro páginas: **Conta e conexões** (login, modelo e chave), **Aprendizado e escrita** (estatísticas e início/encerramento), **Prompts e instruções** e **Histórico e retenção**. O botão de voltar retorna à lista de categorias. Campos e ações seguem o mesmo padrão visual da extensão; a seção Primeiro uso foi removida da interface.
+
+Em **Prompts e instruções**, escolha **Resumir ticket**, **Resumir mensagem** ou **Sugerir resposta**. Edite as instruções e salve. O texto atual serve como ponto de partida; **Restaurar padrão** recupera só o recurso selecionado, e exige salvar para aplicar. Alternar o recurso preserva os rascunhos ainda não salvos nesta tela. Salvar/restaurar não faz inferência.
+
+Os prompts ficam no armazenamento privado deste navegador, separados da conexão e das estatísticas de escrita. Até 3.000 caracteres por resumo e 1.600 na sugestão, preservando o limite existente de 4.000 caracteres da instrução final. A orientação do editor e o estilo são anexados automaticamente na sugestão. O contexto do ticket não precisa de variáveis. As proteções de autoria, dados e revisão/envio manual não são editáveis por esses campos.
+
+Alterar o prompt de resumo renova somente o resumo correspondente na próxima solicitação, preservando conversa e rascunho; os caches incluem a instrução efetiva. Gravações concorrentes são rejeitadas para evitar perda de edições. A página de histórico salva a retenção usando a conexão atual, sem substituí-la por uma configuração antiga.
+
 ## Consultar aprendizado e configurar início/encerramento
 
-Clique no editor de resposta de um ticket e abra **Inteligência artificial → Meu aprendizado e escrita**. A tela identifica o atendente daquele editor e exibe publicações observadas (20 ou mais quando a contagem ponderada atinge esse limite), tamanho/parágrafos médios, frequência de saudações/fechos reconhecidos e data da última atualização. São estatísticas aproximadas com maior peso nas publicações recentes; não é um relato inventado pelo modelo sobre o que ele sabe.
+Clique no editor de resposta de um ticket e abra **Inteligência artificial → Aprendizado e escrita**. A tela identifica o atendente daquele editor e exibe publicações observadas (20 ou mais quando a contagem ponderada atinge esse limite), tamanho/parágrafos médios, frequência de saudações/fechos reconhecidos e data da última atualização. São estatísticas aproximadas com maior peso nas publicações recentes; não é um relato inventado pelo modelo sobre o que ele sabe.
 
 O aprendizado ocorre somente quando uma nova publicação corresponde ao rascunho enviado pelo editor do Octadesk. Gerar/editar um rascunho, mensagens antigas e e-mails enviados fora do Octadesk não contam. A memória usa dados numéricos, sem arquivar exemplos, assinaturas ou dados de clientes, e só orienta sugestões após três publicações confirmadas. Não treina o modelo. O contexto do ticket e o histórico do chat são memórias separadas.
 

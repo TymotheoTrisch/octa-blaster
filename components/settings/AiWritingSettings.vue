@@ -10,41 +10,30 @@ async function clear(){if(!state.value)return;busy.value=true;try{state.value=aw
 onMounted(refresh);
 </script>
 <template>
- <article class="writing-card" aria-label="Meu aprendizado e escrita">
-  <h3>Meu aprendizado e escrita</h3>
-  <p>Digite sua orientação no editor do e-mail e clique no ícone de IA. A resposta é gerada naquele campo, sem abrir o chat.</p>
-  <button type="button" class="writing-link" :disabled="busy" @click="refresh">Atualizar dados do atendente</button>
+ <article class="writing-card ai-page" aria-label="Meu aprendizado e escrita">
+  <div class="ai-actions start"><button type="button" class="btn-secondary" :disabled="busy" @click="refresh">Atualizar atendente</button></div>
   <template v-if="state">
-   <p><strong>Atendente identificado: {{state.label}}</strong><br>Dados do atendente identificado neste ambiente do Octadesk.</p>
-   <h4>O que foi aprendido</h4>
-   <dl v-if="state.pattern" class="writing-facts">
-    <dt>Publicações observadas</dt><dd>{{state.pattern.count===20?'20 ou mais':state.pattern.count}}</dd>
-    <dt>Tamanho médio</dt><dd>{{state.pattern.words}} palavras</dd>
-    <dt>Parágrafos</dt><dd>{{state.pattern.paragraphs}} em média</dd>
-    <dt>Saudação reconhecida</dt><dd>{{state.pattern.greeting}}% na média observada</dd>
-    <dt>Encerramento reconhecido</dt><dd>{{state.pattern.closing}}% na média observada</dd>
-    <dt>Último aprendizado</dt><dd>{{new Date(state.pattern.updated).toLocaleString('pt-BR')}}</dd>
-   </dl>
-   <p v-else>Ainda não há padrões salvos para este atendente.</p>
-   <p v-if="state.pattern && state.pattern.count<3">O estilo aprendido começa a ser usado após três publicações confirmadas.</p>
-   <p v-if="!state.enabled">O aprendizado está pausado. Os padrões salvos não são aplicados; seus textos personalizados continuam válidos.</p>
-   <p>A extensão observa uma nova publicação igual ao rascunho enviado pelo editor. Gerar, editar ou salvar rascunho não conta. E-mails antigos ou enviados fora do Octadesk não são aprendidos.</p>
-   <p>Esta memória guarda médias aproximadas de tamanho, parágrafos e frequência de saudações e fechos comuns, dando mais peso às publicações recentes. Não arquiva textos dos e-mails, nomes de clientes ou empresas, nem treina o modelo. O ticket atual e o histórico do chat são usados separadamente.</p>
-   <label class="writing-check"><input v-model="learn" type="checkbox" :disabled="busy">Aprender com as respostas enviadas neste navegador</label>
-   <p>Essa opção pausa o aprendizado e o uso das estatísticas, sem apagá-las. Os padrões expiram após 90 dias sem novas publicações.</p>
-   <button type="button" class="writing-link" :disabled="busy||!state.pattern" @click="clear">Apagar aprendizado deste atendente</button>
-   <h4>Como começar e terminar</h4>
-   <div v-for="field in (['opening','closing'] as const)" :key="field">
-    <label>{{labels[field]}}<select :aria-label="labels[field]" v-model="preferences[field].mode" :disabled="busy"><option value="auto">Automático</option><option value="custom">Texto personalizado</option><option value="none">{{field==='opening'?'Sem saudação':'Sem despedida'}}</option></select></label>
-    <label v-if="preferences[field].mode==='custom'">Texto de {{field==='opening'?'início':'encerramento'}}<textarea :aria-label="field==='opening'?'Texto de início':'Texto de encerramento'" v-model="preferences[field].text" :maxlength="field==='opening'?160:240" rows="3" :disabled="busy"></textarea><span class="writing-limit">Até {{field==='opening'?160:240}} caracteres e quatro linhas.</span></label>
-   </div>
-   <p>No modo automático, a IA considera os padrões disponíveis. Seus textos personalizados têm prioridade e são aplicados localmente ao resultado, sem uma consulta extra à IA. A assinatura configurada no Octadesk permanece separada.</p>
-   <button type="button" class="writing-save" :disabled="busy" @click="save">Salvar preferências de escrita</button>
+   <p class="ai-notice">Atendente: <strong>{{state.label}}</strong></p>
+   <section class="ai-section">
+    <h3>Padrões observados</h3>
+    <dl v-if="state.pattern" class="writing-facts"><dt>Publicações</dt><dd>{{state.pattern.count===20?'20 ou mais':state.pattern.count}}</dd><dt>Tamanho médio</dt><dd>{{state.pattern.words}} palavras</dd><dt>Parágrafos</dt><dd>{{state.pattern.paragraphs}} em média</dd><dt>Saudação</dt><dd>{{state.pattern.greeting}}%</dd><dt>Encerramento</dt><dd>{{state.pattern.closing}}%</dd><dt>Atualizado em</dt><dd>{{new Date(state.pattern.updated).toLocaleString('pt-BR')}}</dd></dl>
+    <p v-else class="ai-help">Ainda não há padrões salvos para este atendente.</p>
+    <label class="ai-check"><input v-model="learn" type="checkbox" :disabled="busy">Aprender com minhas respostas enviadas</label>
+    <p class="ai-help">Ativo após três publicações confirmadas. Guarda estatísticas, sem textos de clientes; expira após 90 dias sem uso.</p>
+    <p v-if="!state.enabled" class="ai-help">Aprendizado pausado. Seus textos personalizados continuam valendo.</p>
+    <div class="ai-actions start"><button type="button" class="ai-inline-button" :disabled="busy||!state.pattern" @click="clear">Apagar aprendizado deste atendente</button></div>
+   </section>
+   <section class="ai-section">
+    <h3>Início e encerramento</h3>
+    <div v-for="field in (['opening','closing'] as const)" :key="field" class="ai-field"><label :for="'writing-'+field">{{labels[field]}}</label><select :id="'writing-'+field" :aria-label="labels[field]" v-model="preferences[field].mode" :disabled="busy"><option value="auto">Automático</option><option value="custom">Texto personalizado</option><option value="none">{{field==='opening'?'Sem saudação':'Sem despedida'}}</option></select><template v-if="preferences[field].mode==='custom'"><textarea :aria-label="field==='opening'?'Texto de início':'Texto de encerramento'" v-model="preferences[field].text" :maxlength="field==='opening'?160:240" rows="3" :disabled="busy"></textarea><span class="ai-counter">Até {{field==='opening'?160:240}} caracteres e quatro linhas</span></template></div>
+    <p class="ai-help">Textos personalizados têm prioridade e são aplicados localmente. A assinatura do Octadesk permanece separada.</p>
+   </section>
+   <div class="ai-actions"><button type="button" class="btn-primary" :disabled="busy" @click="save">Salvar preferências</button></div>
   </template>
-  <p role="status">{{message}}</p>
-  <p v-if="!state">Abra um ticket, clique no campo de resposta e volte aqui para consultar ou configurar seu estilo. Nenhuma consulta à IA é feita nesta tela.</p>
+  <p class="ai-status" role="status">{{message}}</p>
+  <p v-if="busy&&!state" class="ai-help">Identificando atendente…</p>
  </article>
 </template>
 <style scoped>
-.writing-card{padding:14px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface);color:var(--text-primary)}h3{font-size:13px;margin:0 0 12px}h4{font-size:12px;margin:18px 0 10px}p{font-size:11px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap}label{display:block;font-size:12px;margin-top:12px}select,textarea{display:block;box-sizing:border-box;width:100%;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-input);color:var(--text-primary);font:12px/1.5 system-ui}select:focus,textarea:focus{outline:2px solid var(--accent-ring);border-color:var(--accent-border)}.writing-limit{display:block;margin-top:5px;color:var(--text-secondary);font-size:11px}.writing-check{display:flex;align-items:flex-start;gap:8px;line-height:1.5}.writing-check input{accent-color:var(--accent);margin:2px 0 0}.writing-facts{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;font-size:11px;line-height:1.5}.writing-facts dt{color:var(--text-secondary)}.writing-facts dd{margin:0;overflow-wrap:anywhere}.writing-link{border:0;background:transparent;color:var(--text-secondary);text-decoration:underline;font:12px system-ui;cursor:pointer}.writing-save{width:100%;margin-top:16px;padding:10px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-text);font:600 12px system-ui;cursor:pointer}button:disabled{opacity:.5;cursor:default}
+.writing-facts{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin:0;font-size:11px;line-height:1.5}.writing-facts dt{color:var(--text-secondary)}.writing-facts dd{margin:0;overflow-wrap:anywhere}
 </style>
