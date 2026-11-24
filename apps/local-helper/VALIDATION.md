@@ -1,13 +1,14 @@
-# Validação — 23/11/2026
+# Validação — 24/11/2026
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
 ## Painel lateral e orientação no editor — extensão 1.3.0 / auxiliar 0.3.3
 
-- 147 testes da extensão, 54 do auxiliar e 4 do gateway aprovados; TypeScript e builds Chrome/Firefox verificados nesta entrega.
+- 149 testes da extensão, 54 do auxiliar e 4 do gateway aprovados; TypeScript e builds Chrome/Firefox verificados nesta entrega.
 - Firefox real, perfil isolado e ticket fictício em HTTPS: clique no botão embarcado da extensão abre o painel lateral nativo. O botão envia o gesto de uma página da extensão ao background; um clique comum do content script não habilita essa API no Firefox. Teste sem permissão Native Messaging e sem inferência.
 - Chromium com extensão real e fixture Angular em iframe: abertura do painel nativo, chat compartilhado, inserção por mensagem no editor público correto, ícone no canto do editor, nenhuma consulta ao digitar, substituição protegida do rascunho, ausência de modal e cache de resumo. Transporte de IA e respostas fictícios.
 - Auxiliar 0.3.3 instalado neste computador, preservando as credenciais. Firefox real confirmou leitura de configuração pública via Native Messaging; credenciais permaneceram mascaradas e nenhuma inferência foi executada.
+- Feedback junto ao botão: spinner, bloqueio durante a consulta, erro visível e liberação para nova tentativa. Chromium com provedor fictício indisponível confirmou rascunho intacto; Firefox real sem Native Messaging exibiu erro próximo ao botão e o reabilitou. Sem inferência real. O painel mantém o status de processamento sem botão Cancelar consulta.
 - Abertura do chat exige um pedido explícito do ticket, consumido uma única vez; histórico existente não reabre o chat sozinho. Painel padrão e reload sem menus Respostas/Chat IA; seta de voltar e nova abertura por Resumir verificados em Chromium.
 - Testes de roteamento cobrem histórico/rascunho persistentes, isolamento por ticket/frame, edição de perguntas, conteúdo/configuração como chave de cache, assinatura do destinatário e descarte de retorno após cancelamento ou troca de contexto.
 - Auxiliar: saída limitada por tarefa nas APIs (768/1536/2048 tokens) e geração sem aguardar DELETE remoto pendente. Limpeza por expiração continua executada na manutenção e para a sessão consultada.

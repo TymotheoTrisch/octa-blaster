@@ -35,7 +35,7 @@ export function createSummaryLifecycle(doc: Document, send?: SummarySend) {
         const title = scope.querySelector<HTMLElement>('h1, h2, h3, [data-cy="ticket_subject"]');
         const header = scope.querySelector<HTMLElement>(HEADER_SELECTOR);
         if (!title && !header) continue;
-        const trigger = createAiTrigger(doc, 'Resumir ticket', opened => { void openAiSidebar(scope, 'summary_full', undefined, undefined, opened).catch(error => { button.title = error.message; }); });
+        const trigger = createAiTrigger(doc, 'Resumir ticket', (opened, report) => openAiSidebar(scope, 'summary_full', undefined, undefined, opened, report));
         const button = trigger.element; button.className = 'octa-summary-button octa-ticket-summary-button'; if (button.tagName === 'BUTTON') button.innerHTML = `${aiIcons.sparkle}<span>Resumir ticket</span>`; button.dataset.octaAi = 'true';
         const stopTheme = bindInpageAppearance(button);
         const statusRow = header?.querySelector<HTMLElement>('.col-sm-8 > .clearfix:not(.ticket-title), .ticket-status-row, .ticket-header-status, [data-cy="ticket_number"]');

@@ -8,7 +8,7 @@ import { aiIcons } from './aiIcons';
 export function attachMessageSummary(body: HTMLElement, host: HTMLElement, _send?: unknown) {
   const doc = body.ownerDocument, scope = getScopedTicketContainer(body)!;
   const identity = getAiTicketIdentity(scope);
-  const trigger = createAiTrigger(doc, 'Resumir', opened => { if (valid()) void openAiSidebar(scope, 'summary_latest', body, undefined, opened).catch(error => { button.title = error.message; }); });
+  const trigger = createAiTrigger(doc, 'Resumir', (opened, report) => { if (!valid()) throw new Error('A mensagem mudou. Abra o resumo novamente.'); return openAiSidebar(scope, 'summary_latest', body, undefined, opened, report); });
   const button = trigger.element;
   if (button.tagName === 'BUTTON') (button as HTMLButtonElement).type = 'button'; button.className = 'octa-summary-button octa-message-summary-button'; if (button.tagName === 'BUTTON') button.innerHTML = `${aiIcons.sparkle}<span>Resumir</span>`; button.dataset.octaAi = 'true';
   const stop = bindInpageAppearance(button);

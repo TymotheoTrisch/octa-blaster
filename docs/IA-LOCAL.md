@@ -55,3 +55,5 @@ O gateway e o auxiliar reutilizam os adaptadores e o motor de contexto. O runtim
 Use `pnpm compile`, `pnpm test`, `pnpm build`, `pnpm build:firefox`, `pnpm --dir apps/local-helper test` e `pnpm test:gateway`. `pnpm zip:firefox` gera o pacote da extensão. Compile o instalador gráfico com `windows/BuildInstaller.ps1`; inclua o executável com os arquivos do auxiliar no ZIP, sem node_modules, dados locais ou credenciais.
 
 Validar no Octadesk real antes da aprovação: histórico longo e múltiplos autores, origem do editor, rascunho modificado durante espera, retomada de chat, cache/expiração e qualidade/latência das respostas do provedor. Resultados e limites em [VALIDATION.md](../apps/local-helper/VALIDATION.md).
+
+Ao acionar uma consulta, o botão mostra processamento e bloqueia cliques repetidos. Um aviso próximo informa carregamento, conclusão ou erro; falhas ficam visíveis até fechar o aviso ou tentar novamente. O erro também aparece no chat. Nenhuma falha altera o rascunho.

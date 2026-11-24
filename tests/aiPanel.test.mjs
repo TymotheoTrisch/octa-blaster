@@ -85,3 +85,17 @@ test('sidebar reveals chat only once per explicit ticket action, never just beca
     assert.equal((await reveal()).data,false);
   } finally { f.storage.restore(); }
 });
+
+test('originating button receives busy state and provider errors without losing retry capability', async () => {
+  let fail;
+  const f=setup(()=>new Promise((_,reject)=>{fail=reject;}));
+  try {
+    await f.open('working','reply');
+    for(let i=0;i<100&&!fail;i++)await new Promise(resolve=>setTimeout(resolve,5));
+    assert.ok(f.calls.some(x=>x.action==='AI_PANEL_PROGRESS'&&x.id==='working'&&x.progress.busy));
+    fail(new Error('Provedor indisponível. Tente novamente.'));
+    const state=await f.done();assert.match(state.error,/Provedor indisponível/);
+    const last=f.calls.filter(x=>x.action==='AI_PANEL_PROGRESS').at(-1);
+    assert.equal(last.progress.busy,false);assert.match(last.progress.error,/Provedor indisponível/);
+  }finally{f.storage.restore();}
+});

@@ -352,10 +352,10 @@ function createWidgetElement(
     </div>
   `;
 
-  const aiTrigger = createAiTrigger(doc, 'Sugerir resposta', opened => {
+  const aiTrigger = createAiTrigger(doc, 'Sugerir resposta', (opened, report) => {
     const editor = editorContext.findEditorForWidget(container), scope = editor && getScopedTicketContainer(editor);
-    if (!editor || !scope || !readAiMessage(editor).trim()) { licenseFeedback.textContent = 'Digite no editor como deseja responder e clique no ícone de IA.'; licenseFeedback.hidden = false; return; }
-    licenseFeedback.hidden = true; void openAiSidebar(scope, 'reply', undefined, editor, opened).catch(error => { licenseFeedback.textContent = error.message; licenseFeedback.hidden = false; });
+    if (!editor || !scope || !readAiMessage(editor).trim()) throw new Error('Digite no editor como deseja responder e clique no ícone de IA.');
+    licenseFeedback.hidden = true; return openAiSidebar(scope, 'reply', undefined, editor, opened, report);
   });
   aiTrigger.element.className = 'octa-action-btn octa-btn-ai'; widget.querySelector('.octa-ai-trigger-slot')!.replaceWith(aiTrigger.element);
   aiTrigger.element.addEventListener('mousedown', event => event.preventDefault());

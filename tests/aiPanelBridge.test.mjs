@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { installDom, installStorage } from './helpers.mjs';
 import { startReplyAssistance } from '../services/octadesk/aiReply.ts';
 import { openAiSidebar, startAiPanelBridge } from '../services/octadesk/aiPanelBridge.ts';
+import { createAiTrigger } from '../services/octadesk/aiTrigger.ts';
 import { createSummaryLifecycle } from '../services/octadesk/aiSummaryLifecycle.ts';
 const settle=()=>new Promise(r=>setTimeout(r,35));
 function setup(){
@@ -37,4 +38,19 @@ test('generated answer replaces only the exact instruction snapshot and stale ed
   f.calls.length=0;f.editor.textContent='Outra orientação.';await openAiSidebar(f.scope,'reply',undefined,f.editor);await settle();open=f.calls.find(x=>x.action==='AI_PANEL_OPEN');data=f.calls.find(x=>x.snapshot).snapshot;
   f.editor.textContent='Rascunho editado durante a geração.';result=await f.respond({action:'AI_PANEL_INSERT',id:open.id,identity:open.identity,draftToken:data.draftToken,text:'NÃO INSERIR'});assert.equal(result.success,false);assert.equal(f.editor.textContent,'Rascunho editado durante a geração.');
  }finally{f.restore();}
+});
+
+test('processing and errors stay visible at the trigger and background progress reaches only its source',async()=>{
+ const f=setup(),trigger=createAiTrigger(f.document,'Gerar resposta',()=>{});f.document.body.append(trigger.element);
+ try{
+  trigger.report({busy:true,status:'Aguardando a IA…'});
+  assert.equal(trigger.element.disabled,true);assert.equal(trigger.element.getAttribute('aria-busy'),'true');
+  assert.match(f.document.querySelector('.octa-ai-feedback').textContent,/Processando/);
+  await openAiSidebar(f.scope,'reply',undefined,f.editor,false,trigger.report);await settle();
+  const open=f.calls.find(x=>x.action==='AI_PANEL_OPEN');
+  assert.equal((await f.respond({action:'AI_PANEL_PROGRESS',id:'other',identity:open.identity,progress:{busy:false,status:'',error:'ALHEIO'}})).success,false);
+  await f.respond({action:'AI_PANEL_PROGRESS',id:open.id,identity:open.identity,progress:{busy:false,status:'',error:'Sem conexão com o provedor.'}});
+  const feedback=f.document.querySelector('.octa-ai-feedback');assert.equal(feedback.getAttribute('role'),'alert');assert.match(feedback.textContent,/Sem conexão/);assert.equal(trigger.element.disabled,false);
+  feedback.querySelector('button').click();assert.equal(feedback.hidden,true);assert.equal(feedback.style.display,'none');
+ }finally{trigger.dispose();f.restore();}
 });

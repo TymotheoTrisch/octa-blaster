@@ -21,7 +21,14 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
   const sessions = new Map<number, Session>();
   const pendingReveal = new Map<number, number>();
   const cache = new Map<string, { text: string; at: number }>();
-  const changed = (windowId: number, reveal = false) => { void browser.runtime.sendMessage({ action: 'AI_PANEL_CHANGED', windowId, reveal }).catch(() => {}); };
+  const progress = (session: Session, override?: {busy:boolean; status:string; error?:string}) => {
+    const state = session.state;
+    void browser.tabs.sendMessage(session.sender.tab.id, {action:'AI_PANEL_PROGRESS',id:state.id,identity:session.identity,progress: override || {busy:state.busy || (!state.ready && !state.error && !session.cancelled),status:state.status.slice(0,500),error:state.busy ? '' : state.error.slice(0,2000)}}, {frameId:session.sender.frameId ?? 0}).catch(() => {});
+  };
+  const changed = (windowId: number, reveal = false) => {
+    void browser.runtime.sendMessage({ action: 'AI_PANEL_CHANGED', windowId, reveal }).catch(() => {});
+    const session = sessions.get(windowId); if (session) progress(session);
+  };
   const active = (windowId: number, session: Session) => sessions.get(windowId) === session && !session.cancelled;
   const cancel = (session: Session) => { session.cancelled = true; if (session.request) void callAi({ action: 'AI_CANCEL', requestId: session.request }, session.sender).catch(() => {}); };
   const persist = (session: Session) => {
@@ -101,7 +108,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
         try {
           // Chama a API na pilha do clique; não aguarda storage, DOM ou rede antes de abrir.
           const opened = openSidebar(sender.tab.windowId, message.alreadyOpened === true);
-          const old = sessions.get(sender.tab.windowId); const previousSave = old ? persist(old).catch(() => {}) : Promise.resolve(); if (old) cancel(old);
+          const old = sessions.get(sender.tab.windowId); const previousSave = old ? persist(old).catch(() => {}) : Promise.resolve(); if (old) { cancel(old); progress(old, {busy:false,status:'Consulta anterior encerrada.'}); }
           const session: Session = { state: { id: message.id, title: 'Conversa do ticket', messages: [], draft: '', busy: false, ready: false, status: 'Carregando o ticket…', error: '' }, sender, identity: message.identity, task: message.task, revision: null, save: previousSave, insertions: new Map(), cancelled: false };
           sessions.set(sender.tab.windowId, session); pendingReveal.set(sender.tab.windowId, Date.now()); changed(sender.tab.windowId, true);
           Promise.resolve(opened).then(() => respond({ success: true }), respondError);

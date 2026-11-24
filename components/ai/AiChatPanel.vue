@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, nextTick } from 'vue';
-import { ArrowLeft, Copy, Pencil, CornerDownLeft, Loader2, Send, Settings, Square } from 'lucide-vue-next';
+import { ArrowLeft, Copy, Pencil, CornerDownLeft, Loader2, Send, Settings } from 'lucide-vue-next';
 import type { AiPanelState } from '@/types/aiPanel';
 import { aiLocalMessage } from '@/services/ai/localClient';
 const emit = defineEmits<{ settings: []; back: [] }>();
@@ -26,7 +26,7 @@ onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListen
     <div ref="log" class="ai-panel-log" role="log">
       <p v-if="!state" class="ai-panel-hint">Clique em Resumir no e-mail ou no ticket. Para redigir, escreva uma orientação no editor do e-mail e clique no ícone de IA.</p>
       <article v-for="(turn,index) in state?.messages || []" :key="index" :data-role="turn.role"><strong>{{ turn.role === 'user' ? 'Você' : 'OctaBlaster' }}</strong><div class="ai-panel-text">{{ turn.role === 'user' ? visibleText(turn.content) : turn.content }}</div><div v-if="turn.role === 'assistant'" class="ai-panel-actions"><button type="button" title="Copiar mensagem" @click="copy(turn.content)"><Copy :size="13" />Copiar</button><button type="button" @click="insert(index)"><CornerDownLeft :size="13" />Inserir no ticket</button></div><button v-else type="button" title="Editar pergunta" :disabled="state?.busy" @click="edit(index)"><Pencil :size="13" />Editar</button></article>
-      <p v-if="state?.busy" role="status" class="ai-panel-hint"><Loader2 :size="14" class="spin" />{{ state.status }} {{ seconds }}s <button type="button" title="Cancelar consulta" @click="aiLocalMessage('AI_PANEL_CANCEL',{windowId,id:state.id})"><Square :size="12" /></button></p>
+      <p v-if="state?.busy" role="status" class="ai-panel-hint"><Loader2 :size="14" class="spin" />{{ state.status }} {{ seconds }}s</p>
     </div>
     <p v-if="state?.error" role="alert" class="ai-panel-error">{{ state.error }}</p>
     <p class="ai-panel-feedback" role="status">{{ feedback || (!state?.busy ? state?.status : '') }}<span v-if="!state?.busy && state?.queryMs"> · {{ (state.queryMs/1000).toFixed(1) }}s de consulta</span></p>

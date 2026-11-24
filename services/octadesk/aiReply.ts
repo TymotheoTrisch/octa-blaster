@@ -27,7 +27,7 @@ export function startReplyAssistance(doc: Document) {
       if (!binding) {
         const parent = editor.parentElement!;
         if (doc.defaultView?.getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
-        const trigger = createAiTrigger(doc, 'Gerar resposta', opened => { const scope = getScopedTicketContainer(editor); if (scope && editorText(editor)) void openAiSidebar(scope, 'reply', undefined, editor, opened).catch(error => { button.title = error.message; }); });
+        const trigger = createAiTrigger(doc, 'Gerar resposta', (opened, report) => { const scope = getScopedTicketContainer(editor); if (!scope || !editorText(editor)) throw new Error('Digite uma orientação no campo de resposta pública.'); return openAiSidebar(scope, 'reply', undefined, editor, opened, report); });
         const button = trigger.element; button.className = 'octa-editor-ai-button'; button.dataset.octaAi = 'true'; if (button.tagName === 'BUTTON') button.innerHTML = aiIcons.sparkle; button.title = 'Gerar resposta a partir do texto digitado'; button.setAttribute('aria-label', button.title);
         button.addEventListener('mousedown', event => event.preventDefault());
         parent.append(button); const stopTheme = bindInpageAppearance(button); binding = { button, stop() { trigger.dispose(); stopTheme(); } }; buttons.set(editor, binding);
