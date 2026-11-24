@@ -8,6 +8,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 ## [Não lançado]
 
 ### Adicionado
+- Resumos estruturados distintos para ticket e mensagem: objetivo/status/evolução/pendências no ticket; remetente/assunto/resumo/detalhes/ação esperada no e-mail. Títulos destacados, dados ausentes explícitos e atualização dos resumos antigos sem apagar conversa ou pergunta não enviada.
 - Proposta 1.3.0 / auxiliar 0.3.3: resumos de e-mail e ticket abrem o chat no painel lateral nativo. Conversas e perguntas não enviadas persistem por ticket; cada resposta permite copiar e inserir no editor original, e perguntas podem ser editadas.
 - Ícone de IA no editor público: usa a orientação digitada, limpa o campo e preenche a resposta diretamente nele, sem abrir o chat. Em erro restaura a orientação se não houve edição; texto novo nunca é sobrescrito. Sem envio automático ao cliente.
 - APIs OpenAI, Gemini, Claude, NVIDIA e gateway opcional de equipe, com credenciais protegidas, continuação remota quando suportada e contexto compacto nos demais casos. Login ChatGPT e inicialização do auxiliar via Native Messaging no Firefox/Windows após instalação gráfica única.

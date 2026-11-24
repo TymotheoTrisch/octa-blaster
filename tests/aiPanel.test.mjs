@@ -127,3 +127,23 @@ test('Firefox queues the summary and offers a native popup action instead of cla
   f.router.clearTab(1);
  }finally{delete browser.sidebarAction;delete browser.browserAction;f.storage.restore();}
 });
+
+test('ticket and selected-email requests use different structured instructions and keep email source isolated',async()=>{
+ const f=setup();try{
+  f.setSnapshot({context:'HISTORICO COMPLETO EXCLUSIVO DO TICKET',selection:'EMAIL SELECIONADO APENAS'});
+  await f.open('email','summary_latest');await f.done();
+  const email=f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input;
+  assert.equal(email.context,'EMAIL SELECIONADO APENAS');assert.ok(!email.instruction.includes('EMAIL SELECIONADO APENAS'));assert.equal(email.history.length,0);
+  assert.match(email.instruction,/Remetente e data:/);assert.match(email.instruction,/Ação esperada:/);assert.match(email.instruction,/Não conclua o status geral/);
+  await f.open('ticket','summary_full');await f.done();
+  const ticket=f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input;
+  assert.match(ticket.context,/HISTORICO COMPLETO/);assert.match(ticket.instruction,/Título do ticket:/);assert.match(ticket.instruction,/Status atual:/);assert.match(ticket.instruction,/Pendências e próximos passos:/);assert.match(ticket.instruction,/\[FALTA INFORMAR\]/);
+ }finally{f.storage.restore();}
+});
+test('old-format summaries refresh once while retaining prior conversation and the new format is then reused',async()=>{
+ const f=setup();try{
+  f.storage.data['octablaster_ticket_chat_v1_'+'a'.repeat(64)]={version:1,revision:'legacy',contextDigest:'b'.repeat(64),messages:[{role:'assistant',content:'Resumo anterior sem campos.'}],draft:'Rascunho preservado',createdAt:Date.now(),updatedAt:Date.now(),usedAt:Date.now()};
+  await f.open('upgrade');let state=await f.done();assert.ok(state.messages.some(m=>m.content==='Resumo anterior sem campos.'));assert.equal(state.draft,'Rascunho preservado');assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,1);
+  await f.open('reused');state=await f.done();assert.match(state.status,/recuperada/);assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,1);
+ }finally{f.storage.restore();}
+});

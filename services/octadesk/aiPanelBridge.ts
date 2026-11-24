@@ -41,7 +41,7 @@ async function snapshot(source: Source): Promise<PanelSnapshot> {
   let selection: string | undefined;
   if (source.message) {
     if (!source.message.isConnected || getScopedTicketContainer(source.message) !== source.scope) throw new Error('O e-mail não está mais disponível.');
-    const heading = `Remetente: ${JSON.stringify(aiMessageAttribution(source.message))}\n\n`;
+    const heading = `Ticket de referência: ${JSON.stringify({titulo:context.metadata.titulo,numero:context.metadata.numero})}\nRemetente: ${JSON.stringify(aiMessageAttribution(source.message))}\n\n`;
     selection = heading + readAiMessage(source.message).slice(-(50000 - heading.length));
   }
   if (source.editor && source.draftToken && (!source.editor.isConnected || source.editor.innerHTML !== source.draft)) throw new Error('O rascunho mudou. Gere novamente a partir do texto atual.');

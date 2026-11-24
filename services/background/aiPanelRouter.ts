@@ -1,11 +1,12 @@
 import type { AiPanelState, PanelSnapshot, PanelTask } from '@/types/aiPanel';
+import { TICKET_SUMMARY_PROMPT, EMAIL_SUMMARY_PROMPT, summaryContextDigest } from '@/services/ai/summaryFormat';
 import { boundedChat } from '@/services/ai/summaryRequest';
 import { textDigest } from '@/services/ai/ticketChatPersistence';
 import { withoutGeneratedSignature } from '@/services/ai/replySignature';
 
-const FULL = 'Resuma o ticket de forma objetiva: solicitação, evolução, situação atual e pendências. Diferencie cliente e atendente. Limite a cerca de 250 palavras, preservando identificadores importantes.';
+const FULL = TICKET_SUMMARY_PROMPT;
 type AiCall = (message: any, sender: any) => Promise<any>;
-interface Session { state: AiPanelState; sender: any; identity: string; task: PanelTask; snapshot?: PanelSnapshot; revision: string | null; request?: string; save: Promise<unknown>; insertions: Map<number, string>; cancelled: boolean; warning?: string; persistent?: boolean }
+interface Session { state: AiPanelState; sender: any; identity: string; task: PanelTask; snapshot?: PanelSnapshot; revision: string | null; request?: string; save: Promise<unknown>; insertions: Map<number, string>; cancelled: boolean; warning?: string; persistent?: boolean; summaryDigest?: string }
 const allowed = (url: string) => { try { const value = new URL(url); return value.protocol === 'https:' && (value.hostname === 'app.octadesk.com' || value.hostname.endsWith('.octadesk.com')); } catch { return false; } };
 const deferredSidebarWindows = new Set<number>();
 export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: number, _alreadyOpened = false) => {
@@ -38,7 +39,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
   const cancel = (session: Session) => { session.cancelled = true; if (session.request) void callAi({ action: 'AI_CANCEL', requestId: session.request }, session.sender).catch(() => {}); };
   const persist = (session: Session) => {
     if (!session.snapshot || !session.state.ready || session.persistent === false) return Promise.resolve();
-    const content = structuredClone({ messages: session.state.messages, draft: session.state.draft, contextDigest: session.snapshot.digest });
+    const content = structuredClone({ messages: session.state.messages, draft: session.state.draft, contextDigest: session.summaryDigest || '0'.repeat(64) });
     session.save = session.save.catch(() => {}).then(async () => {
       const result = await callAi({ action: 'AI_CHAT_SAVE', key: session.snapshot!.key, revision: session.revision, content }, session.sender);
       session.revision = result.chat.revision;
@@ -95,7 +96,8 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
         session.state.messages = task === 'summary_full' && !original.length ? [{ role: 'assistant', content: text }] : [...base, { role: 'user', content: question }, { role: 'assistant', content: text }];
       }
       if (session.task === 'reply' && fresh.draftToken) session.insertions.set(session.state.messages.length - 1, fresh.draftToken);
-      session.state.draft = '';
+      if(task === 'summary_full') session.summaryDigest=await textDigest(summaryContextDigest(fresh.digest));
+      if(task === 'chat') session.state.draft = '';
       session.state.status = session.state.cached ? 'Resumo reaproveitado; nenhuma nova consulta à IA.' : 'Pronto para revisar.';
       try { await persist(session); } catch { session.warning = 'Resposta exibida, mas o histórico não pôde ser salvo neste computador.'; session.state.error = session.warning; }
     } catch (error) { if (active(windowId, session)) { session.state.error = error instanceof Error ? error.message : 'Não foi possível consultar a IA.'; session.state.messages = original; if (task === 'chat') session.state.draft = question; } }
@@ -157,9 +159,9 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           let saved: any = {};
           try { saved = await callAi({ action: 'AI_CHAT_LOAD', key: value.key }, session.sender); } catch { session.persistent = false; session.warning = 'O histórico não pôde ser recuperado; esta conversa não será salva.'; session.state.error = session.warning; }
           if (!active(windowId, session)) return {};
-          session.revision = saved.chat?.revision || null; session.state.messages = saved.chat?.messages || []; session.state.draft = saved.chat?.draft || ''; session.state.ready = true;
-          if (session.task === 'summary_full' && session.state.messages.length && saved.chat?.contextDigest === value.digest) { session.state.status = 'Conversa recuperada; nenhuma nova consulta à IA.'; changed(windowId); return {}; }
-          const question = session.task === 'summary_full' ? FULL : session.task === 'summary_latest' ? `Resuma este e-mail em português, em até oito linhas, preservando o pedido e as pendências.\n${value.selection?.slice(0, 1200) || ''}` : `Prepare uma resposta ao cliente a partir desta orientação:\n${value.direction || ''}${value.style ? `\n\n${value.style}` : ''}`;
+          session.summaryDigest = saved.chat?.contextDigest || '0'.repeat(64); session.revision = saved.chat?.revision || null; session.state.messages = saved.chat?.messages || []; session.state.draft = saved.chat?.draft || ''; session.state.ready = true;
+          if (session.task === 'summary_full' && session.state.messages.length && saved.chat?.contextDigest === await textDigest(summaryContextDigest(value.digest))) { session.state.status = 'Conversa recuperada; nenhuma nova consulta à IA.'; changed(windowId); return {}; }
+          const question = session.task === 'summary_full' ? FULL : session.task === 'summary_latest' ? EMAIL_SUMMARY_PROMPT : `Prepare uma resposta ao cliente a partir desta orientação:\n${value.direction || ''}${value.style ? `\n\n${value.style}` : ''}`;
           void run(windowId, session, question, session.task === 'summary_full' ? 'summary_full' : session.task === 'summary_latest' ? 'summary_latest' : 'chat', session.task !== 'reply', session.task === 'summary_latest' ? value.selection : undefined);
           return {};
         }

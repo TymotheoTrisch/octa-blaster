@@ -22,6 +22,16 @@ Cada mensagem da IA tem **Copiar** e **Inserir no ticket**. Inserir usa o editor
 
 No Chrome, o botão do ticket abre diretamente `sidePanel.open`. No Firefox, um clique dentro do site não autoriza `sidebarAction.open`: se a lateral já estiver aberta, o resumo aparece nela; se estiver fechada, o popup da extensão oferece **Abrir resumo na lateral**, cujo clique é autorizado pelo navegador. Quando o Firefox impede abrir o próprio popup, abra-o pelo ícone da extensão para usar essa ação. O resumo continua preparado por ticket, sem perder a consulta. Referência: [restrição de gestos no Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/User_actions). A página embarcada usada anteriormente foi removida porque não transfere essa autorização.
 
+### Formato dos resumos
+
+O ticket usa **Título do ticket**, **Objetivo**, **Status atual**, **Detalhamento**, **Pendências e próximos passos** e **A confirmar**. Até 300 palavras, fatos em ordem cronológica e distinção entre status explícito do sistema e situação confirmada nas mensagens. Responsável/prazo só aparecem se informados.
+
+O e-mail usa **Remetente e data**, **Assunto da mensagem**, **Mensagem em resumo**, **Detalhes relevantes** e **Ação esperada**. Até 180 palavras, somente a mensagem selecionada e os metadados do cabeçalho. O título do ticket serve como referência; não se conclui o status geral a partir de um e-mail.
+
+As instruções pedem seções separadas, listas curtas e `[FALTA INFORMAR]` para dados necessários ausentes. Pedidos não são apresentados como ações concluídas; os resumos não são respostas ao cliente. A interface destaca títulos conhecidos sem interpretar HTML do modelo. O formato é uma instrução textual ao provedor, não um schema JSON imposto à resposta.
+
+O contexto passa a incluir o status explícito do cabeçalho quando disponível. A versão do formato renova resumos antigos na próxima solicitação, preservando mensagens e rascunho. Resumir só um e-mail não é tratado como resumo completo do ticket; um resumo geral atualizado pode ser reaproveitado depois de resumir uma mensagem.
+
 ## Resposta a partir do texto digitado
 
 Digite no **próprio editor de resposta pública** o que deseja comunicar, por exemplo: Peça ao cliente que confirme o funcionamento. Um pequeno ícone de IA aparece no canto superior direito do editor. Digitar ou focar não chama a IA. O clique no ícone guarda a orientação, limpa o editor e gera a resposta diretamente nesse mesmo campo, usando os fatos do ticket. A lateral não é aberta nem recebe essa geração. A ação na barra do widget também utiliza o texto já digitado.

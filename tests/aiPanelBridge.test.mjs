@@ -4,6 +4,7 @@ import { installDom, installStorage } from './helpers.mjs';
 import { startReplyAssistance } from '../services/octadesk/aiReply.ts';
 import { openAiSidebar, startAiPanelBridge } from '../services/octadesk/aiPanelBridge.ts';
 import { createAiTrigger } from '../services/octadesk/aiTrigger.ts';
+import { collectAiTicketContext } from '../services/octadesk/aiTicketContext.ts';
 import { createSummaryLifecycle } from '../services/octadesk/aiSummaryLifecycle.ts';
 const settle=()=>new Promise(r=>setTimeout(r,35));
 function setup(){
@@ -13,29 +14,29 @@ function setup(){
  const editor=dom.document.querySelector('.note-editable'),scope=dom.document.querySelector('form');
  const bridge=startAiPanelBridge(dom.document,{findEditorForWidget:()=>editor,isUsableEditor:()=>true,activateEditor:()=>{},isCurrentContext:()=>true});
  const respond=message=>new Promise(resolve=>{for(const fn of listeners)if(fn(message,{id:'extension'},resolve))break;});
- return {...dom,editor,scope,calls,respond,restore(){bridge();dom.restore();storage.restore();}};
+ return {...dom,editor,scope,calls,respond,async prepared(){for(let i=0;i<200;i++){if(calls.some(m=>m.action==='AI_PANEL_CONTEXT'&&m.snapshot))return;const error=calls.find(m=>m.action==='AI_PANEL_CONTEXT'&&m.error);if(error)throw new Error(error.error);await new Promise(r=>setTimeout(r,5));}throw new Error('Context was not prepared');},restore(){bridge();dom.restore();storage.restore();}};
 }
 test('typing only shows the editor AI icon; clicking opens the sidebar with no extra field or modal',async()=>{
  const f=setup(),stop=startReplyAssistance(f.document);try{
   const button=f.document.querySelector('.octa-editor-ai-button');assert.equal(button.hidden,true);
   f.editor.textContent='Peça confirmação de funcionamento.';f.editor.dispatchEvent(new f.window.Event('input',{bubbles:true}));await settle();assert.equal(button.hidden,false);assert.equal(f.calls.length,0);
   button.click();await settle();assert.equal(f.calls.length,0); // Clique sintético da página não autoriza IA.
-  await openAiSidebar(f.scope,'reply',undefined,f.editor);await settle();assert.equal(f.calls[0].action,'AI_PANEL_OPEN');assert.equal(f.calls[0].task,'reply');
+  await openAiSidebar(f.scope,'reply',undefined,f.editor);await f.prepared();assert.equal(f.calls[0].action,'AI_PANEL_OPEN');assert.equal(f.calls[0].task,'reply');
   const context=f.calls.find(x=>x.action==='AI_PANEL_CONTEXT'&&x.snapshot);assert.equal(context.snapshot.direction,'Peça confirmação de funcionamento.');assert.equal(f.document.querySelector('dialog, .octa-reply-guidance, .octa-message-summary'),null);
  }finally{stop();f.restore();}
 });
 test('summaries open sidebar and pass the chosen message without changing source HTML',async()=>{
  const f=setup(),lifecycle=createSummaryLifecycle(f.document);try{
-  const original=f.document.querySelector('.content-comment-interaction').innerHTML;lifecycle.scan();await openAiSidebar(f.scope,'summary_latest',f.document.querySelector('.content-comment-interaction'));await settle();
+  const original=f.document.querySelector('.content-comment-interaction').innerHTML;lifecycle.scan();await openAiSidebar(f.scope,'summary_latest',f.document.querySelector('.content-comment-interaction'));await f.prepared();
   assert.equal(f.calls[0].task,'summary_latest');assert.match(f.calls.find(x=>x.snapshot).snapshot.selection,/Pedido do cliente/);assert.equal(f.document.querySelector('.content-comment-interaction').innerHTML,original);assert.equal(f.document.querySelector('dialog, aside'),null);
  }finally{lifecycle.dispose();f.restore();}
 });
 test('generated answer replaces only the exact instruction snapshot and stale edits are preserved',async()=>{
  const f=setup();try{
-  f.document.execCommand=()=>false;f.editor.textContent='Solicite confirmação.';await openAiSidebar(f.scope,'reply',undefined,f.editor);await settle();
+  f.document.execCommand=()=>false;f.editor.textContent='Solicite confirmação.';await openAiSidebar(f.scope,'reply',undefined,f.editor);await f.prepared();
   let open=f.calls.find(x=>x.action==='AI_PANEL_OPEN'),data=f.calls.find(x=>x.snapshot).snapshot;
   let result=await f.respond({action:'AI_PANEL_INSERT',id:open.id,identity:open.identity,draftToken:data.draftToken,text:'Resposta pronta para revisão.'});assert.equal(result.success,true);assert.equal(f.editor.textContent,'Resposta pronta para revisão.');
-  f.calls.length=0;f.editor.textContent='Outra orientação.';await openAiSidebar(f.scope,'reply',undefined,f.editor);await settle();open=f.calls.find(x=>x.action==='AI_PANEL_OPEN');data=f.calls.find(x=>x.snapshot).snapshot;
+  f.calls.length=0;f.editor.textContent='Outra orientação.';await openAiSidebar(f.scope,'reply',undefined,f.editor);await f.prepared();open=f.calls.find(x=>x.action==='AI_PANEL_OPEN');data=f.calls.find(x=>x.snapshot).snapshot;
   f.editor.textContent='Rascunho editado durante a geração.';result=await f.respond({action:'AI_PANEL_INSERT',id:open.id,identity:open.identity,draftToken:data.draftToken,text:'NÃO INSERIR'});assert.equal(result.success,false);assert.equal(f.editor.textContent,'Rascunho editado durante a geração.');
  }finally{f.restore();}
 });
@@ -46,11 +47,23 @@ test('processing and errors stay visible at the trigger and background progress 
   trigger.report({busy:true,status:'Aguardando a IA…'});
   assert.equal(trigger.element.disabled,true);assert.equal(trigger.element.getAttribute('aria-busy'),'true');
   assert.match(f.document.querySelector('.octa-ai-feedback').textContent,/Processando/);
-  await openAiSidebar(f.scope,'reply',undefined,f.editor,false,trigger.report);await settle();
+  await openAiSidebar(f.scope,'reply',undefined,f.editor,false,trigger.report);await f.prepared();
   const open=f.calls.find(x=>x.action==='AI_PANEL_OPEN');
   assert.equal((await f.respond({action:'AI_PANEL_PROGRESS',id:'other',identity:open.identity,progress:{busy:false,status:'',error:'ALHEIO'}})).success,false);
   await f.respond({action:'AI_PANEL_PROGRESS',id:open.id,identity:open.identity,progress:{busy:false,status:'',error:'Sem conexão com o provedor.'}});
   const feedback=f.document.querySelector('.octa-ai-feedback');assert.equal(feedback.getAttribute('role'),'alert');assert.match(feedback.textContent,/Sem conexão/);assert.equal(trigger.element.disabled,false);
   feedback.querySelector('button').click();assert.equal(feedback.hidden,true);assert.equal(feedback.style.display,'none');
  }finally{trigger.dispose();f.restore();}
+});
+
+test('summary source includes explicit ticket status and selected-email metadata without importing other messages',async()=>{
+ const f=setup();try{
+  const header=f.scope.querySelector('header');header.insertAdjacentHTML('beforeend','<span class="label" ng-class="legend.stateProgressName">Em andamento</span>');
+  const context=collectAiTicketContext(f.scope);assert.equal(context.metadata.statusDoSistema,'Em andamento');assert.match(context.context,/Status explícito do sistema: Em andamento/);
+  f.scope.insertAdjacentHTML('beforeend','<article><div class="content-comment-interaction">OUTRA MENSAGEM NAO SELECIONADA</div></article>');
+  await openAiSidebar(f.scope,'summary_latest',f.scope.querySelector('.content-comment-interaction'));await f.prepared();
+  const selected=f.calls.find(m=>m.snapshot).snapshot.selection;
+  assert.match(selected,/Ticket de referência:/);assert.match(selected,/Remetente:/);assert.match(selected,/Pedido do cliente/);assert.ok(!selected.includes('OUTRA MENSAGEM'));
+  header.querySelector('.label').remove();assert.equal(collectAiTicketContext(f.scope).metadata.statusDoSistema,'[FALTA INFORMAR]');
+ }finally{f.restore();}
 });
