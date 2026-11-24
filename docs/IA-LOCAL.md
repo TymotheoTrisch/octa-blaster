@@ -14,19 +14,19 @@ Para homologar mantendo a extensão oficial, use outro perfil do Firefox: o ID �
 
 ## Resumos e chat
 
-**Resumir** no cabeçalho do e-mail abre a lateral e analisa somente a mensagem selecionada. **Resumir ticket** abre a mesma lateral, carrega as interações disponíveis e resume o ticket. O chat mostra o título do ticket; a aba **Respostas** mantém as respostas rápidas da extensão.
+**Resumir** no cabeçalho do e-mail abre a lateral e analisa somente a mensagem selecionada. **Resumir ticket** abre a mesma lateral, carrega as interações disponíveis e resume o ticket. O chat mostra o título do ticket; a seta de voltar retorna às respostas rápidas. O texto do chat pode ser selecionado e copiado. Mesmo enquanto um resumo processa, seu botão permite reabrir a lateral sem criar outra consulta.
 
 A conversa é salva por ticket/origem/workspace/conexão. Perguntas seguem o contexto atualizado e usam até seis pares recentes de histórico. Perguntas próprias podem ser editadas, gerando uma continuação a partir daquele ponto. Fechar a lateral não apaga a conversa e não inicia outra consulta. Reabrir o ticket sem mudança de conteúdo recupera o chat sem gerar outro resumo.
 
 Cada mensagem da IA tem **Copiar** e **Inserir no ticket**. Inserir usa o editor do ticket/frame de origem, exige que a aba esteja ativa e não envia nada ao cliente. Troca de ticket ou rascunho invalida referências de geração/inserção antigas.
 
-No Firefox, os gatilhos são botões numa pequena página da extensão embutida no cabeçalho/editor: o clique é encaminhado ao background como gesto da extensão. Isso permite abrir a lateral com um único clique respeitando a restrição do navegador. No Chrome usa o evento do botão e `sidePanel.open` diretamente no background, sem awaits antes da abertura. Referências: [Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/User_actions), [Chrome](https://developer.chrome.com/docs/extensions/reference/api/sidePanel).
+No Chrome, o botão do ticket abre diretamente `sidePanel.open`. No Firefox, um clique dentro do site não autoriza `sidebarAction.open`: se a lateral já estiver aberta, o resumo aparece nela; se estiver fechada, o popup da extensão oferece **Abrir resumo na lateral**, cujo clique é autorizado pelo navegador. Quando o Firefox impede abrir o próprio popup, abra-o pelo ícone da extensão para usar essa ação. O resumo continua preparado por ticket, sem perder a consulta. Referência: [restrição de gestos no Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/User_actions). A página embarcada usada anteriormente foi removida porque não transfere essa autorização.
 
 ## Resposta a partir do texto digitado
 
-Digite no **próprio editor de resposta pública** o que deseja comunicar, por exemplo: Peça ao cliente que confirme o funcionamento. Um pequeno ícone de IA aparece no canto superior direito do editor. Digitar ou focar não chama a IA. O clique no ícone abre a lateral e gera uma resposta usando a orientação e os fatos do ticket. A ação na barra do widget também utiliza o texto já digitado.
+Digite no **próprio editor de resposta pública** o que deseja comunicar, por exemplo: Peça ao cliente que confirme o funcionamento. Um pequeno ícone de IA aparece no canto superior direito do editor. Digitar ou focar não chama a IA. O clique no ícone guarda a orientação, limpa o editor e gera a resposta diretamente nesse mesmo campo, usando os fatos do ticket. A lateral não é aberta nem recebe essa geração. A ação na barra do widget também utiliza o texto já digitado.
 
-Não há input de orientação separado nem geração automática ao entrar no editor. A sugestão permanece no chat. Ao escolher **Inserir no ticket** nessa resposta, a extensão substitui a orientação somente se o rascunho continuar exatamente igual ao snapshot capturado. Se você editar durante a espera, a inserção é recusada. Mensagens comuns do chat usam a inserção normal, como as respostas rápidas.
+Não há input de orientação separado nem geração automática ao entrar no editor. Enquanto aguarda, o campo fica vazio e o botão indica processamento. A resposta é preenchida quando a consulta termina. Se houver falha, a orientação original é restaurada somente se o campo não tiver sido editado. Digitação ou troca de ticket descarta o resultado pendente. Nenhuma resposta é enviada automaticamente ao cliente.
 
 Não infere equipe/empresa do atendente a partir do rodapé do cliente. Os cabeçalhos identificam autores/papéis quando disponíveis. O modelo deve omitir assinaturas; a resposta sugerida passa também por remoção de encerramentos e rodapés comuns. Essa proteção não é um classificador universal de identidades em texto livre. Toda saída deve ser revisada antes do envio manual.
 
@@ -56,4 +56,4 @@ Use `pnpm compile`, `pnpm test`, `pnpm build`, `pnpm build:firefox`, `pnpm --dir
 
 Validar no Octadesk real antes da aprovação: histórico longo e múltiplos autores, origem do editor, rascunho modificado durante espera, retomada de chat, cache/expiração e qualidade/latência das respostas do provedor. Resultados e limites em [VALIDATION.md](../apps/local-helper/VALIDATION.md).
 
-Ao acionar uma consulta, o botão mostra processamento e bloqueia cliques repetidos. Um aviso próximo informa carregamento, conclusão ou erro; falhas ficam visíveis até fechar o aviso ou tentar novamente. O erro também aparece no chat. Nenhuma falha altera o rascunho.
+Ao acionar uma consulta, o botão mostra processamento. A geração de resposta bloqueia cliques repetidos; os botões de resumo continuam permitindo reabrir a lateral sem duplicar consultas. Um aviso próximo informa carregamento, conclusão ou erro; falhas ficam visíveis até fechar o aviso ou tentar novamente. Erros de resumo também aparecem no chat. Falhas na resposta direta restauram a orientação somente quando o campo segue intacto.

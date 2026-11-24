@@ -41,7 +41,7 @@ test('generated answer replaces only the exact instruction snapshot and stale ed
 });
 
 test('processing and errors stay visible at the trigger and background progress reaches only its source',async()=>{
- const f=setup(),trigger=createAiTrigger(f.document,'Gerar resposta',()=>{});f.document.body.append(trigger.element);
+ const f=setup(),trigger=createAiTrigger(f.document,'Gerar resposta',()=>{},{opensSidebar:false});f.document.body.append(trigger.element);
  try{
   trigger.report({busy:true,status:'Aguardando a IA…'});
   assert.equal(trigger.element.disabled,true);assert.equal(trigger.element.getAttribute('aria-busy'),'true');

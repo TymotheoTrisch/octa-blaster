@@ -10,6 +10,7 @@ import { insertTextIntoElement } from './insertText';
 
 interface Source { scope: HTMLElement; identity: string; message?: HTMLElement; editor?: HTMLElement; draft?: string; draftToken?: string; progress?: (state: AiTriggerProgress) => void }
 const sources = new Map<string, Source>();
+export function showAiSidebar(scope: HTMLElement, alreadyOpened=false) { return aiLocalMessage('AI_PANEL_SHOW', {identity:getAiTicketIdentity(scope),alreadyOpened}); }
 export function openAiSidebar(scope: HTMLElement, task: PanelTask, message?: HTMLElement, editor?: HTMLElement, alreadyOpened = false, progress?: (state: AiTriggerProgress) => void) {
   const id = crypto.randomUUID(), identity = getAiTicketIdentity(scope);
   const source: Source = { progress, scope, identity, message, editor, draft: editor?.innerHTML, draftToken: editor ? crypto.randomUUID() : undefined };

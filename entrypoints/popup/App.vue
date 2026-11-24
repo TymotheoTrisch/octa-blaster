@@ -91,6 +91,10 @@ const isSidebar = computed(() => {
 });
 
 let aiWindowId = 0;
+const pendingSidebar = ref(false);
+async function openRequestedSidebar() {
+  try { const opened = (browser as any).sidebarAction.open(); await opened; await browser.runtime.sendMessage({action:'AI_PANEL_ACTIVATE',windowId:aiWindowId}); window.close(); } catch(error) {setStatus(error instanceof Error ? error.message : 'Não foi possível abrir a lateral.','error');}
+}
 async function revealRequestedChat() {
   const result = await browser.runtime.sendMessage({ action: 'AI_PANEL_REVEAL', windowId: aiWindowId });
   if (result?.success && result.data) currentView.value = 'ai-chat';
@@ -480,6 +484,7 @@ async function checkSidebarSupport() {
 }
 
 async function openSidebarPanel() {
+  if (pendingSidebar.value) return openRequestedSidebar();
   try {
     const b = browser as any;
     const c = (globalThis as any).chrome;
@@ -525,6 +530,7 @@ onMounted(() => {
   void loadTemplates().then(refreshCatalogs);
   void checkLicenseStatus();
   void checkSidebarSupport();
+  if (!isSidebar.value) { void browser.windows.getCurrent().then(async win => {aiWindowId=win.id!;const result=await browser.runtime.sendMessage({action:'AI_PANEL_ACCESS',windowId:aiWindowId});pendingSidebar.value=!!result?.data;}).catch(()=>{}); }
   if (isSidebar.value) {
     browser.runtime.onMessage.addListener(panelNotification);
     void browser.windows.getCurrent().then(async win => { aiWindowId = win.id!; await revealRequestedChat(); }).catch(() => {});
@@ -561,6 +567,7 @@ onUnmounted(() => {
       @open-discussions="openExternalUrl(GITHUB_DISCUSSIONS_URL)"
     />
 
+    <div v-if="pendingSidebar && !isSidebar" class="sidebar-request" role="status"><p>Continue com o resumo do ticket no painel lateral.</p><button type="button" @click="openRequestedSidebar">Abrir resumo na lateral</button></div>
     <transition name="fade">
       <div v-if="statusMessage" :class="['status-banner', `status-${statusType}`]">
         <span class="status-icon">
@@ -667,6 +674,8 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.sidebar-request{padding:12px;background:var(--accent-soft);color:var(--text-primary);font-size:12px}.sidebar-request button{width:100%;padding:10px;border:0;border-radius:6px;background:var(--accent);color:var(--accent-text);cursor:pointer}
+
 .popup-container {
   display: flex;
   flex-direction: column;

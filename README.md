@@ -48,7 +48,7 @@ Projetada especificamente para equipes de atendimento e suporte que utilizam o *
 
 ### Assistente de IA local (em desenvolvimento)
 
-Resumos de e-mail e ticket abrem o chat no painel lateral nativo, com histórico por ticket, cópia, edição de perguntas e **Inserir no ticket** em cada mensagem da IA. Para preparar uma resposta, digite a orientação no próprio editor e clique no ícone de IA no canto superior direito. Não há modal ou input extra; nenhuma resposta é enviada automaticamente ao cliente.
+Resumos de e-mail e ticket abrem o chat no painel lateral nativo, com histórico por ticket, cópia, edição de perguntas e **Inserir no ticket** em cada mensagem da IA. Para preparar uma resposta, digite a orientação no próprio editor e clique no ícone de IA no canto superior direito. A orientação é guardada, o campo é limpo e o resultado aparece diretamente nele, sem abrir o chat. Se a geração falhar, a orientação é restaurada quando não houve outra edição. Não há modal ou input extra; nenhuma resposta é enviada automaticamente ao cliente.
 
 No Firefox/Windows, o auxiliar 0.3.3 inicia sob demanda após instalação gráfica única. Oferece login ChatGPT, APIs OpenAI/Gemini/Claude/NVIDIA e gateway de equipe opcional. A proposta 1.3.0 inclui cache de resumos, menor orçamento de saída nas APIs e limpeza remota fora do caminho da inferência. Credenciais protegidas, retenção configurável e padrões numéricos de escrita sem exemplos arquivados. Consulte [IA: instalação, dados e limites](docs/IA-LOCAL.md) e [validação](apps/local-helper/VALIDATION.md).
 

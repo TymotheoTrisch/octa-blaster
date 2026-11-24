@@ -2,7 +2,7 @@ import { rememberWriting, writingIdentity } from '@/services/ai/writingMemory';
 import { bindInpageAppearance } from '@/services/appearance/inpageTheme';
 import { getAiTicketIdentity, readAiMessage, ticketMessages } from './aiTicketContext';
 import { getScopedTicketContainer, isTicketElementVisible } from './licenseDetector';
-import { openAiSidebar } from './aiPanelBridge';
+import { generateTicketReply } from './aiReplyGeneration';
 import { createAiTrigger } from './aiTrigger';
 import { aiIcons } from './aiIcons';
 
@@ -12,7 +12,7 @@ export async function suggestTicketReply(editor: HTMLElement) {
   const scope = getScopedTicketContainer(editor);
   if (!scope || !isPublicEditor(editor) || !isTicketElementVisible(editor)) throw new Error('Selecione o campo de resposta pública.');
   if (!editorText(editor)) throw new Error('Digite no editor como deseja responder e clique no ícone de IA.');
-  return openAiSidebar(scope, 'reply', undefined, editor);
+  return generateTicketReply(editor);
 }
 
 /** Aprende apenas depois de um novo comentário publicado corresponder ao rascunho submetido. */
@@ -27,12 +27,12 @@ export function startReplyAssistance(doc: Document) {
       if (!binding) {
         const parent = editor.parentElement!;
         if (doc.defaultView?.getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
-        const trigger = createAiTrigger(doc, 'Gerar resposta', (opened, report) => { const scope = getScopedTicketContainer(editor); if (!scope || !editorText(editor)) throw new Error('Digite uma orientação no campo de resposta pública.'); return openAiSidebar(scope, 'reply', undefined, editor, opened, report); });
+        const trigger = createAiTrigger(doc, 'Gerar resposta', (_opened, report) => generateTicketReply(editor, report), { opensSidebar: false });
         const button = trigger.element; button.className = 'octa-editor-ai-button'; button.dataset.octaAi = 'true'; if (button.tagName === 'BUTTON') button.innerHTML = aiIcons.sparkle; button.title = 'Gerar resposta a partir do texto digitado'; button.setAttribute('aria-label', button.title);
         button.addEventListener('mousedown', event => event.preventDefault());
         parent.append(button); const stopTheme = bindInpageAppearance(button); binding = { button, stop() { trigger.dispose(); stopTheme(); } }; buttons.set(editor, binding);
       }
-      const visible = isPublicEditor(editor) && isTicketElementVisible(editor) && !!editorText(editor);
+      const visible = isPublicEditor(editor) && isTicketElementVisible(editor) && (!!editorText(editor) || editor.getAttribute('aria-busy') === 'true');
       if (binding.button.hidden === visible) binding.button.hidden = !visible;
     }
   }

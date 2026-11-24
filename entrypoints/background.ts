@@ -35,10 +35,6 @@ export default defineBackground(() => {
 
   browser.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== browser.runtime.id || !message || typeof message !== 'object') return;
-    if (message.action === 'AI_TRIGGER_OPEN_SIDEBAR' && sender.url?.startsWith(browser.runtime.getURL('/ai-trigger.html'))) {
-      try { Promise.resolve((browser as any).sidebarAction.open()).then(() => respond({success:true}), error => respond({success:false,error:error.message})); } catch(error) { respond({success:false,error:error instanceof Error ? error.message : 'Abra o painel lateral.'}); }
-      return true;
-    }
     if (panelRouter.handleMessage(message, sender, respond)) return true;
     if (aiRouter.canHandle(message.action)) return aiRouter.handleMessage(message, sender, respond);
     if (message.action === 'SYNC_BROWSER_ICON') {

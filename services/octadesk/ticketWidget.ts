@@ -1,5 +1,5 @@
 import { createAiTrigger } from './aiTrigger';
-import { openAiSidebar } from './aiPanelBridge';
+import { generateTicketReply } from './aiReplyGeneration';
 import { readAiMessage } from './aiTicketContext';
 import { aiIcons } from './aiIcons';
 import { insertTextIntoElement } from './insertText';
@@ -355,8 +355,8 @@ function createWidgetElement(
   const aiTrigger = createAiTrigger(doc, 'Sugerir resposta', (opened, report) => {
     const editor = editorContext.findEditorForWidget(container), scope = editor && getScopedTicketContainer(editor);
     if (!editor || !scope || !readAiMessage(editor).trim()) throw new Error('Digite no editor como deseja responder e clique no ícone de IA.');
-    licenseFeedback.hidden = true; return openAiSidebar(scope, 'reply', undefined, editor, opened, report);
-  });
+    licenseFeedback.hidden = true; return generateTicketReply(editor, report);
+  }, { opensSidebar: false });
   aiTrigger.element.className = 'octa-action-btn octa-btn-ai'; widget.querySelector('.octa-ai-trigger-slot')!.replaceWith(aiTrigger.element);
   aiTrigger.element.addEventListener('mousedown', event => event.preventDefault());
   const btnToggle = widget.querySelector('.octa-btn-toggle') as HTMLElement;

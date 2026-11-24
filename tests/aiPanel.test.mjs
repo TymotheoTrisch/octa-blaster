@@ -5,12 +5,12 @@ import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
 import { installStorage } from './helpers.mjs';
 const source = { id: 'extension', tab: { id: 1, windowId: 9, active: true, url: 'https://app.octadesk.com/ticket/edit/1' }, frameId: 2, url: 'https://app.octadesk.com/embed/main/home/ticket/edit/1' };
 const ui = { id: 'extension', url: 'moz-extension://extension/sidepanel.html' };
-function setup(generate = async () => ({ text: 'Resposta fictícia' })) {
+function setup(generate = async () => ({ text: 'Resposta fictícia' }), nativeSidebar = false) {
   const storage = installStorage(), store = createTicketChatStore(), calls = [], events = [];
   let value = { title: 'Ticket fictício', key: 'a'.repeat(64), digest: 'b'.repeat(64), namespace: 'local', context: 'Mensagem do cliente fictício.' };
   browser.runtime = { getURL: path => `moz-extension://extension${path}`, sendMessage: async event => { events.push(event); } };
   browser.tabs = { get: async () => source.tab, sendMessage: async (_tab, message, options) => { assert.equal(options.frameId, 2); if (message.action === 'AI_PANEL_SNAPSHOT') return { success: true, data: value }; calls.push(message); return { success: true }; } };
-  const router = createAiPanelRouter(async (message) => { calls.push(message); if (['AI_CHAT_LOAD','AI_CHAT_SAVE'].includes(message.action)) return store.handle(message.action, message.key, message.revision, message.content); if (message.action === 'AI_CANCEL') return {}; return generate(message); }, () => { events.push({ action: 'sidebar-open' }); return Promise.resolve(); });
+  const router = createAiPanelRouter(async (message) => { calls.push(message); if (['AI_CHAT_LOAD','AI_CHAT_SAVE'].includes(message.action)) return store.handle(message.action, message.key, message.revision, message.content); if (message.action === 'AI_CANCEL') return {}; return generate(message); }, nativeSidebar ? undefined : () => { events.push({ action: 'sidebar-open' }); return Promise.resolve(); });
   const call = (message, sender = ui) => new Promise(resolve => router.handleMessage(message, sender, result => resolve(structuredClone(result))));
   const get = async () => (await call({ action: 'AI_PANEL_GET', windowId: 9 })).data;
   const open = async (id = 'one', task = 'summary_full') => { assert.equal((await call({ action: 'AI_PANEL_OPEN', id, identity: 'ticket-A', task }, source)).success, true); return call({ action: 'AI_PANEL_CONTEXT', id, snapshot: value }, source); };
@@ -98,4 +98,32 @@ test('originating button receives busy state and provider errors without losing 
     const last=f.calls.filter(x=>x.action==='AI_PANEL_PROGRESS').at(-1);
     assert.equal(last.progress.busy,false);assert.match(last.progress.error,/Provedor indisponível/);
   }finally{f.storage.restore();}
+});
+
+test('summary can reopen the sidebar while busy without another model request',async()=>{
+ let finish;const f=setup(()=>new Promise(resolve=>{finish=resolve;}));try{
+  await f.open();for(let i=0;i<100&&!finish;i++)await new Promise(resolve=>setTimeout(resolve,5));
+  const before=f.calls.filter(m=>m.action==='AI_GENERATE').length;
+  assert.equal((await f.call({action:'AI_PANEL_SHOW',identity:'ticket-A'},source)).success,true);
+  assert.equal(f.events.filter(m=>m.action==='sidebar-open').length,2);
+  assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,before);
+  assert.equal((await f.call({action:'AI_PANEL_SHOW',identity:'ticket-A'},{...source,frameId:7})).success,false);
+  finish({text:'Resumo pronto'});await f.done();
+ }finally{f.storage.restore();}
+});
+
+test('Firefox queues the summary and offers a native popup action instead of claiming a forbidden sidebar gesture',async()=>{
+ const f=setup(undefined,true);let popups=0;browser.sidebarAction={isOpen:async()=>false};browser.browserAction={openPopup:async()=>{popups++;}};
+ try{
+  await f.open();await f.done();assert.equal(popups,1);
+  assert.equal((await f.call({action:'AI_PANEL_ACCESS',windowId:9})).data,true);
+  assert.equal((await f.call({action:'AI_PANEL_ACTIVATE',windowId:9},source)).success,false);
+  assert.equal((await f.call({action:'AI_PANEL_ACTIVATE',windowId:9})).success,true);
+  assert.equal((await f.call({action:'AI_PANEL_ACCESS',windowId:9})).data,false);
+  assert.equal((await f.call({action:'AI_PANEL_REVEAL',windowId:9})).data,true);
+  browser.browserAction.openPopup=async()=>{throw new Error('User gesture required');};
+  await f.open('blocked');await f.done();assert.equal((await f.call({action:'AI_PANEL_ACCESS',windowId:9})).data,true);
+  assert.match(f.calls.filter(m=>m.action==='AI_PANEL_PROGRESS').at(-1).progress.status,/ícone da extensão/);
+  f.router.clearTab(1);
+ }finally{delete browser.sidebarAction;delete browser.browserAction;f.storage.restore();}
 });
