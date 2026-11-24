@@ -2,6 +2,12 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Histórico em menu lateral
+
+- Histórico abre como menu sobreposto à esquerda, com ícone de painel, Novo chat, busca, lista Recentes e rolagem independente. Mantém a geometria da conversa ao fundo e usa as cores da extensão nos temas claro/escuro.
+- Chromium com extensão real verificou largura de 280 px em painel de 430 px, altura completa do chat, fundo inerte, rolagem independente, ciclo de foco por Tab, fechamento por Esc/clique fora e retorno do foco ao botão. Firefox real confirmou posição/altura, fundo inerte e fechamento por Esc com foco restaurado. Dados e IA fictícios; nenhuma inferência real.
+- TypeScript e builds Chrome/Firefox aprovados. Mudança visual; armazenamento e APIs de conversas preservados.
+
 ## Chat com leitura da página do ticket
 
 - Usar ticket aberto conecta o chat ao frame real do ticket sem exigir clique no editor ou gerar um resumo. Reutiliza a conversa canônica do ticket; um chat livre permanece independente até essa ação. Tickets retomados pelo histórico reconectam quando o mesmo ticket está ativo.

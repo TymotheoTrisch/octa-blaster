@@ -92,7 +92,7 @@ Ao acionar uma consulta, o botão mostra processamento. A geração de resposta 
 
 ## Conversas independentes e histórico
 
-Em **Inteligência artificial → Conversas com a IA**, **Novo chat** inicia uma conversa vazia com o mesmo provedor/modelo configurado, sem importar contexto de tickets ou de outros chats. O título vem da primeira pergunta, sem uma chamada extra ao modelo. O botão de histórico lista chats e tickets por atualização, permite buscar pelo título/número e retomar mensagens e rascunho. Não há abas permanentes de IA na tela inicial.
+Em **Inteligência artificial → Conversas com a IA**, **Novo chat** inicia uma conversa vazia com o mesmo provedor/modelo configurado, sem importar contexto de tickets ou de outros chats. O título vem da primeira pergunta, sem uma chamada extra ao modelo. O ícone de painel à esquerda abre o histórico em um menu lateral sobreposto, com Novo chat, busca e lista Recentes. Permite buscar pelo título/número e retomar mensagens e rascunho, sem deslocar a conversa. Feche pelo X, Esc ou clique fora. Não há abas permanentes de IA na tela inicial.
 
 Cada ticket conserva sua chave e sua única conversa, compartilhada entre Resumir mensagem e Resumir ticket. O histórico permite conversar usando a última cópia de texto salva, mesmo sem o ticket aberto. Um aviso identifica esse contexto salvo. Ao retomar com o mesmo ticket ativo, o chat reconecta à página e habilita a inserção no editor validado. Cada pergunta relê o DOM. Sem o ticket correspondente aberto, mantém a cópia salva e informa isso. Chats antigos sem metadados aparecem como Ticket salvo até serem reabertos pelo ticket.
 
