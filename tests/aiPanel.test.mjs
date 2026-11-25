@@ -8,6 +8,32 @@ import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
 import { installStorage } from './helpers.mjs';
 const source = { id: 'extension', tab: { id: 1, windowId: 9, active: true, url: 'https://app.octadesk.com/ticket/edit/1' }, frameId: 2, url: 'https://app.octadesk.com/embed/main/home/ticket/edit/1' };
 
+test('typed chat questions keep processing in the sidebar without updating summary trigger notices', async () => {
+ let count=0,finish;
+ const f=setup(()=>++count===1?Promise.resolve({text:'Resumo pronto'}):new Promise(resolve=>{finish=resolve;}));
+ try {
+  await f.open();await f.done();
+  const before=f.calls.filter(message=>message.action==='AI_PANEL_PROGRESS').length;
+  assert.ok(before>0);
+  assert.equal(f.calls.filter(message=>message.action==='AI_PANEL_PROGRESS').at(-1).progress.busy,false);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:'one',text:'Explique o próximo passo.'});
+  for(let i=0;!finish&&i<100;i++)await new Promise(resolve=>setTimeout(resolve,5));
+  assert.ok(finish);assert.equal((await f.get()).busy,true);
+  assert.equal(f.calls.filter(message=>message.action==='AI_PANEL_PROGRESS').length,before);
+  finish({text:'Próximo passo explicado'});await f.done();
+  assert.equal(f.calls.filter(message=>message.action==='AI_PANEL_PROGRESS').length,before);
+ }finally{f.storage.restore();}
+});
+
+test('entering and typing in a ticket chat never creates feedback on an unclicked summary button',async()=>{
+ const f=setup();try{
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-A',identity:'ticket-A'}]},source);
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});const state=await f.get();
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Qual é o pedido?'});await f.done();
+  assert.equal(f.calls.filter(message=>message.action==='AI_PANEL_PROGRESS').length,0);
+ }finally{f.storage.restore();}
+});
+
 test('a free chat works while a ticket is open and never queries its page', async () => {
  const f=setup();try{
   browser.tabs.query=async()=>{assert.fail('Free chat must not read the current tab');};

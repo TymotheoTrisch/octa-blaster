@@ -109,3 +109,5 @@ Também é possível escrever **ticket 272402** ou **#272402**. A extensão busc
 Fechar a aba do atendimento preserva a conversa e permite continuar com seus dados salvos. Chats e registros de contexto obedecem à retenção configurada, fora do backup das respostas rápidas. São dados deste perfil do navegador, não um banco compartilhado entre usuários/computadores. A cópia salva não acompanha novas mensagens recebidas enquanto o ticket está fechado.
 
 Validação desta revisão de contexto: 212 testes passaram, com cobertura de conversa livre sem acesso à página, retomada fixada em outro ticket, referência explícita por número e continuidade após fechar a aba. TypeScript e builds Chrome/Firefox concluídos. A geração dos testes usa IA simulada; não houve inferência paga.
+
+Os avisos de processamento junto dos botões de resumo só acompanham a consulta iniciada por aquele botão e terminam ao concluir ou falhar. Perguntas digitadas no chat mantêm processamento e erros somente no painel lateral, sem ativar os controles de resumo da página.

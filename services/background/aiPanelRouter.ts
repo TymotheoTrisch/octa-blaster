@@ -11,7 +11,7 @@ import type { ChatDetails } from '@/services/storage/aiChatStorage';
 
 const FULL = TICKET_SUMMARY_PROMPT;
 type AiCall = (message: any, sender: any) => Promise<any>;
-interface Session { ticketContextKey?: string; resetSource?: any; customTitle?: boolean; followTicket?: boolean; windowId?: number; state: AiPanelState; sender: any; identity: string; task: PanelTask; snapshot?: PanelSnapshot; revision: string | null; request?: string; save: Promise<unknown>; insertions: Map<number, string>; cancelled: boolean; warning?: string; persistent?: boolean; summaryDigest?: string; summaryQuestion?: string }
+interface Session { triggerFeedback?: boolean; ticketContextKey?: string; resetSource?: any; customTitle?: boolean; followTicket?: boolean; windowId?: number; state: AiPanelState; sender: any; identity: string; task: PanelTask; snapshot?: PanelSnapshot; revision: string | null; request?: string; save: Promise<unknown>; insertions: Map<number, string>; cancelled: boolean; warning?: string; persistent?: boolean; summaryDigest?: string; summaryQuestion?: string }
 const allowed = (url: string) => { try { const value = new URL(url); return value.protocol === 'https:' && (value.hostname === 'app.octadesk.com' || value.hostname.endsWith('.octadesk.com')); } catch { return false; } };
 const deferredSidebarWindows = new Set<number>();
 export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: number, _alreadyOpened = false) => {
@@ -34,7 +34,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
   const pendingReveal = new Map<number, number>();
   const cache = new Map<string, { text: string; at: number }>();
   const progress = (session: Session, override?: {busy:boolean; status:string; error?:string}) => {
-    if (!session.sender.tab) return;
+    if (!session.triggerFeedback || !session.sender.tab) return;
     const state = session.state;
     void browser.tabs.sendMessage(session.sender.tab.id, {action:'AI_PANEL_PROGRESS',id:state.id,identity:session.identity,progress: override || {busy:state.busy || (!state.ready && !state.error && !session.cancelled),status:(state.status+(deferredSidebarWindows.has(session.sender.tab.windowId) ? ' Abra o ícone da extensão e escolha Abrir resumo na lateral.' : '')).slice(0,500),error:state.busy ? '' : state.error.slice(0,2000)}}, {frameId:session.sender.frameId ?? 0}).catch(() => {});
   };
@@ -213,7 +213,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
       session.state.status = session.state.cached ? 'Resumo reaproveitado; nenhuma nova consulta à IA.' : 'Pronto para revisar.';
       try { await persist(session); } catch { session.warning = 'Resposta exibida, mas o histórico não pôde ser salvo neste computador.'; session.state.error = session.warning; }
     } catch (error) { if (active(windowId, session)) { session.state.error = error instanceof Error ? error.message : 'Não foi possível consultar a IA.'; session.state.messages = task==='chat'?[...base,{role:'user',content:question}]:original;if(task==='chat'){session.state.draft='';session.state.status='A consulta falhou. Edite a mensagem para tentar novamente.';} } }
-    finally { session.request = undefined; if (active(windowId, session)) { session.state.busy = false; changed(windowId); } }
+    finally { session.request = undefined; if (active(windowId, session)) { session.state.busy = false; changed(windowId); session.triggerFeedback = false; } }
   }
   return {
     activeTabChanged: notifyPage,
@@ -254,7 +254,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           // Chama a API na pilha do clique; não aguarda storage, DOM ou rede antes de abrir.
           const opened = openSidebar(sender.tab.windowId, message.alreadyOpened === true);
           const old = sessions.get(sender.tab.windowId); const previousSave = old ? persist(old).catch(() => {}) : Promise.resolve(); if (old) { cancel(old); progress(old, {busy:false,status:'Consulta anterior encerrada.'}); }
-          const session: Session = { windowId:sender.tab.windowId, followTicket:true, state: { id: message.id, title: 'Conversa do ticket', kind:'ticket',ticketUrl:sender.tab.url, messages: [], draft: '', busy: false, ready: false, status: 'Carregando o ticket…', error: '' }, sender, identity: message.identity, task: message.task, revision: null, save: previousSave, insertions: new Map(), cancelled: false };
+          const session: Session = { triggerFeedback:true, windowId:sender.tab.windowId, followTicket:true, state: { id: message.id, title: 'Conversa do ticket', kind:'ticket',ticketUrl:sender.tab.url, messages: [], draft: '', busy: false, ready: false, status: 'Carregando o ticket…', error: '' }, sender, identity: message.identity, task: message.task, revision: null, save: previousSave, insertions: new Map(), cancelled: false };
           sessions.set(sender.tab.windowId, session); pendingReveal.set(sender.tab.windowId, Date.now()); changed(sender.tab.windowId, true);
           Promise.resolve(opened).then(() => { changed(sender.tab.windowId); respond({ success: true }); }, respondError);
         } catch (error) { respondError(error); }
@@ -293,7 +293,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
         if (!session || session.state.id !== message.id) throw new Error('A conversa mudou. Abra pelo ticket novamente.');
         if (message.action === 'AI_PANEL_CONTEXT') {
           if (!content || sender.tab.id !== session.sender.tab.id || sender.frameId !== session.sender.frameId) throw new Error('Frame do ticket inválido.');
-          if (message.error) { cancel(session); session.state.busy = false; session.state.ready = false; session.state.error = String(message.error).slice(0, 500); session.state.status = ''; changed(windowId); return {}; }
+          if (message.error) { cancel(session); session.state.busy = false; session.state.ready = false; session.state.error = String(message.error).slice(0, 500); session.state.status = ''; changed(windowId); session.triggerFeedback = false; return {}; }
           const prompts=(await readAiPrompts()).prompts;
           const fullPrompt=summaryPrompt('ticket',prompts.ticket),emailPrompt=summaryPrompt('email',prompts.email);
           session.summaryQuestion=fullPrompt;
@@ -308,7 +308,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           await persist(session);
           const marker=await textDigest(summaryContextDigest(value.digest,fullPrompt));
           const legacyDefault=prompts.ticket===TICKET_SUMMARY_PROMPT && saved.chat?.contextDigest===await textDigest(`${SUMMARY_FORMAT_VERSION}:${value.digest}`);
-          if (session.task === 'summary_full' && session.state.messages.length && (saved.chat?.contextDigest===marker || legacyDefault)) { session.summaryDigest=marker; session.state.status = 'Conversa recuperada; nenhuma nova consulta à IA.'; changed(windowId); return {}; }
+          if (session.task === 'summary_full' && session.state.messages.length && (saved.chat?.contextDigest===marker || legacyDefault)) { session.summaryDigest=marker; session.state.status = 'Conversa recuperada; nenhuma nova consulta à IA.'; changed(windowId); session.triggerFeedback = false; return {}; }
           const question = session.task === 'summary_full' ? fullPrompt : session.task === 'summary_latest' ? emailPrompt : `Prepare uma resposta ao cliente a partir desta orientação:\n${value.direction || ''}${value.style ? `\n\n${value.style}` : ''}`;
           void run(windowId, session, question, session.task === 'summary_full' ? 'summary_full' : session.task === 'summary_latest' ? 'summary_latest' : 'chat', session.task !== 'reply', session.task === 'summary_latest' ? value.selection : undefined);
           return {};
