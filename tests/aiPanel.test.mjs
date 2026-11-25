@@ -8,6 +8,71 @@ import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
 import { installStorage } from './helpers.mjs';
 const source = { id: 'extension', tab: { id: 1, windowId: 9, active: true, url: 'https://app.octadesk.com/ticket/edit/1' }, frameId: 2, url: 'https://app.octadesk.com/embed/main/home/ticket/edit/1' };
 
+test('a free chat works while a ticket is open and never queries its page', async () => {
+ const f=setup();try{
+  browser.tabs.query=async()=>{assert.fail('Free chat must not read the current tab');};
+  browser.tabs.sendMessage=async()=>{assert.fail('Free chat must not ask the page for context');};
+  assert.equal((await f.call({action:'AI_PANEL_GENERAL',windowId:9})).success,true);
+  let state=await f.get();assert.equal(state.kind,'general');assert.equal(state.contextSource,'none');
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});
+  assert.equal((await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Explique uma receita.'})).success,true);
+  state=await f.done();assert.equal(state.error,'');
+  const request=f.calls.find(message=>message.action==='AI_GENERATE');
+  assert.equal(request.input.task,'general');assert.ok(!request.input.context.includes('cliente fictício'));
+ }finally{f.storage.restore();}
+});
+
+test('a history ticket stays pinned while another ticket is open, including after entering again', async () => {
+ const f=setup();try{
+  f.setSnapshot({ticketNumber:'272402'});await f.open();await f.done();
+  f.setSnapshot({key:'b'.repeat(64),ticketNumber:'272403',context:'DADOS_DO_TICKET_B'});
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-B',identity:'ticket-B'}]},source);
+  browser.tabs.query=async()=>{assert.fail('History must not query the active tab');};
+  browser.tabs.sendMessage=async()=>{assert.fail('History must not read the current ticket');};
+  assert.equal((await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'a'.repeat(64)})).success,true);
+  const state=await f.get();assert.equal(state.contextSource,'saved');assert.equal(state.ticketNumber,'272402');
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});
+  await f.call({action:'AI_PANEL_SYNC',windowId:9});
+  assert.equal((await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'O que falta?'})).success,true);
+  const done=await f.done();assert.equal(done.error,'');
+  const request=f.calls.filter(message=>message.action==='AI_GENERATE').at(-1);
+  assert.match(request.input.context,/cliente fictício/);assert.ok(!request.input.context.includes('DADOS_DO_TICKET_B'));
+ }finally{f.storage.restore();}
+});
+
+test('ticket data is saved before a chat exists and an explicit number opens it from a free chat without page access', async () => {
+ const f=setup();try{
+  f.setSnapshot({ticketNumber:'272402'});
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-A',identity:'ticket-A'}]},source);
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});assert.equal((await f.store.list('local')).length,0);
+  await f.call({action:'AI_PANEL_GENERAL',windowId:9});let state=await f.get();
+  browser.tabs.query=async()=>{assert.fail('Explicit saved ticket must not read an active page');};
+  browser.tabs.sendMessage=async()=>{assert.fail('Explicit saved ticket must not message a page');};
+  assert.equal((await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'O que falta no ticket 272402?'})).success,true);
+  state=await f.done();assert.equal(state.kind,'ticket');assert.equal(state.ticketNumber,'272402');assert.equal(state.contextSource,'saved');
+  assert.equal(state.messages[0].content,'O que falta no ticket 272402?');
+  const request=f.calls.find(message=>message.action==='AI_GENERATE');assert.equal(request.input.task,'chat');assert.equal(request.input.context,'Mensagem do cliente fictício.');
+  const failed=await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Consulte #999999'});
+  assert.equal(failed.success,false);assert.match(failed.error,/não está salvo/);
+  const edited=await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Consulte #999999',editIndex:0});
+  assert.equal(edited.success,false);assert.match(edited.error,/nova pergunta em vez de editar/);
+  assert.equal(f.calls.filter(message=>message.action==='AI_GENERATE').length,1);
+ }finally{f.storage.restore();}
+});
+
+test('closing the ticket tab keeps its saved conversation available for another question', async () => {
+ const f=setup();try{
+  await f.open();let state=await f.done();f.router.clearTab(1);
+  browser.tabs.query=async()=>[];
+  browser.tabs.get=async()=>{throw new Error('Tab closed');};
+  browser.tabs.sendMessage=async()=>{assert.fail('A closed ticket must not receive a context request');};
+  state=await f.get();assert.equal(state.detached,true);
+  assert.equal((await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Continue com o atendimento salvo.'})).success,true);
+  state=await f.done();assert.equal(state.error,'');assert.equal(state.contextSource,'saved');
+  assert.equal(f.calls.filter(message=>message.action==='AI_GENERATE').at(-1).input.context,'Mensagem do cliente fictício.');
+ }finally{f.storage.restore();}
+});
+
 test('new chats use the configured model without ticket context and restore their independent history and draft', async () => {
  const f=setup();try{
   await f.open();await f.done();
@@ -179,10 +244,11 @@ test('chat can bind the active ticket without a summary, reads fresh page data a
   assert.equal((await f.store.list('local')).filter(item=>item.kind==='ticket').length,1);
   await f.call({action:'AI_PANEL_NEW',windowId:9});
   await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'a'.repeat(64)});state=await f.get();
-  assert.equal(state.detached,false);assert.equal(state.messages.length,2);
+  assert.equal(state.detached,true);assert.equal(state.messages.length,2);
   browser.tabs.get=async()=>({...source.tab,active:false});
-  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Não consultar em outra aba'});await f.done();
-  assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,1);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Continue com os dados salvos'});await f.done();
+  assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,2);
+  assert.match(f.calls.filter(m=>m.action==='AI_GENERATE').at(-1).input.context,/id_case: Atual/);
  }finally{f.storage.restore();}
 });
 

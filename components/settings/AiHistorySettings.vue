@@ -4,7 +4,7 @@ import {aiMessage} from '@/services/ai/messageClient';
 const policy=ref({idleDays:30,maxDays:90}),pending=ref(0),busy=ref(false),loaded=ref(false),message=ref('');
 async function refresh(){busy.value=true;try{const result=await aiMessage('AI_CONFIG');policy.value={...result.retention};pending.value=result.pendingDeletes||0;loaded.value=true;}catch(error){message.value=error instanceof Error?error.message:'Não foi possível ler a retenção.';}finally{busy.value=false;}}
 async function save(){busy.value=true;message.value='';try{const result=await aiMessage('AI_RETENTION_SAVE',{retention:{...policy.value}});policy.value=result.retention;message.value='Retenção salva.';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível salvar.';}finally{busy.value=false;}}
-async function cleanup(){busy.value=true;try{const result=await aiMessage('AI_CLEANUP');pending.value=result.pendingDeletes||0;message.value=`${result.deleted||0} conversa(s) expirada(s) removida(s).`;}catch(error){message.value=error instanceof Error?error.message:'Não foi possível limpar.';}finally{busy.value=false;}}
+async function cleanup(){busy.value=true;try{const result=await aiMessage('AI_CLEANUP');pending.value=result.pendingDeletes||0;message.value=`${result.deleted||0} conversa(s) e ${result.deletedTickets||0} ticket(s) expirado(s) removido(s).`;}catch(error){message.value=error instanceof Error?error.message:'Não foi possível limpar.';}finally{busy.value=false;}}
 onMounted(refresh);
 </script>
 <template>

@@ -4,6 +4,7 @@ import { ArrowLeft, Copy, Pencil, CornerDownLeft, Loader2, Send, Check, PanelLef
 import type { AiPanelState } from '@/types/aiPanel';
 import { TICKET_SUMMARY_PROMPT, EMAIL_SUMMARY_PROMPT, summaryTextParts } from '@/services/ai/summaryFormat';
 import { aiMessage } from '@/services/ai/messageClient';
+import AiContextStatus from './AiContextStatus.vue';
 const emit = defineEmits<{ back: [] }>();
 const showHistory=ref(false),historyBusy=ref(false),search=ref(''),historyError=ref('');
 const historyDrawer=ref<HTMLElement|null>(null),historyToggle=ref<HTMLButtonElement|null>(null);
@@ -21,7 +22,7 @@ const chats=ref<{key:string;title:string;kind:'general'|'ticket';updatedAt:numbe
 const filteredChats=computed(()=>chats.value.filter(chat=>chat.title.toLocaleLowerCase().includes(search.value.toLocaleLowerCase())));
 async function refreshHistory(){historyBusy.value=true;try{chats.value=await aiMessage('AI_CHAT_LIST');}catch(error){feedback.value=error instanceof Error?error.message:'Histórico indisponível.';historyError.value=feedback.value;}finally{historyBusy.value=false;}}
 async function browse(){showHistory.value=!showHistory.value;if(showHistory.value){historyError.value='';await refreshHistory();}}
-async function openChat(key?:string){historyBusy.value=true;historyError.value='';try{if(!await saveDraft()){historyError.value=feedback.value;return;}await aiMessage(key?'AI_PANEL_RESUME':'AI_PANEL_NEW',{windowId,key});showHistory.value=false;await refresh();if(!key){draft.value='';editIndex.value=undefined;renaming.value=false;}await nextTick();composer.value?.focus();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível abrir a conversa.';historyError.value=feedback.value;}finally{historyBusy.value=false;await nextTick();if(!showHistory.value)composer.value?.focus();}}
+async function openChat(key?:string,free=false){historyBusy.value=true;historyError.value='';try{if(!await saveDraft()){historyError.value=feedback.value;return;}await aiMessage(key?'AI_PANEL_RESUME':free?'AI_PANEL_GENERAL':'AI_PANEL_NEW',{windowId,key});showHistory.value=false;await refresh();if(!key){draft.value='';editIndex.value=undefined;renaming.value=false;}await nextTick();composer.value?.focus();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível abrir a conversa.';historyError.value=feedback.value;}finally{historyBusy.value=false;await nextTick();if(!showHistory.value)composer.value?.focus();}}
 const contextBusy=ref(true);
 const renaming=ref(false),titleDraft=ref(''),titleInput=ref<HTMLInputElement|null>(null);
 async function startRename(){if(!state.value)return;titleDraft.value=state.value.title;renaming.value=true;await nextTick();titleInput.value?.focus();titleInput.value?.select();}
@@ -61,10 +62,12 @@ onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListen
      <div class="ai-panel-heading">
       <div v-if="renaming" class="ai-title-edit"><input ref="titleInput" v-model="titleDraft" aria-label="Título da conversa" maxlength="120" @keydown.enter.prevent="rename" @keydown.esc.stop.prevent="renaming=false"><button type="button" aria-label="Salvar título" @click="rename"><Check :size="14"/></button><button type="button" aria-label="Cancelar edição do título" @click="renaming=false"><X :size="14"/></button></div>
       <div v-else class="ai-title-row"><strong :title="state?.title">{{state?.title || 'Nova conversa'}}</strong><button v-if="state" type="button" aria-label="Renomear conversa" title="Renomear conversa" :disabled="state.busy" @click="startRename"><Pencil :size="12"/></button><a v-if="state?.ticketUrl" class="ai-ticket-link" :href="state.ticketUrl" target="_blank" rel="noopener noreferrer" :title="'Abrir ticket '+(state.ticketNumber||'')"><ExternalLink :size="12"/>{{state.ticketNumber?'#'+state.ticketNumber:'Ticket'}}</a></div>
-     </div><button type="button" title="Voltar para Inteligência artificial" aria-label="Voltar para Inteligência artificial" @click="emit('back')"><ArrowLeft :size="16" /></button>
+      <AiContextStatus :state="state"/>
+     </div><button type="button" title="Nova conversa livre" aria-label="Nova conversa livre" :disabled="contextBusy || historyBusy || state?.busy" @click="openChat(undefined,true)"><Plus :size="16"/></button><button type="button" title="Voltar para a tela inicial" aria-label="Voltar para a tela inicial" @click="emit('back')"><ArrowLeft :size="16" /></button>
     </header>
+    <p v-if="state?.kind==='general' && !state.messages.length" class="ai-panel-feedback">Faça qualquer pergunta. Para consultar um ticket salvo, escreva ticket 272402 ou #272402.</p>
     <div ref="log" class="ai-panel-log" role="log">
-      <p v-if="!state" class="ai-panel-hint">Escolha Novo chat para conversar com o modelo configurado, sem contexto de tickets. Os botões Resumir mantêm uma conversa por ticket.</p>
+      <p v-if="!state" class="ai-panel-hint">Escolha Conversa livre no botão + para conversar com o modelo configurado. Os botões Resumir mantêm uma conversa por ticket.</p>
       <article v-for="(turn,index) in state?.messages || []" :key="index" :data-role="turn.role"><strong>{{ turn.role === 'user' ? 'Você' : 'OctaBlaster' }}</strong><div class="ai-panel-text"><template v-if="turn.role === 'assistant'"><template v-for="(part,partIndex) in summaryTextParts(turn.content)" :key="partIndex"><strong v-if="part.heading" class="ai-summary-heading">{{ part.text }}</strong><span v-else>{{ part.text }}</span></template></template><template v-else>{{ visibleText(turn.content) }}</template></div><div v-if="turn.role === 'assistant'" class="ai-panel-actions"><button type="button" title="Copiar mensagem" @click="copy(turn.content)"><Copy :size="13" />Copiar</button><button v-if="!state?.detached" type="button" @click="insert(index)"><CornerDownLeft :size="13" />Inserir no ticket</button></div><button v-else type="button" title="Editar pergunta" :disabled="state?.busy" @click="edit(index)"><Pencil :size="13" />Editar</button></article>
       <p v-if="state?.busy" role="status" class="ai-panel-hint"><Loader2 :size="14" class="spin" />{{ state.status }} {{ seconds }}s</p>
     </div>
@@ -77,6 +80,7 @@ onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListen
     <aside id="ai-chat-history" ref="historyDrawer" class="ai-chat-history" aria-label="Histórico de conversas">
       <div class="ai-history-heading"><strong>Conversas</strong><button type="button" aria-label="Fechar histórico" title="Fechar histórico" @click="showHistory=false"><X :size="16"/></button></div>
       <button type="button" class="ai-new-chat" :disabled="contextBusy||historyBusy||state?.busy" @click="openChat()"><Plus :size="15"/>Nova conversa</button>
+      <button type="button" class="ai-new-chat" :disabled="contextBusy||historyBusy||state?.busy" @click="openChat(undefined,true)"><Plus :size="15"/>Conversa livre</button>
       <input v-model="search" type="search" aria-label="Buscar conversa" placeholder="Buscar conversa…">
       <p class="ai-history-label">Recentes</p>
       <p v-if="historyError" class="ai-history-note" role="status">{{historyError}}</p>

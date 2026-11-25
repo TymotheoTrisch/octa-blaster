@@ -182,7 +182,7 @@ function openView(view: PopupView) {
   currentView.value = view;
 }
 
-function backFromAiChat(){if(viewHistory.at(-1)==='ai')returnToPreviousView();else currentView.value='ai';}
+function backFromAiChat() { viewHistory.length = 0; currentView.value = 'templates'; void refreshCatalogs(); }
 
 function returnToPreviousView() {
   currentView.value = viewHistory.pop() || 'templates';

@@ -1,3 +1,4 @@
+import { aiTicketStore } from '@/services/storage/aiTicketStore';
 import { cleanupWriting } from '@/services/ai/writingMemory';
 import { createApiClient } from '@/services/ai/api/client';
 import { createTicketChatStore } from '@/services/storage/aiChatStorage';
@@ -12,7 +13,7 @@ export function createAiRouter(client = createApiClient()) {
   const pending = new Map<string, string>(), cancelled = new Set<string>();
   const ownerOf = (sender: any) => `${sender.tab?.id ?? 'ui'}:${sender.frameId ?? 0}`;
   return {
-    cleanup: async () => { await cleanupWriting(); return { ...await chats.cleanup(), ...await client.call('cleanup') }; },
+    cleanup: async () => { await cleanupWriting(); return { ...await chats.cleanup(), ...await aiTicketStore.cleanup(), ...await client.call('cleanup') }; },
     canHandle: (action: string) => ACTIONS.includes(action),
     clearTab(tabId: number) {
       for (const [id, owner] of pending) if (owner.startsWith(`${tabId}:`)) {

@@ -112,3 +112,7 @@ A entrada no chat e eventos de mudança de página/aba sincronizam a conversa pe
 O roteador mantém conversas vazias apenas em memória e persiste no primeiro envio, antes de aguardar a inferência. Nova conversa preserva o registro anterior até o próximo envio; nesse momento arquiva a versão anterior com chave derivada da revisão e salva a nova conversa canônica. Títulos personalizados são metadados locais e não alteram a identidade do ticket.
 
 A configuração e os contratos dos módulos de API estão documentados em [IA por APIs](IA-APIS.md).
+
+### Contexto independente da aba ativa
+
+`aiTicketStore.ts` mantém a base local de dados do ticket separada do histórico de conversa. `aiRetention.ts` aplica a mesma retenção a ambos. `ai/ticketContext.ts` resolve dados da página para sessões vinculadas ou registros locais para sessões retomadas; a retomada pelo histórico não envia mensagens de leitura ao content script. `ticketReference.ts` permite selecionar um atendimento salvo por número explícito, recusando colisões entre workspaces. O cabeçalho usa `AiContextStatus.vue` para indicar a origem dos dados, e o botão + cria uma conversa livre que não acompanha a navegação de tickets.
