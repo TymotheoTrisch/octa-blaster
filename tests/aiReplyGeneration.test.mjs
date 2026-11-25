@@ -19,6 +19,7 @@ test('reply clears instruction, generates directly in the same editor, and never
   f.finish('Olá, confirme se funcionou.\n\nAtenciosamente,\nEquipe da Empresa Cliente');await promise;
   assert.equal(f.editor.textContent,'Olá, confirme se funcionou.');assert.equal(f.editor.hasAttribute('aria-busy'),false);
   assert.ok(!f.calls.some(m=>m.action.startsWith('AI_PANEL_')||m.action==='AI_CHAT_SAVE'));assert.equal(f.progress.at(-1).busy,false);
+  assert.ok(f.progress.at(-1).timing.totalMs>=0);assert.ok(Number.isFinite(f.progress.at(-1).timing.apiMs));
  }finally{f.restore();}
 });
 test('provider error restores original instruction only when the cleared editor is untouched',async()=>{

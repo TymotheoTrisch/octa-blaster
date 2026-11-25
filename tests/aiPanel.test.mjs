@@ -8,6 +8,22 @@ import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
 import { installStorage } from './helpers.mjs';
 const source = { id: 'extension', tab: { id: 1, windowId: 9, active: true, url: 'https://app.octadesk.com/ticket/edit/1' }, frameId: 2, url: 'https://app.octadesk.com/embed/main/home/ticket/edit/1' };
 
+test('query timings belong only to the latest attempt, clear while waiting and are excluded from saved chats',async()=>{
+ let calls=0,reject;
+ const timing={queueMs:1,preparationMs:1,apiMs:1,finalizationMs:1,totalMs:4};
+ const f=setup(async()=>{calls++;if(calls===1)return {text:'Resumo de teste',timing};return new Promise((_resolve,fail)=>{reject=fail;});});
+ try{
+  await f.open();let state=await f.done();assert.ok(state.timing);assert.equal(state.queryMs,state.timing.totalMs);
+  assert.equal(JSON.stringify((await f.store.handle('AI_CHAT_LOAD','a'.repeat(64))).chat).includes('queueMs'),false);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Outra pergunta'});
+  for(let i=0;i<100&&!reject;i++)await new Promise(resolve=>setTimeout(resolve,2));
+  state=await f.get();assert.equal(state.busy,true);assert.equal(state.timing,undefined);assert.equal(state.queryMs,undefined);
+  reject(Object.assign(new Error('Falha simulada'),{timing}));state=await f.done();
+  assert.equal(state.error,'Falha simulada');assert.ok(state.timing);assert.ok(Number.isFinite(state.timing.totalMs));
+  await f.call({action:'AI_PANEL_NEW',windowId:9});assert.equal((await f.get()).timing,undefined);
+ }finally{f.storage.restore();}
+});
+
 test('a long conversation opens its recent messages, appends without overwriting older turns and loads previous pages on demand',async()=>{
  const f=setup();try{
   const messages=Array.from({length:160},(_,index)=>({role:index%2?'assistant':'user',content:`Mensagem ${index}`}));
@@ -262,7 +278,7 @@ test('summary button opens native sidebar before any storage/model work and rest
 test('email summaries are cached by exact content and configuration; changed input invalidates cache', async () => {
   const f = setup(); try {
     f.setSnapshot({ selection: 'E-mail fictício A' }); await f.open('one','summary_latest'); await f.done();
-    await f.open('two','summary_latest'); assert.equal((await f.done()).cached, true); assert.equal(f.calls.filter(x => x.action === 'AI_GENERATE').length, 1);
+    await f.open('two','summary_latest'); const cached=await f.done(); assert.equal(cached.cached, true);assert.equal(cached.timing.apiMs,0);assert.equal(cached.timing.queueMs,0); assert.equal(f.calls.filter(x => x.action === 'AI_GENERATE').length, 1);
     f.setSnapshot({ selection: 'E-mail fictício B' }); await f.open('three','summary_latest'); await f.done(); assert.equal(f.calls.filter(x => x.action === 'AI_GENERATE').length, 2);
     await browser.storage.local.set({ octablaster_ai_config_revision: 'changed' }); await f.open('four','summary_latest'); await f.done(); assert.equal(f.calls.filter(x => x.action === 'AI_GENERATE').length, 3);
   } finally { f.storage.restore(); }

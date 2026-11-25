@@ -8,12 +8,15 @@ import { digest, validateInput } from './validation';
 import { generateProvider } from './providers/index';
 import { ProviderError, type HttpOptions } from './transport';
 import { boundedChat } from '../summaryRequest';
+import { createQueryTimer, timingClock } from '../queryTiming';
 
-export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now = Date.now) {
+export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now = Date.now, clock = timingClock) {
   let queue: Promise<unknown> = Promise.resolve();
   return {
     generate(input: AiSummaryInput, signal: AbortSignal) {
+      const timer = createQueryTimer(clock, 'queueMs');
       const task = queue.then(async () => {
+        timer.phase('preparationMs');
         const history = validateInput(input);
         if (signal.aborted) throw new Error('Solicitação cancelada.');
         const snapshot = await store.update(state => expireSessions(state, now()));
@@ -36,6 +39,7 @@ export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now 
           ? compactTicketContext(input.context, input.instruction, previous?.fingerprint === fingerprint ? previous.memo : '') : input.context;
         let result;
         try {
+          timer.phase('apiMs');
           result = await generateProvider(provider, config, {
             instructions: input.task === 'general' ? GENERAL_INSTRUCTIONS : TICKET_INSTRUCTIONS,
             prompt: JSON.stringify({ ...(previousId ? {} : { contexto: context }), pergunta: input.instruction }),
@@ -43,12 +47,14 @@ export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now 
             maxOutputTokens: input.task === 'summary_latest' ? 768 : input.task === 'summary_full' ? 1536 : 2048,
           }, { ...options, signal });
         } catch (error) {
+          timer.phase('finalizationMs');
           if (previousId && error instanceof ProviderError && error.status === 404 && key) await store.update(state => {
             const sessions = { ...state.sessions }; delete sessions[key];
             return enqueueDeletes({ ...state, sessions }, previous?.refs || []);
           });
           throw error;
         }
+        timer.phase('finalizationMs');
         if (remoteStore && (!result.id || !/^[a-zA-Z0-9_-]{1,256}$/.test(result.id))) throw new Error('A API não retornou um identificador de contexto válido.');
         const ref: RemoteRef[] = remoteStore && result.id ? [{ id: result.id, provider, baseUrl: config.baseUrl, credentialId }] : [];
         const historyDigest = await digest(boundedChat([...(input.task === 'summary_full' ? [] : history),
@@ -64,8 +70,8 @@ export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now 
           } } };
         });
         if (discarded) throw new Error('A consulta foi cancelada ou a conexão mudou. Envie novamente quando desejar.');
-        return { text: result.text, contextMode: previousId ? 'remote' : remoteStore ? 'remote-created' : context.length < input.context.length ? 'compact' : 'full', contextTruncated: !previousId && context.length < input.context.length };
-      });
+        return { text: result.text, contextMode: previousId ? 'remote' : remoteStore ? 'remote-created' : context.length < input.context.length ? 'compact' : 'full', contextTruncated: !previousId && context.length < input.context.length, timing: timer.snapshot() };
+      }).catch(error => { throw Object.assign(error instanceof Error ? error : new Error('Falha na consulta à IA.'), { timing: timer.snapshot() }); });
       queue = task.catch(() => {});
       return task;
     },

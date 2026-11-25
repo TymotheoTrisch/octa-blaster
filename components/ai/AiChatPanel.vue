@@ -6,6 +6,7 @@ import { TICKET_SUMMARY_PROMPT, EMAIL_SUMMARY_PROMPT, summaryTextParts } from '@
 import { aiMessage } from '@/services/ai/messageClient';
 import { useAiHistory } from '@/composables/useAiHistory';
 import { createDraftWriter } from '@/services/ai/draftWriter';
+import AiQueryTiming from './AiQueryTiming.vue';
 const emit = defineEmits<{ back: [] }>();
 const showHistory=ref(false),historyBusy=ref(false),olderBusy=ref(false);
 const history=useAiHistory(error=>{feedback.value=error;});
@@ -87,7 +88,8 @@ onUnmounted(() => {void saveDraft();history.dispose();window.removeEventListener
       <p v-if="state?.busy" role="status" class="ai-panel-hint"><Loader2 :size="14" class="spin" />{{ state.status }} {{ seconds }}s</p>
     </div>
     <p v-if="state?.error" role="alert" class="ai-panel-error">{{ state.error }}</p>
-    <p class="ai-panel-feedback" role="status">{{ feedback || (!state?.busy ? state?.status : '') }}<span v-if="!state?.busy && state?.queryMs"> · {{ (state.queryMs/1000).toFixed(1) }}s de consulta</span></p>
+    <p class="ai-panel-feedback" role="status">{{ feedback || (!state?.busy ? state?.status : '') }}</p>
+    <AiQueryTiming v-if="!state?.busy && state?.timing" :timing="state.timing" :cached="state.cached" />
     <form @submit.prevent="ask"><textarea ref="composer" v-model="draft" aria-label="Mensagem para a IA" placeholder="Escreva sua mensagem…" maxlength="4000" :disabled="contextBusy || historyBusy || !state?.ready || state.busy" @input="queueDraft" @keydown.enter.exact.prevent="ask"></textarea><button type="submit" aria-label="Enviar pergunta" :disabled="contextBusy || historyBusy || !draft.trim() || !state?.ready || state.busy"><Send :size="16" /></button></form>
    </div>
    <template v-if="showHistory">

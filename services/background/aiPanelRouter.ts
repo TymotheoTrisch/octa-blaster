@@ -1,3 +1,4 @@
+import { createQueryTimer, combineQueryTiming, readQueryTiming, type AiQueryTiming } from '@/services/ai/queryTiming';
 import { detachTicketSession, rememberTicketSnapshot, savedTicketSnapshot } from './ai/ticketContext';
 import type { AiPanelState, PanelSnapshot, PanelTask } from '@/types/aiPanel';
 import {readAiPrompts,summaryPrompt} from '@/services/ai/promptSettings';
@@ -106,6 +107,8 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
   }
   async function run(windowId: number, session: Session, question: string, task: 'summary_full' | 'summary_latest' | 'chat', useCache: boolean, source?: string, editIndex?: number) {
     if (!active(windowId, session)) return;
+    const timer = createQueryTimer(); let innerTiming: AiQueryTiming | undefined;
+    session.state.timing = undefined; session.state.queryMs = undefined;
     session.state.busy = true; session.state.error = session.warning || ''; session.state.status = 'Preparando o contexto…'; changed(windowId);
     const original = [...session.state.messages];
     const base = editIndex === undefined ? original : original.slice(0, editIndex);
@@ -135,12 +138,12 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
       session.state.cached = !!text;
       if (!text) {
         session.state.status = 'Aguardando a IA…'; session.request = crypto.randomUUID(); changed(windowId);
-        const start = Date.now();
+        timer.phase('apiMs');
         const result = await callAi({ action: 'AI_GENERATE', requestId: session.request, input: { task:session.state.kind==='general'?'general':task, context, instruction: question, history: before, conversationKey: task === 'summary_latest' ? undefined : fresh.key, memoryNamespace: fresh.namespace } }, session.sender);
-        session.state.queryMs = Date.now() - start; text = result.text;
+        innerTiming = readQueryTiming(result); timer.phase('finalizationMs'); text = result.text;
         if (!active(windowId, session)) return;
         if (useCache) { cache.set(cacheKey, { text, at: Date.now() }); while (cache.size > 20) cache.delete(cache.keys().next().value!); }
-      } else session.state.queryMs = 0;
+      } else timer.phase('finalizationMs');
       if (!active(windowId, session)) return;
       const confirmed = await snapshot(session);
       if (!active(windowId, session)) return;
@@ -159,8 +162,8 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
       if(session.state.kind==='general' && !original.length && !session.customTitle)session.state.title=question.replace(/\s+/g,' ').slice(0,80);
       session.state.status = session.state.cached ? 'Resumo reaproveitado; nenhuma nova consulta à IA.' : 'Pronto para revisar.';
       try { await persist(session); } catch { session.warning = 'Resposta exibida, mas o histórico não pôde ser salvo neste computador.'; session.state.error = session.warning; }
-    } catch (error) { if (active(windowId, session)) { session.state.error = error instanceof Error ? error.message : 'Não foi possível consultar a IA.'; session.state.messages = task==='chat'?[...base,{role:'user',content:question}]:original;if(task==='chat'){session.state.draft='';session.state.status='A consulta falhou. Edite a mensagem para tentar novamente.';} } }
-    finally { session.request = undefined; if (active(windowId, session)) { session.state.busy = false; changed(windowId); session.triggerFeedback = false; } }
+    } catch (error) { innerTiming ||= readQueryTiming(error); timer.phase('finalizationMs'); if (active(windowId, session)) { session.state.error = error instanceof Error ? error.message : 'Não foi possível consultar a IA.'; session.state.messages = task==='chat'?[...base,{role:'user',content:question}]:original;if(task==='chat'){session.state.draft='';session.state.status='A consulta falhou. Edite a mensagem para tentar novamente.';} } }
+    finally { session.request = undefined; if (active(windowId, session)) { session.state.timing = combineQueryTiming(timer.snapshot(), innerTiming); session.state.queryMs = session.state.timing.totalMs; session.state.busy = false; changed(windowId); session.triggerFeedback = false; } }
   }
   return {
     clearTab(tabId: number) {

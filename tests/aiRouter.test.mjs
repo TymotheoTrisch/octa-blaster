@@ -6,6 +6,16 @@ const content = { id: 'extension', tab: { id: 1, url: 'https://app.octadesk.com/
 const ui = { id: 'extension', url: 'moz-extension://extension/popup.html' };
 const input = { task: 'summary_full', context: 'Conversa fictícia A', instruction: 'Resuma o ticket.' };
 
+test('generation failures expose only numeric timing metadata alongside the existing error',async()=>{
+ const timing={queueMs:1,preparationMs:2,apiMs:3,finalizationMs:4,totalMs:10};
+ const f=setup({call:async()=>{throw Object.assign(new Error('Falha de teste'),{timing:{...timing,credential:'DO_NOT_EXPOSE'}});}});
+ try{
+  const reply=await f.call({action:'AI_GENERATE',requestId:'timing-test',input});
+  assert.equal(reply.success,false);assert.equal(reply.error,'Falha de teste');assert.deepEqual(reply.timing,timing);
+  assert.ok(!JSON.stringify(reply).includes('DO_NOT_EXPOSE'));
+ }finally{f.storage.restore();}
+});
+
 test('independent inference and the conversation list are extension-only and preserve configured routing',async()=>{
  let generated;const f=setup({call:async(action,data)=>{generated={action,data};return {text:'Resultado fictício'};}});try{
   const general={...input,task:'general',context:'Conversa independente.'};

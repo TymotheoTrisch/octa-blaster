@@ -6,6 +6,7 @@ import { WRITING_ACTIONS, handleWritingMessage } from './ai/writingRoutes';
 import { SETTINGS_ACTIONS, handleSettingsMessage } from './ai/settingsRoutes';
 import { HISTORY_ACTIONS, handleHistoryMessage } from './ai/historyRoutes';
 import { validateGeneration } from './ai/generationRoutes';
+import { readQueryTiming } from '@/services/ai/queryTiming';
 
 const ACTIONS = [...WRITING_ACTIONS, ...SETTINGS_ACTIONS, ...HISTORY_ACTIONS, 'AI_GENERATE', 'AI_CANCEL'];
 export function createAiRouter(client = createApiClient()) {
@@ -52,7 +53,7 @@ export function createAiRouter(client = createApiClient()) {
           if (typeof result.text !== 'string' || !result.text || result.text.length > 100_000) throw new Error('A resposta da IA é inválida.');
           return result;
         } finally { pending.delete(message.requestId); cancelled.delete(message.requestId); }
-      })().then(data => respond({ success: true, data }), error => respond({ success: false, error: error instanceof Error ? error.message : 'Falha na integração de IA.' }));
+      })().then(data => respond({ success: true, data }), error => respond({ success: false, error: error instanceof Error ? error.message : 'Falha na integração de IA.', ...(readQueryTiming(error) ? { timing: readQueryTiming(error) } : {}) }));
       return true;
     },
   };

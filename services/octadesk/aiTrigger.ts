@@ -1,5 +1,7 @@
 import { bindInpageAppearance } from '@/services/appearance/inpageTheme';
 import type { AiTriggerProgress } from '@/types/aiPanel';
+import { readQueryTiming, queryTimingRows } from '@/services/ai/queryTiming';
+import { createTimingDetails } from './aiTimingDetails';
 const spinner = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" style="animation:octa-ai-spin 1s linear infinite"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="3" opacity=".25"/><path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="currentColor" stroke-width="3"/></svg>';
 /** Controles da página: geração direta ou abertura/retomada do resumo. */
 export function createAiTrigger(doc: Document, label: string, click: (opened: boolean, report: (state: AiTriggerProgress) => void, reopenOnly: boolean) => unknown, options: { opensSidebar?: boolean } = {}) {
@@ -18,6 +20,8 @@ export function createAiTrigger(doc: Document, label: string, click: (opened: bo
     if (!element.isConnected) { notice?.remove(); return; }
     clearTimeout(dismiss); busy=state.busy;
     element.setAttribute('aria-busy',String(busy));element.title=state.error || (busy ? state.status : label);
+    const timing=!busy?readQueryTiming(state):undefined;
+    if(timing)element.title+='\n'+queryTimingRows(timing).map(row=>`${row.label}: ${row.value}`).join(' · ');
     {
       const button=element as HTMLButtonElement;
       if (busy && !original) original=button.innerHTML;
@@ -35,11 +39,12 @@ export function createAiTrigger(doc: Document, label: string, click: (opened: bo
     notice.hidden=false;notice.style.display='flex';notice.setAttribute('role',state.error ? 'alert' : 'status');notice.dataset.state=state.error ? 'error' : busy ? 'busy' : 'done';
     const text=state.error ? `Não foi possível concluir: ${state.error}` : busy ? `Processando… ${state.status}` : state.status || 'Resposta pronta no painel lateral.';
     if (notice.firstElementChild!.textContent!==text) notice.firstElementChild!.textContent=text;
+    if(timing){const details=createTimingDetails(doc,timing);details.addEventListener('toggle',()=>{if(details.open)clearTimeout(dismiss);else if(!state.error)dismiss=setTimeout(()=>{if(notice){notice.hidden=true;notice.style.display='none';}},5000);position();});notice.firstElementChild!.append(details);}
     position();
     if (!busy && !state.error) dismiss=setTimeout(()=>{if(notice){notice.hidden=true;notice.style.display='none';}},5000);
   }
   function invoke(opened:boolean, reopenOnly=false) {
-    try { Promise.resolve(click(opened,report,reopenOnly)).catch(error=>report({busy:false,status:'',error:error instanceof Error ? error.message : 'Não foi possível iniciar a consulta.'})); }
+    try { Promise.resolve(click(opened,report,reopenOnly)).catch(error=>report({busy:false,status:'',error:error instanceof Error ? error.message : 'Não foi possível iniciar a consulta.',timing:readQueryTiming(error)})); }
     catch(error) {report({busy:false,status:'',error:error instanceof Error ? error.message : 'Não foi possível iniciar a consulta.'});}
   }
   const start=()=>report({busy:true,status:opensSidebar ? 'Abrindo o painel lateral…' : 'Preparando resposta no editor…'});
