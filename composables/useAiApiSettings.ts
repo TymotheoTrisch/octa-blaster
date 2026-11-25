@@ -1,6 +1,6 @@
 import { computed, onMounted, ref } from 'vue';
 import { aiMessage } from '@/services/ai/messageClient';
-import { apiOrigin } from '@/services/ai/api/catalog';
+import { requestApiOrigin } from '@/services/ai/api/permissions';
 import type { AiConfig } from '@/types/ai';
 
 export function useAiApiSettings() {
@@ -15,7 +15,7 @@ export function useAiApiSettings() {
     busy.value = true; feedback.value = '';
     try {
       // Chamada iniciada pelo clique, antes de qualquer outra operação assíncrona.
-      if (!removeKey && selected.value.baseUrl && !await browser.permissions.request({ origins: [apiOrigin(selected.value.baseUrl)] })) {
+      if (!removeKey && selected.value.baseUrl && !await requestApiOrigin(selected.value.baseUrl)) {
         throw new Error('Acesso à API não autorizado. Sua configuração não foi alterada.');
       }
       const payload: AiConfig = JSON.parse(JSON.stringify(config.value));

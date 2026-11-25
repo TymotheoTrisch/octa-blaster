@@ -87,3 +87,7 @@ Referências dos contratos: [OpenAI Responses](https://developers.openai.com/api
 ### Resultado desta alteração
 
 Em 25/11/2026: TypeScript e 203 testes passaram; builds Chrome MV3 e Firefox MV2 concluídos. Os dois manifestos foram conferidos: acesso de API é opcional e Native Messaging não está presente. O lint Firefox não apresentou erros e manteve 18 avisos sobre declaração de coleta de dados e atribuições a innerHTML nos bundles. Esses avisos não equivalem à aprovação/assinatura pela Mozilla. Nenhuma chave real foi usada para inferência nesta validação.
+
+### Erro de origem não declarada ao salvar a conexão
+
+Se aparecer `Cannot request origin permission ... since it was not declared in the manifest`, o manifesto carregado precisa ser conferido. O build Firefox MV2 declara `https://*/*` em `optional_permissions`; Chrome MV3 usa `optional_host_permissions`. Recarregue a extensão após gerar/atualizar os arquivos e reabra suas configurações. No Firefox, use `.output/firefox-mv2/manifest.json`; uma cópia antiga extraída em outra pasta não é atualizada ao compilar o projeto. A interface confere o manifesto carregado antes de solicitar acesso e informa como atualizá-lo quando a declaração está ausente. Essa falha ocorre antes da chamada à NVIDIA e não valida nem invalida a chave.
