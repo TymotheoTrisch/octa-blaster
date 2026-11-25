@@ -22,7 +22,7 @@ function setup(client) {
   const router = createAiRouter(client);
   return { storage, router, call: (message, sender = content) => new Promise(resolve => router.handleMessage(message, sender, resolve)) };
 }
-test('summary routing rejects other sites, draft tasks and privileged history before calling native host', async () => {
+test('summary routing rejects other sites, draft tasks and privileged history before calling the API', async () => {
   let calls = 0;
   const { storage, call } = setup({ call: async () => { calls++; return { text: 'Resumo fictício' }; } });
   try {
@@ -33,10 +33,11 @@ test('summary routing rejects other sites, draft tasks and privileged history be
     assert.equal(calls, 1);
   } finally { storage.restore(); }
 });
-test('only extension settings can initiate login and only official authorization URLs are opened', async () => {
+test('removed login actions never invoke an API or open a login tab', async () => {
   let opened = 0;
   const { storage, call } = setup({ call: async () => ({ url: 'https://attacker.invalid/oauth' }) }); browser.tabs.create = async () => { opened++; };
   try {
+    assert.equal(createAiRouter({call: async()=>{}}).canHandle('AI_CONNECT'), false);
     assert.equal((await call({ action: 'AI_CONNECT' })).success, false);
     assert.equal((await call({ action: 'AI_CONNECT' }, ui)).success, false);
     assert.equal(opened, 0);
@@ -49,13 +50,13 @@ test('only the originating tab/frame can cancel a request and closing a tab canc
     const result = call({ action: 'AI_GENERATE', requestId: 'one', input });
     await call({ action: 'AI_CANCEL', requestId: 'one' }, { ...content, frameId: 1 }); assert.equal(calls.length, 1);
     await call({ action: 'AI_CANCEL', requestId: 'one' }); assert.equal(calls[1].action, 'cancel');
-    router.clearTab(1); assert.equal(calls[2].action, 'cancel'); finish({ text: 'Resumo' }); await result;
+    router.clearTab(1); assert.equal(calls[2].action, 'cancel'); finish({ text: 'Resumo' }); assert.equal((await result).success, false);
   } finally { storage.restore(); }
 });
 
 test('chat persistence uses extension-local storage and rejects other sites, frames and stale revisions', async () => {
-  let nativeCalls = 0;
-  const { storage, call } = setup({ call: async () => { nativeCalls++; } });
+  let apiCalls = 0;
+  const { storage, call } = setup({ call: async () => { apiCalls++; } });
   const key = 'a'.repeat(64), content = { messages: [{ role: 'assistant', content: 'Resumo' }], draft: '', contextDigest: 'b'.repeat(64) };
   try {
     const saved = await call({ action: 'AI_CHAT_SAVE', key, revision: null, content }); assert.equal(saved.success, true);
@@ -63,7 +64,7 @@ test('chat persistence uses extension-local storage and rejects other sites, fra
     assert.equal((await call({ action: 'AI_CHAT_SAVE', key, revision: null, content })).success, false);
     assert.equal((await call({ action: 'AI_CHAT_LOAD', key }, { ...content, tab: { id: 2, url: 'https://other.invalid' } })).success, false);
     assert.equal((await call({ action: 'AI_CHAT_LOAD', key }, { ...content, tab: { id: 2, url: 'https://app.octadesk.com' }, url: 'https://other.invalid' })).success, false);
-    assert.equal(nativeCalls, 0);
+    assert.equal(apiCalls, 0);
   } finally { storage.restore(); }
 });
 

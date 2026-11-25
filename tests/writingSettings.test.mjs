@@ -26,9 +26,9 @@ function routerFixture(){
  const f=installStorage({octablaster_editor_1:{frameId:2,editorToken:'registered'},[AI_WRITING_KEY]:{[identity]:pattern,[other]:{...pattern,words:999}}});
  browser.runtime={id:'extension',getURL:p=>`moz-extension://extension${p}`};let active=true;
  browser.tabs={query:async()=>[{id:1,url:'https://app.octadesk.com/ticket/edit/1'}],get:async()=>({active}),sendMessage:async(tab,message,options)=>{assert.equal(tab,1);assert.equal(options.frameId,2);assert.equal(message.editorToken,'registered');return {success:true,data:{identity,label:'Agente fictício'}};}};
- let native=0;const router=createAiRouter({call:async()=>{native++;throw new Error('No native call expected');}});
+ let apiCalls=0;const router=createAiRouter({call:async()=>{apiCalls++;throw new Error('No API call expected');}});
  const call=(action,args={},sender={id:'extension',url:'moz-extension://extension/popup.html'})=>new Promise(resolve=>router.handleMessage({action,...args},sender,resolve));
- return {...f,call,native:()=>native,inactivate:()=>active=false};
+ return {...f,call,apiCalls:()=>apiCalls,inactivate:()=>active=false};
 }
 test('settings inspect only the registered current agent; saving and clearing require the same identity',async()=>{
  const f=routerFixture();try{
@@ -36,7 +36,7 @@ test('settings inspect only the registered current agent; saving and clearing re
   assert.equal((await f.call('AI_WRITING_SAVE',{identity:other,preferences:custom,learnWriting:true})).success,false);
   assert.equal((await f.call('AI_WRITING_SAVE',{identity,preferences:custom,learnWriting:false})).success,true);
   assert.deepEqual(f.data[AI_WRITING_PREFERENCES_KEY][identity],custom);
-  assert.equal((await f.call('AI_WRITING_CLEAR',{identity})).success,true);assert.equal(f.data[AI_WRITING_KEY][identity],undefined);assert.equal(f.data[AI_WRITING_KEY][other].words,999);assert.deepEqual(f.data[AI_WRITING_PREFERENCES_KEY][identity],custom);assert.equal(f.native(),0);
+  assert.equal((await f.call('AI_WRITING_CLEAR',{identity})).success,true);assert.equal(f.data[AI_WRITING_KEY][identity],undefined);assert.equal(f.data[AI_WRITING_KEY][other].words,999);assert.deepEqual(f.data[AI_WRITING_PREFERENCES_KEY][identity],custom);assert.equal(f.apiCalls(),0);
  }finally{f.restore();}
 });
 test('ticket scripts and stale active tabs cannot use the settings interface',async()=>{
@@ -53,7 +53,7 @@ test('a disconnected ticket shows recovery instructions and can be inspected aga
   browser.tabs.sendMessage=async()=>{throw new Error('Could not establish connection. Receiving end does not exist.');};
   const failed=await f.call('AI_WRITING_SAVE',{identity,preferences:custom,learnWriting:false});
   assert.equal(failed.success,false);assert.match(failed.error,/Atualize a página do Octadesk/);assert.ok(!failed.error.includes('Receiving end'));
-  assert.equal(f.data[AI_WRITING_PREFERENCES_KEY],undefined);assert.equal(f.data[AI_BEHAVIOR_KEY],undefined);assert.equal(f.native(),0);
+  assert.equal(f.data[AI_WRITING_PREFERENCES_KEY],undefined);assert.equal(f.data[AI_BEHAVIOR_KEY],undefined);assert.equal(f.apiCalls(),0);
   browser.tabs.sendMessage=connected;
   assert.equal((await f.call('AI_WRITING_STATE')).data.identity,identity);
  }finally{f.restore();}

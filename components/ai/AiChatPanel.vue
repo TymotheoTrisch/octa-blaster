@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, ref, nextTick, computed, watch } from 'vue';
 import { ArrowLeft, Copy, Pencil, CornerDownLeft, Loader2, Send, Check, PanelLeft, Plus, X, ExternalLink } from 'lucide-vue-next';
 import type { AiPanelState } from '@/types/aiPanel';
 import { TICKET_SUMMARY_PROMPT, EMAIL_SUMMARY_PROMPT, summaryTextParts } from '@/services/ai/summaryFormat';
-import { aiLocalMessage } from '@/services/ai/localClient';
+import { aiMessage } from '@/services/ai/messageClient';
 const emit = defineEmits<{ back: [] }>();
 const showHistory=ref(false),historyBusy=ref(false),search=ref(''),historyError=ref('');
 const historyDrawer=ref<HTMLElement|null>(null),historyToggle=ref<HTMLButtonElement|null>(null);
@@ -19,13 +19,13 @@ function historyKeydown(event:KeyboardEvent){
 }
 const chats=ref<{key:string;title:string;kind:'general'|'ticket';updatedAt:number}[]>([]);
 const filteredChats=computed(()=>chats.value.filter(chat=>chat.title.toLocaleLowerCase().includes(search.value.toLocaleLowerCase())));
-async function refreshHistory(){historyBusy.value=true;try{chats.value=await aiLocalMessage('AI_CHAT_LIST');}catch(error){feedback.value=error instanceof Error?error.message:'Histórico indisponível.';historyError.value=feedback.value;}finally{historyBusy.value=false;}}
+async function refreshHistory(){historyBusy.value=true;try{chats.value=await aiMessage('AI_CHAT_LIST');}catch(error){feedback.value=error instanceof Error?error.message:'Histórico indisponível.';historyError.value=feedback.value;}finally{historyBusy.value=false;}}
 async function browse(){showHistory.value=!showHistory.value;if(showHistory.value){historyError.value='';await refreshHistory();}}
-async function openChat(key?:string){historyBusy.value=true;historyError.value='';try{if(!await saveDraft()){historyError.value=feedback.value;return;}await aiLocalMessage(key?'AI_PANEL_RESUME':'AI_PANEL_NEW',{windowId,key});showHistory.value=false;await refresh();if(!key){draft.value='';editIndex.value=undefined;renaming.value=false;}await nextTick();composer.value?.focus();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível abrir a conversa.';historyError.value=feedback.value;}finally{historyBusy.value=false;await nextTick();if(!showHistory.value)composer.value?.focus();}}
+async function openChat(key?:string){historyBusy.value=true;historyError.value='';try{if(!await saveDraft()){historyError.value=feedback.value;return;}await aiMessage(key?'AI_PANEL_RESUME':'AI_PANEL_NEW',{windowId,key});showHistory.value=false;await refresh();if(!key){draft.value='';editIndex.value=undefined;renaming.value=false;}await nextTick();composer.value?.focus();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível abrir a conversa.';historyError.value=feedback.value;}finally{historyBusy.value=false;await nextTick();if(!showHistory.value)composer.value?.focus();}}
 const contextBusy=ref(true);
 const renaming=ref(false),titleDraft=ref(''),titleInput=ref<HTMLInputElement|null>(null);
 async function startRename(){if(!state.value)return;titleDraft.value=state.value.title;renaming.value=true;await nextTick();titleInput.value?.focus();titleInput.value?.select();}
-async function rename(){if(!state.value)return;try{await aiLocalMessage('AI_PANEL_RENAME',{windowId,id:state.value.id,title:titleDraft.value});renaming.value=false;await refresh();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível renomear.';}}
+async function rename(){if(!state.value)return;try{await aiMessage('AI_PANEL_RENAME',{windowId,id:state.value.id,title:titleDraft.value});renaming.value=false;await refresh();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível renomear.';}}
 const state = ref<AiPanelState | null>(null), draft = ref(''), feedback = ref(''), seconds = ref(0);
 const log = ref<HTMLElement | null>(null), composer = ref<HTMLTextAreaElement | null>(null), editIndex = ref<number | undefined>();
 function visibleText(text:string) { if(text===EMAIL_SUMMARY_PROMPT||text.startsWith('Resumir esta mensagem de e-mail.\n\nInstruções:\n'))return 'Resuma esta mensagem de e-mail.';if(text===TICKET_SUMMARY_PROMPT||text.startsWith('Resumir o ticket.\n\nInstruções:\n'))return 'Resuma o ticket com objetivo, status e pendências.'; return text.startsWith('Prepare uma resposta ao cliente a partir desta orientação:') ? text.split('\n\nPadrões de escrita observados')[0] : text; }
@@ -33,24 +33,24 @@ function edit(index:number) { editIndex.value=index; draft.value=visibleText(sta
 let refreshSequence=0;
 let windowId = 0, started = 0, timer: ReturnType<typeof setInterval> | undefined;
 async function refresh() {
-  try { const sequence=++refreshSequence;const value = await aiLocalMessage('AI_PANEL_GET', { windowId });if(sequence!==refreshSequence)return; const changed = (value?.conversationKey || value?.id) !== (state.value?.conversationKey || state.value?.id) || (!!value?.error && !value.busy && !!state.value?.busy); if (value?.busy && !state.value?.busy) started = Date.now(); state.value = value; if (changed) { renaming.value=false; draft.value = value?.draft || ''; feedback.value=''; editIndex.value=undefined; } await nextTick(); if (window.getSelection()?.isCollapsed !== false) log.value?.scrollTo?.({ top: log.value.scrollHeight }); } catch (error) { feedback.value = error instanceof Error ? error.message : 'Painel indisponível.'; }
+  try { const sequence=++refreshSequence;const value = await aiMessage('AI_PANEL_GET', { windowId });if(sequence!==refreshSequence)return; const changed = (value?.conversationKey || value?.id) !== (state.value?.conversationKey || state.value?.id) || (!!value?.error && !value.busy && !!state.value?.busy); if (value?.busy && !state.value?.busy) started = Date.now(); state.value = value; if (changed) { renaming.value=false; draft.value = value?.draft || ''; feedback.value=''; editIndex.value=undefined; } await nextTick(); if (window.getSelection()?.isCollapsed !== false) log.value?.scrollTo?.({ top: log.value.scrollHeight }); } catch (error) { feedback.value = error instanceof Error ? error.message : 'Painel indisponível.'; }
 }
 let syncing:Promise<void>|undefined;
 function syncTicket(enter=false):Promise<void>{
  if(syncing)return syncing;
  contextBusy.value=true;
- syncing=(async()=>{try{await aiLocalMessage(enter?'AI_PANEL_ENTER':'AI_PANEL_SYNC',{windowId});await refresh();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível identificar o ticket.';}finally{contextBusy.value=false;syncing=undefined;}})();return syncing;
+ syncing=(async()=>{try{await aiMessage(enter?'AI_PANEL_ENTER':'AI_PANEL_SYNC',{windowId});await refresh();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível identificar o ticket.';}finally{contextBusy.value=false;syncing=undefined;}})();return syncing;
 }
 const notify=(message:any)=>{if(message.windowId!==windowId)return;if(message.action==='AI_PAGE_CHANGED')void syncTicket();else if(message.action==='AI_PANEL_CHANGED'){void refresh();if(showHistory.value)void refreshHistory();}};
 async function ask(){
  if(!state.value||!draft.value.trim()||state.value.busy)return;
  const key=state.value.conversationKey || state.value.id,text=draft.value;await syncTicket();
  if((state.value?.conversationKey || state.value?.id)!==key){feedback.value='O ticket mudou. Revise sua pergunta na conversa deste atendimento.';return;}
- try{await aiLocalMessage('AI_PANEL_SEND',{windowId,id:state.value!.id,text,editIndex:editIndex.value});draft.value='';editIndex.value=undefined;feedback.value='';}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível enviar.';}
+ try{await aiMessage('AI_PANEL_SEND',{windowId,id:state.value!.id,text,editIndex:editIndex.value});draft.value='';editIndex.value=undefined;feedback.value='';}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível enviar.';}
 }
-async function insert(index: number) { try { await aiLocalMessage('AI_PANEL_INSERT', { windowId, id: state.value?.id, index }); feedback.value = 'Texto inserido no ticket. Revise antes de enviar.'; } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível inserir.'; } }
+async function insert(index: number) { try { await aiMessage('AI_PANEL_INSERT', { windowId, id: state.value?.id, index }); feedback.value = 'Texto inserido no ticket. Revise antes de enviar.'; } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível inserir.'; } }
 async function copy(text: string) { try { await navigator.clipboard.writeText(text); feedback.value = 'Copiado.'; } catch { feedback.value = 'Não foi possível copiar.'; } }
-async function saveDraft() { if (!state.value) return true; try {await aiLocalMessage('AI_PANEL_DRAFT', { windowId, id: state.value.id, text: draft.value });return true;}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível salvar o rascunho.';return false;} }
+async function saveDraft() { if (!state.value) return true; try {await aiMessage('AI_PANEL_DRAFT', { windowId, id: state.value.id, text: draft.value });return true;}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível salvar o rascunho.';return false;} }
 onMounted(async () => { windowId = (await browser.windows.getCurrent()).id!; browser.runtime.onMessage.addListener(notify); await syncTicket(true);await nextTick();composer.value?.focus(); timer = setInterval(() => { seconds.value = started ? Math.floor((Date.now() - started) / 1000) : 0; }, 1000); });
 onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListener(notify); });
 </script>

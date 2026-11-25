@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import {onMounted,ref} from 'vue';
-import {aiLocalMessage} from '@/services/ai/localClient';
+import {aiMessage} from '@/services/ai/messageClient';
 import {defaultWritingPreferences,type WritingProfileView} from '@/services/ai/writingMemory';
 const state=ref<WritingProfileView|null>(null),preferences=ref(defaultWritingPreferences()),learn=ref(true),busy=ref(false),message=ref('');
 const labels={opening:'Início da resposta',closing:'Encerramento da resposta'};
-async function refresh(){busy.value=true;message.value='';try{state.value=await aiLocalMessage('AI_WRITING_STATE');preferences.value=JSON.parse(JSON.stringify(state.value!.preferences));learn.value=state.value!.enabled;}catch(error){state.value=null;message.value=error instanceof Error?error.message:'Não foi possível ler o aprendizado.';}finally{busy.value=false;}}
-async function save(){if(!state.value)return;busy.value=true;message.value='';try{state.value=await aiLocalMessage('AI_WRITING_SAVE',{identity:state.value.identity,preferences:JSON.parse(JSON.stringify(preferences.value)),learnWriting:learn.value});preferences.value=JSON.parse(JSON.stringify(state.value!.preferences));message.value='Preferências salvas para este atendente. Serão usadas na próxima resposta gerada.';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível salvar.';}finally{busy.value=false;}}
-async function clear(){if(!state.value)return;busy.value=true;try{state.value=await aiLocalMessage('AI_WRITING_CLEAR',{identity:state.value.identity});message.value='Aprendizado deste atendente apagado. Os textos personalizados foram mantidos.';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível apagar.';}finally{busy.value=false;}}
+async function refresh(){busy.value=true;message.value='';try{state.value=await aiMessage('AI_WRITING_STATE');preferences.value=JSON.parse(JSON.stringify(state.value!.preferences));learn.value=state.value!.enabled;}catch(error){state.value=null;message.value=error instanceof Error?error.message:'Não foi possível ler o aprendizado.';}finally{busy.value=false;}}
+async function save(){if(!state.value)return;busy.value=true;message.value='';try{state.value=await aiMessage('AI_WRITING_SAVE',{identity:state.value.identity,preferences:JSON.parse(JSON.stringify(preferences.value)),learnWriting:learn.value});preferences.value=JSON.parse(JSON.stringify(state.value!.preferences));message.value='Preferências salvas para este atendente. Serão usadas na próxima resposta gerada.';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível salvar.';}finally{busy.value=false;}}
+async function clear(){if(!state.value)return;busy.value=true;try{state.value=await aiMessage('AI_WRITING_CLEAR',{identity:state.value.identity});message.value='Aprendizado deste atendente apagado. Os textos personalizados foram mantidos.';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível apagar.';}finally{busy.value=false;}}
 onMounted(refresh);
 </script>
 <template>

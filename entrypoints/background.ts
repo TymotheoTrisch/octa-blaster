@@ -13,7 +13,6 @@ export default defineBackground(() => {
   void aiRouter.cleanup().catch(() => {});
   const cleanupTimer = setInterval(() => void aiRouter.cleanup().catch(() => {}), 3600_000);
   (cleanupTimer as unknown as { unref?: () => void }).unref?.();
-  void browser.storage.local.remove?.('octablaster_ai_local_connection')?.catch?.(() => {});
 
   void syncBrowserBrandIconFromStorage();
 

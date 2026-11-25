@@ -1,6 +1,0 @@
-{$OCTA_DOMAIN} {
-  request_body {
-    max_size 300KB
-  }
-  reverse_proxy gateway:8787
-}

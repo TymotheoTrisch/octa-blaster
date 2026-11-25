@@ -1,7 +1,7 @@
 import type { EditorContext } from './editorContext';
 import type { PanelTask, PanelSnapshot, AiTriggerProgress } from '@/types/aiPanel';
 import { writingGuidance, writingIdentity } from '@/services/ai/writingMemory';
-import { aiLocalMessage } from '@/services/ai/localClient';
+import { aiMessage } from '@/services/ai/messageClient';
 import { createTicketChatPersistence, textDigest } from '@/services/ai/ticketChatPersistence';
 import { aiMessageAttribution, collectAiTicketContext, getAiTicketIdentity, readAiMessage, ticketHtmlContext } from './aiTicketContext';
 import { getScopedTicketContainer, isTicketElementVisible, TICKET_SELECTOR } from './licenseDetector';
@@ -10,13 +10,13 @@ import { insertTextIntoElement } from './insertText';
 
 interface Source { scope: HTMLElement; identity: string; message?: HTMLElement; editor?: HTMLElement; draft?: string; draftToken?: string; progress?: (state: AiTriggerProgress) => void }
 const sources = new Map<string, Source>();
-export function showAiSidebar(scope: HTMLElement, alreadyOpened=false) { return aiLocalMessage('AI_PANEL_SHOW', {identity:getAiTicketIdentity(scope),alreadyOpened}); }
+export function showAiSidebar(scope: HTMLElement, alreadyOpened=false) { return aiMessage('AI_PANEL_SHOW', {identity:getAiTicketIdentity(scope),alreadyOpened}); }
 export function openAiSidebar(scope: HTMLElement, task: PanelTask, message?: HTMLElement, editor?: HTMLElement, alreadyOpened = false, progress?: (state: AiTriggerProgress) => void) {
   const id = crypto.randomUUID(), identity = getAiTicketIdentity(scope);
   const source: Source = { progress, scope, identity, message, editor, draft: editor?.innerHTML, draftToken: editor ? crypto.randomUUID() : undefined };
   sources.set(id, source); while (sources.size > 20) sources.delete(sources.keys().next().value!);
   // Deve ser a primeira operação assíncrona para preservar o gesto do botão.
-  const opened = aiLocalMessage('AI_PANEL_OPEN', { id, identity, task, alreadyOpened });
+  const opened = aiMessage('AI_PANEL_OPEN', { id, identity, task, alreadyOpened });
   void (async () => {
     try {
       await opened;
@@ -24,10 +24,10 @@ export function openAiSidebar(scope: HTMLElement, task: PanelTask, message?: HTM
         const loaded = await expandAiHistory(scope, () => valid(source));
         if (!loaded) throw new Error('Expanda Todas as interações e tente novamente.');
       }
-      await aiLocalMessage('AI_PANEL_CONTEXT', { id, snapshot: await snapshot(source) });
+      await aiMessage('AI_PANEL_CONTEXT', { id, snapshot: await snapshot(source) });
     } catch (error) {
       source.progress?.({ busy: false, status: '', error: error instanceof Error ? error.message : 'Não foi possível abrir o ticket.' });
-      void aiLocalMessage('AI_PANEL_CONTEXT', { id, error: error instanceof Error ? error.message : 'Não foi possível abrir o ticket.' }).catch(() => {});
+      void aiMessage('AI_PANEL_CONTEXT', { id, error: error instanceof Error ? error.message : 'Não foi possível abrir o ticket.' }).catch(() => {});
     }
   })();
   return opened;
@@ -60,7 +60,7 @@ export function startAiPanelBridge(doc: Document, editors: EditorContext) {
       sources.set(id,{scope,identity});return {id,identity};
     });
     const signature=JSON.stringify(tickets);if(!force&&signature===lastRegistration)return;lastRegistration=signature;
-    void aiLocalMessage('AI_PAGE_REGISTER',{tickets}).catch(()=>{});
+    void aiMessage('AI_PAGE_REGISTER',{tickets}).catch(()=>{});
   };
   register();const registrationTimer=doc.defaultView?.setInterval(()=>register(true),2500);
   let registrationPending:ReturnType<typeof setTimeout>|undefined;
@@ -98,6 +98,6 @@ export function startAiPanelBridge(doc: Document, editors: EditorContext) {
     respond({ success: inserted, error: inserted ? undefined : 'Não foi possível inserir no editor.' }); return true;
   };
   browser.runtime.onMessage.addListener(listener);
-  const timer = doc.defaultView?.setInterval(() => { for (const [id, source] of sources) if (source.scope.ownerDocument === doc && (!valid(source) || (source.message && !source.message.isConnected) || (source.editor && source.draftToken && source.editor.innerHTML !== source.draft))) { source.progress?.({busy:false,status:'',error:'O ticket ou o rascunho mudou. Clique novamente para gerar com o conteúdo atual.'}); sources.delete(id); void aiLocalMessage('AI_PANEL_CONTEXT', { id, error: 'O ticket ou o rascunho mudou. Abra a IA novamente pelo conteúdo atual.' }).catch(() => {}); } }, 500);
+  const timer = doc.defaultView?.setInterval(() => { for (const [id, source] of sources) if (source.scope.ownerDocument === doc && (!valid(source) || (source.message && !source.message.isConnected) || (source.editor && source.draftToken && source.editor.innerHTML !== source.draft))) { source.progress?.({busy:false,status:'',error:'O ticket ou o rascunho mudou. Clique novamente para gerar com o conteúdo atual.'}); sources.delete(id); void aiMessage('AI_PANEL_CONTEXT', { id, error: 'O ticket ou o rascunho mudou. Abra a IA novamente pelo conteúdo atual.' }).catch(() => {}); } }, 500);
   return () => {observer.disconnect();clearTimeout(registrationPending); if (timer !== undefined) doc.defaultView?.clearInterval(timer);if(registrationTimer!==undefined)doc.defaultView?.clearInterval(registrationTimer); browser.runtime.onMessage.removeListener(listener); for (const [id, source] of sources) if (source.scope.ownerDocument === doc) sources.delete(id); };
 }

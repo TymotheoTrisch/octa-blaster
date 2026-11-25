@@ -51,8 +51,8 @@ test('history entry points reject content scripts, unknown keys and another conn
   assert.equal((await f.call({action:'AI_PANEL_NEW',windowId:9},source)).success,false);
   assert.equal((await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'f'.repeat(64)})).success,false);
   await f.call({action:'AI_PANEL_NEW',windowId:9});const created=await f.get();await f.call({action:'AI_PANEL_SEND',windowId:9,id:created.id,text:'Conversa salva'});await f.done();const [entry]=await f.store.list('local');
-  await browser.storage.local.set({octablaster_ai_history_namespace:'gateway_other'});
-  assert.equal((await f.store.list('gateway_other')).length,0);
+  await browser.storage.local.set({octablaster_ai_history_namespace:'namespace_other'});
+  assert.equal((await f.store.list('namespace_other')).length,0);
   assert.equal((await f.call({action:'AI_PANEL_RESUME',windowId:9,key:entry.key})).success,false);
  }finally{f.storage.restore();}
 });

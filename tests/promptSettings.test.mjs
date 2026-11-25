@@ -17,22 +17,22 @@ test('long reply instructions keep the editor direction and remain within the ex
  const result=replyPrompt('p'.repeat(1600),'u'.repeat(2000),'e'.repeat(1500));assert.ok(result.length<=4000);assert.ok(result.includes('u'.repeat(2000)));assert.ok(result.includes('p'.repeat(1600)));assert.ok(result.includes('Estilo e preferências'));
 });
 test('prompt configuration is extension-only, local and never calls the AI provider',async()=>{
- const f=installStorage();let nativeCalls=0;browser.runtime={getURL:p=>`moz-extension://test${p}`};const router=createAiRouter({call:async()=>{nativeCalls++;}});
+ const f=installStorage();let apiCalls=0;browser.runtime={getURL:p=>`moz-extension://test${p}`};const router=createAiRouter({call:async()=>{apiCalls++;}});
  const call=(message,sender={url:'moz-extension://test/popup.html'})=>new Promise(resolve=>router.handleMessage(message,sender,resolve));
  try{
   const initial=await call({action:'AI_PROMPTS_GET'});assert.equal(initial.success,true);
   assert.equal((await call({action:'AI_PROMPTS_SAVE',prompts:defaultAiPrompts(),revision:null},{tab:{url:'https://app.octadesk.com/ticket/edit/1'},url:'https://app.octadesk.com/ticket/edit/1'})).success,false);
   assert.equal((await call({action:'AI_PROMPTS_SAVE',prompts:{...defaultAiPrompts(),email:'Destaque o pedido e a ação esperada.'},revision:initial.data.revision})).success,true);
-  assert.equal(nativeCalls,0);assert.ok(f.data[AI_PROMPTS_KEY]);
+  assert.equal(apiCalls,0);assert.ok(f.data[AI_PROMPTS_KEY]);
  }finally{f.restore();}
 });
-test('retention changes preserve the fresh connection and account configuration',async()=>{
- const f=installStorage();const calls=[];const config={provider:'nvidia',providers:{nvidia:{model:'modelo',hasKey:true}},profiles:[{id:'saved',name:'Conta fictícia'}],retention:{idleDays:30,maxDays:90}};
+test('retention changes preserve the fresh API connection configuration',async()=>{
+ const f=installStorage();const calls=[];const config={provider:'nvidia',providers:{nvidia:{model:'modelo',hasKey:true}},retention:{idleDays:30,maxDays:90}};
  browser.runtime={getURL:p=>`moz-extension://test${p}`};const router=createAiRouter({call:async(action,value)=>{calls.push({action,value});return action==='config'?config:{...value.config};}});
  const call=retention=>new Promise(resolve=>router.handleMessage({action:'AI_RETENTION_SAVE',retention},{url:'moz-extension://test/popup.html'},resolve));
  try{
   assert.equal((await call({idleDays:60,maxDays:10})).success,false);assert.equal(calls.length,0);
   assert.equal((await call({idleDays:7,maxDays:30})).success,true);
-  const next=calls.find(m=>m.action==='configure').value.config;assert.deepEqual(next.providers,config.providers);assert.deepEqual(next.profiles,config.profiles);assert.deepEqual(next.retention,{idleDays:7,maxDays:30});
+  const next=calls.find(m=>m.action==='configure').value.config;assert.deepEqual(next.providers,config.providers);assert.deepEqual(next.retention,{idleDays:7,maxDays:30});
  }finally{f.restore();}
 });

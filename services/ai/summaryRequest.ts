@@ -1,8 +1,8 @@
-import { aiLocalMessage } from '@/services/ai/localClient';
+import { aiMessage } from '@/services/ai/messageClient';
 import type { AiChatTurn, AiTask } from '@/types/ai';
 
-export type SummarySend = typeof aiLocalMessage;
-export function createSummaryRequest(send: SummarySend = aiLocalMessage) {
+export type SummarySend = typeof aiMessage;
+export function createSummaryRequest(send: SummarySend = aiMessage) {
   let active: string | null = null, revision = 0, notice = '';
   return {
     contextNotice: () => notice,

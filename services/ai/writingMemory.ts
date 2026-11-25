@@ -6,12 +6,12 @@ export const AI_WRITING_PREFERENCES_KEY = 'octablaster_ai_writing_preferences';
 export interface WritingBoundary {mode:'auto'|'custom'|'none';text:string}
 export interface WritingPreferences {opening:WritingBoundary;closing:WritingBoundary}
 export const defaultWritingPreferences = ():WritingPreferences => ({opening:{mode:'auto',text:''},closing:{mode:'auto',text:''}});
-export interface AiBehavior { automaticReplies: boolean; learnWriting: boolean }
+export interface AiBehavior { learnWriting: boolean }
 interface Pattern { count: number; words: number; paragraphs: number; greeting: number; closing: number; updated: number }
 export async function readAiBehavior(): Promise<AiBehavior> {
   const data = await browser.storage.local.get([AI_BEHAVIOR_KEY]);
   const saved = data[AI_BEHAVIOR_KEY] as Partial<AiBehavior> | undefined;
-  return { automaticReplies: saved?.automaticReplies === true, learnWriting: saved?.learnWriting !== false };
+  return { learnWriting: saved?.learnWriting !== false };
 }
 export function writingPattern(text: string) {
   return { words: Math.min(1000, text.split(/\s+/).filter(Boolean).length), paragraphs: Math.min(20, text.split(/\n+/).filter(value => value.trim()).length), greeting: /^(olá|oi|bom dia|boa tarde|boa noite|prezad)/i.test(text.trim()) ? 1 : 0, closing: /(atenciosamente|fico (à|a) disposição|aguardo(?: (?:seu|o) retorno)?|obrigad[oa](?: pelo contato| pela atenção)?|até mais|no aguardo)[!.,\s]*$/i.test(text.trim()) ? 1 : 0 };

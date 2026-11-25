@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import {onMounted,ref} from 'vue';
 import {RefreshCw,RotateCcw,Save} from 'lucide-vue-next';
-import {aiLocalMessage} from '@/services/ai/localClient';
+import {aiMessage} from '@/services/ai/messageClient';
 import {defaultAiPrompts,PROMPT_LIMITS,type PromptKind} from '@/services/ai/promptSettings';
 const kind=ref<PromptKind>('ticket'),prompts=ref(defaultAiPrompts()),revision=ref<string|null>(null),busy=ref(false),loaded=ref(false),message=ref('');
 const labels={ticket:'Resumir ticket',email:'Resumir mensagem',reply:'Sugerir resposta'};
-async function refresh(){busy.value=true;try{const result=await aiLocalMessage('AI_PROMPTS_GET');prompts.value=result.prompts;revision.value=result.revision;loaded.value=true;message.value='';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível ler os prompts.';}finally{busy.value=false;}}
-async function save(){busy.value=true;message.value='';try{const result=await aiLocalMessage('AI_PROMPTS_SAVE',{prompts:JSON.parse(JSON.stringify(prompts.value)),revision:revision.value});revision.value=result.revision;prompts.value=result.prompts;message.value='Prompts salvos. Valem para as próximas solicitações.';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível salvar.';}finally{busy.value=false;}}
+async function refresh(){busy.value=true;try{const result=await aiMessage('AI_PROMPTS_GET');prompts.value=result.prompts;revision.value=result.revision;loaded.value=true;message.value='';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível ler os prompts.';}finally{busy.value=false;}}
+async function save(){busy.value=true;message.value='';try{const result=await aiMessage('AI_PROMPTS_SAVE',{prompts:JSON.parse(JSON.stringify(prompts.value)),revision:revision.value});revision.value=result.revision;prompts.value=result.prompts;message.value='Prompts salvos. Valem para as próximas solicitações.';}catch(error){message.value=error instanceof Error?error.message:'Não foi possível salvar.';}finally{busy.value=false;}}
 function reset(){prompts.value[kind.value]=defaultAiPrompts()[kind.value];message.value='Padrão restaurado neste campo. Salve para aplicar.';}
 onMounted(refresh);
 </script>

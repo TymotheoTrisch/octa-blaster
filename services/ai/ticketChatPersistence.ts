@@ -1,4 +1,4 @@
-import { aiLocalMessage } from './localClient';
+import { aiMessage } from './messageClient';
 import type { SavedTicketChat, TicketChatContent } from '@/services/storage/aiChatStorage';
 import { getAiTicketIdentity } from '@/services/octadesk/aiTicketContext';
 
@@ -15,7 +15,7 @@ export async function textDigest(text: string): Promise<string> {
   return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export function createTicketChatPersistence(scope: HTMLElement, send = aiLocalMessage) {
+export function createTicketChatPersistence(scope: HTMLElement, send = aiMessage) {
   const doc = scope.ownerDocument;
   const url = new URL(doc.URL); url.search = ''; url.hash = '';
   // No app compartilhado, acrescenta o subdomínio do workspace quando visível no shell.

@@ -1,0 +1,73 @@
+import type { AiSummaryInput } from '@/types/ai';
+import type { ApiStore, RemoteRef } from './state';
+import { supportsRemoteState } from './catalog';
+import { compactTicketContext } from './context';
+import { GENERAL_INSTRUCTIONS, TICKET_INSTRUCTIONS } from './instructions';
+import { enqueueDeletes, expireSessions } from './retention';
+import { digest, validateInput } from './validation';
+import { generateProvider } from './providers/index';
+import { ProviderError, type HttpOptions } from './transport';
+import { boundedChat } from '../summaryRequest';
+
+export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now = Date.now) {
+  let queue: Promise<unknown> = Promise.resolve();
+  return {
+    generate(input: AiSummaryInput, signal: AbortSignal) {
+      const task = queue.then(async () => {
+        const history = validateInput(input);
+        if (signal.aborted) throw new Error('Solicitação cancelada.');
+        const snapshot = await store.update(state => expireSessions(state, now()));
+        const { provider, providers } = snapshot.config, config = providers[provider];
+        if (!config.apiKey || !config.model || !config.baseUrl) throw new Error('Configure o endereço, modelo e chave em Inteligência artificial → Conexões de API.');
+        if (provider === 'nvidia' && !config.approvedData) throw new Error('Confirme nas configurações que seu endpoint NVIDIA permite os dados de atendimento.');
+        const key = input.task === 'summary_latest' ? undefined : input.conversationKey;
+        const previous = key ? snapshot.sessions[key] : undefined;
+        const credentialId = await digest(config.apiKey);
+        const fingerprint = await digest([provider, config.model, config.baseUrl, credentialId, input.context, input.task === 'general']);
+        const remoteStore = !!key && supportsRemoteState(provider) && config.remoteStore;
+        const reusable = ['chat', 'general'].includes(input.task) && remoteStore && previous?.fingerprint === fingerprint
+          && previous.historyDigest === await digest(history) && previous.turns < 12 && previous.refs.length > 0;
+        const previousId = reusable ? previous.refs.at(-1)?.id : undefined;
+        if (previous && !reusable && key) await store.update(state => {
+          const sessions = { ...state.sessions }; delete sessions[key];
+          return enqueueDeletes({ ...state, sessions }, previous.refs);
+        });
+        const context = input.task === 'chat' && !previousId
+          ? compactTicketContext(input.context, input.instruction, previous?.fingerprint === fingerprint ? previous.memo : '') : input.context;
+        let result;
+        try {
+          result = await generateProvider(provider, config, {
+            instructions: input.task === 'general' ? GENERAL_INSTRUCTIONS : TICKET_INSTRUCTIONS,
+            prompt: JSON.stringify({ ...(previousId ? {} : { contexto: context }), pergunta: input.instruction }),
+            history: previousId ? [] : history, previousId, remoteStore,
+            maxOutputTokens: input.task === 'summary_latest' ? 768 : input.task === 'summary_full' ? 1536 : 2048,
+          }, { ...options, signal });
+        } catch (error) {
+          if (previousId && error instanceof ProviderError && error.status === 404 && key) await store.update(state => {
+            const sessions = { ...state.sessions }; delete sessions[key];
+            return enqueueDeletes({ ...state, sessions }, previous?.refs || []);
+          });
+          throw error;
+        }
+        if (remoteStore && (!result.id || !/^[a-zA-Z0-9_-]{1,256}$/.test(result.id))) throw new Error('A API não retornou um identificador de contexto válido.');
+        const ref: RemoteRef[] = remoteStore && result.id ? [{ id: result.id, provider, baseUrl: config.baseUrl, credentialId }] : [];
+        const historyDigest = await digest(boundedChat([...(input.task === 'summary_full' ? [] : history),
+          { role: 'user', content: input.instruction }, { role: 'assistant', content: result.text }]));
+        let discarded = false;
+        await store.update(state => {
+          if (signal.aborted || state.revision !== snapshot.revision) { discarded = true; return enqueueDeletes(state, ref); }
+          if (!key) return state;
+          return { ...state, sessions: { ...state.sessions, [key]: {
+            fingerprint, historyDigest, refs: [...(reusable ? previous!.refs : []), ...ref], turns: reusable ? previous!.turns + 1 : 1,
+            memo: input.task === 'summary_full' ? result.text.slice(0, 4000) : previous?.fingerprint === fingerprint ? previous.memo : '',
+            createdAt: previous?.fingerprint === fingerprint ? previous.createdAt : now(), usedAt: now(),
+          } } };
+        });
+        if (discarded) throw new Error('A consulta foi cancelada ou a conexão mudou. Envie novamente quando desejar.');
+        return { text: result.text, contextMode: previousId ? 'remote' : remoteStore ? 'remote-created' : context.length < input.context.length ? 'compact' : 'full', contextTruncated: !previousId && context.length < input.context.length };
+      });
+      queue = task.catch(() => {});
+      return task;
+    },
+  };
+}

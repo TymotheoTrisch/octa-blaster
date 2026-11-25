@@ -30,15 +30,6 @@ jobs:
       - name: Check TypeScript types
         run: pnpm compile
 
-      - name: Install local helper dependencies
-        run: pnpm --dir apps/local-helper install --frozen-lockfile --ignore-scripts
-
-      - name: Test local helper
-        run: pnpm --dir apps/local-helper test
-
-      - name: Test team gateway
-        run: pnpm test:gateway
-
       - name: Run regression tests
         run: pnpm test
 
