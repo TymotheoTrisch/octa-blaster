@@ -7,21 +7,21 @@ const config={model:'nvidia/nemotron-3.5-lightning-30b-a3b',baseUrl:'https://int
 const payload={instructions:'Responda em português.',prompt:'Resuma este ticket fictício.',history:[],remoteStore:false,maxOutputTokens:768};
 const completion=(reason='stop',content='Texto para revisar.')=>({choices:[{finish_reason:reason,message:{content,reasoning_content:'INTERNAL_REASONING_DO_NOT_SHOW'}}]});
 
-test('NVIDIA Lightning sends documented no-thinking option and preserves the short text output limit in one request',async()=>{
+test('NVIDIA Lightning preserves model reasoning defaults and the output limit in one request',async()=>{
  let calls=0;
  const answer=await generateCompatible('nvidia',config,payload,{hasPermission:async()=>true,fetcher:async(_url,request)=>{
   calls++;const body=JSON.parse(request.body);
-  assert.deepEqual(body.chat_template_kwargs,{enable_thinking:false});assert.equal(body.max_tokens,768);
+  assert.equal(body.chat_template_kwargs,undefined);assert.equal(body.max_tokens,768);
   assert.equal(body.stream,false);assert.equal(body.reasoning_budget,undefined);
   return new Response(JSON.stringify(completion()));
  }});
  assert.equal(calls,1);assert.deepEqual(answer,{text:'Texto para revisar.'});
 });
 
-test('model-specific parameters are absent for other NVIDIA models and generic compatible endpoints',async()=>{
- for(const [provider,model] of [['nvidia','another/model'],['compatible',config.model]]){
+test('reasoning defaults are preserved across NVIDIA models and generic compatible endpoints',async()=>{
+ for(const [provider,model] of [['nvidia','another/model'],['nvidia','nvidia/nemotron-3-ultra-550b-a55b'],['compatible',config.model]]){
   await generateCompatible(provider,{...config,model},payload,{hasPermission:async()=>true,fetcher:async(_url,request)=>{
-   const body=JSON.parse(request.body);assert.equal(body.chat_template_kwargs,undefined);assert.equal(body.model,model);
+   const body=JSON.parse(request.body);assert.equal(body.chat_template_kwargs,undefined);assert.equal(body.reasoning_budget,undefined);assert.equal(body.reasoning_effort,undefined);assert.equal(body.enable_thinking,undefined);assert.equal(body.model,model);
    return new Response(JSON.stringify(completion()));
   }});
  }

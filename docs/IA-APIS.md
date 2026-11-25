@@ -9,7 +9,7 @@ A IA funciona na própria extensão, no Firefox e no Chrome. O usuário instala 
 3. Salve e autorize o acesso ao endereço solicitado pelo navegador. Só esse domínio recebe a chave nas consultas.
 4. Abra um ticket e use Resumir, Resumir ticket ou o chat da lateral.
 
-O provedor define o formato das requisições: Responses para OpenAI, Interactions para Gemini, Messages para Claude e Chat Completions para NVIDIA/compatíveis. A URL deve ser a base, por exemplo `https://integrate.api.nvidia.com/v1`, sem `/chat/completions`. O usuário escolhe um modelo de chat disponível em sua conta. Opções específicas só são enviadas quando há suporte documentado para o modelo selecionado; os demais mantêm o contrato genérico.
+O provedor define o formato das requisições: Responses para OpenAI, Interactions para Gemini, Messages para Claude e Chat Completions para NVIDIA/compatíveis. A URL deve ser a base, por exemplo `https://integrate.api.nvidia.com/v1`, sem `/chat/completions`. O usuário escolhe um modelo de chat disponível em sua conta. NVIDIA e APIs compatíveis mantêm o padrão de raciocínio definido pelo modelo/endpoint; não são enviados parâmetros para forçar esse comportamento por nome de modelo.
 
 Salvar não faz uma geração paga nem confirma acesso ao modelo. Chaves vazias preservam a credencial já salva; **Remover chave** apaga a chave daquele provedor. Trocar a URL exige informar a chave novamente, evitando encaminhar a credencial antiga a outro destino. A extensão não acompanha chaves de empresa embutidas. Custos e limites são os da API escolhida.
 
@@ -135,7 +135,7 @@ Apenas a medição mais recente da conversa/sugestão em memória é mantida, su
 
 ## Lightning e respostas interrompidas
 
-No provedor **NVIDIA**, o modelo exato `nvidia/nemotron-3.5-lightning-30b-a3b` recebe `chat_template_kwargs: { enable_thinking: false }`. O raciocínio pode consumir o limite de saída antes da resposta final; desativá-lo é a orientação documentada da NVIDIA para resumos curtos. A política isolada em `providers/nvidiaOptions.ts` se aplica às tarefas de texto da extensão, sem aumentar os limites ou fazer nova geração automática. Não é enviada a outros modelos nem ao provedor compatível genérico, cujo suporte a opções extras é desconhecido.
+NVIDIA e APIs compatíveis usam o padrão de raciocínio definido pelo endpoint do modelo. A extensão não envia `enable_thinking`, `chat_template_kwargs`, `reasoning_budget` ou `reasoning_effort` nesses adaptadores. A exceção do Lightning foi removida, junto com o módulo específico. Os limites de saída da extensão continuam sendo enviados; preservar o padrão de raciocínio não significa remover os limites de geração. Se o padrão do modelo consumir esse orçamento em raciocínio, ainda pode haver uma resposta incompleta, agora com aviso específico. Não há aumento automático do orçamento nem nova geração automática.
 
 `providers/completionResult.ts` diferencia limite de tokens (`length`), filtro de conteúdo, solicitação de ferramentas, ausência de confirmação de conclusão e saída contendo apenas raciocínio. Somente `finish_reason: stop` com texto final válido é aceito; respostas parciais e `reasoning_content` não viram rascunho de e-mail. Erros não expõem o conteúdo técnico bruto do provedor. Um aviso genérico de uma consulta anterior não permite recuperar retroativamente seu `finish_reason`; limite consumido pelo raciocínio é uma causa compatível, não uma confirmação daquela chamada.
 
