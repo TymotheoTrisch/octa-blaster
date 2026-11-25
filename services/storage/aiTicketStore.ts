@@ -26,15 +26,15 @@ export function createAiTicketStore(storage = () => browser.storage.local, now =
   }
   async function records() {
     const area = storage(), data = await area.get(null), policy = retentionFromData(data);
-    const valid: StoredAiTicket[] = [], expired: string[] = [];
+    const expired: string[] = [];
     for (const [name, record] of Object.entries(data)) {
       if (!name.startsWith(PREFIX)) continue;
       const value = record as StoredAiTicket;
       try { validate(value); } catch { continue; }
-      if (expiredLocalRecord(value, policy, now())) expired.push(name); else valid.push(value);
+      if (expiredLocalRecord(value, policy, now())) expired.push(name);
     }
     if (expired.length) await area.remove(expired);
-    return { valid, expired: expired.length };
+    return expired.length;
   }
   return {
     save(snapshot: PanelSnapshot, ticketUrl?: string) {
@@ -64,14 +64,7 @@ export function createAiTicketStore(storage = () => browser.storage.local, now =
         await area.set({ [name]: used }); return used;
       });
     },
-    findByNumber(number: string, namespace: string) {
-      return serialized(async () => {
-        const found = (await records()).valid.filter(item => item.ticketNumber === number && item.namespace === namespace);
-        if (found.length > 1) throw new Error('Há tickets com esse número em mais de um workspace. Escolha a conversa no histórico.');
-        return found[0] || null;
-      });
-    },
-    cleanup: () => serialized(async () => ({ deletedTickets: (await records()).expired })),
+    cleanup: () => serialized(async () => ({ deletedTickets: await records() })),
   };
 }
 export const aiTicketStore = createAiTicketStore();

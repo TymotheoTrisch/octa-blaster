@@ -31,19 +31,17 @@ Salvar não faz uma geração paga nem confirma acesso ao modelo. Chaves vazias 
 | `services/ai/api/instructions.ts` | Regras de sistema do ticket e do chat independente |
 | `services/ai/api/transport.ts` | HTTP autenticado, permissões, timeout, limites e erros |
 | `services/ai/api/providers/` | Um adaptador por formato de API e contratos compartilhados |
-| `services/storage/aiTicketStore.ts` | Base local de contexto por ticket, busca por número e retenção |
+| `services/storage/aiTicketStore.ts` | Base local de contexto por chave do ticket e retenção |
 | `services/background/ai/ticketContext.ts` | Alternância explícita entre página e dados salvos |
-| `services/ai/ticketReference.ts` | Reconhecimento de referências explícitas a um ticket salvo |
-| `components/ai/AiContextStatus.vue` | Indicação da origem e data dos dados usados |
 | `services/ai/api/retention.ts` | Expiração e exclusões remotas fora do caminho de geração |
 
 O fluxo é: interface/content script → mensagem validada no background → motor de contexto → adaptador → API. A chave não passa pelos content scripts, respostas de mensagens, DOM do Octadesk ou URL. Requisições não usam cookies e não seguem redirecionamentos.
 
 ## Chats e resumos
 
-O ícone de IA no cabeçalho abre a área de mensagens com o histórico fechado. O número visível do ticket identifica sua conversa, junto com origem/workspace. Trocar de ticket carrega seu próprio chat e invalida consultas do ticket anterior. Voltar recupera as mensagens e o rascunho. Conversas vinculadas ao ticket aberto atualizam seus dados pela página. Conversas retomadas pelo histórico ficam fixadas no ticket escolhido e consultam exclusivamente sua base local, mesmo que outra página esteja aberta. A seta do chat retorna à tela inicial de respostas rápidas.
+O ícone de IA e o botão + / Nova conversa abrem uma conversa vazia, sem ler a aba atual, mesmo com um ticket aberto. Abrir pelos botões Resumir ou Resumir ticket captura o contexto daquele atendimento e vincula a conversa a ele. Todas as perguntas seguintes usam esse mesmo contexto; não é necessário citar o número. Navegar para outro ticket não altera a conversa selecionada. A seta retorna à tela inicial de respostas rápidas.
 
-Abrir o chat ou clicar em Nova conversa não cria registros vazios. O primeiro envio persiste a pergunta imediatamente, antes do retorno da API. A conversa anterior é arquivada ao enviar a primeira mensagem da nova. Títulos podem ser renomeados. Resumir um e-mail e Resumir ticket compartilham a conversa daquele atendimento, mas a geração do resumo do e-mail usa só a mensagem selecionada.
+Abrir o chat ou clicar em Nova conversa não cria registros vazios. O primeiro envio persiste a pergunta imediatamente, antes do retorno da API. A conversa anterior permanece salva e a nova usa outra chave; Nova conversa não substitui nem herda o atendimento anterior. Títulos podem ser renomeados. Resumir um e-mail e Resumir ticket compartilham a conversa daquele atendimento, mas a geração do resumo do e-mail usa só a mensagem selecionada.
 
 As mensagens podem ser selecionadas, copiadas e inseridas no editor do ticket. A inserção reconfirma aba, frame, token do editor, ticket e rascunho após a espera. Nenhuma geração envia e-mail automaticamente.
 
@@ -90,24 +88,23 @@ Referências dos contratos: [OpenAI Responses](https://developers.openai.com/api
 
 ### Resultado desta alteração
 
-Em 25/11/2026: TypeScript e 203 testes passaram; builds Chrome MV3 e Firefox MV2 concluídos. Os dois manifestos foram conferidos: acesso de API é opcional e Native Messaging não está presente. O lint Firefox não apresentou erros e manteve 18 avisos sobre declaração de coleta de dados e atribuições a innerHTML nos bundles. Esses avisos não equivalem à aprovação/assinatura pela Mozilla. Nenhuma chave real foi usada para inferência nesta validação.
+Em 25/11/2026, após o ajuste do contexto pela origem da abertura: TypeScript e 208 testes passaram; builds Chrome MV3 e Firefox MV2 concluídos. Os dois manifestos foram conferidos: acesso de API é opcional e Native Messaging não está presente. Na validação anterior, o lint Firefox não apresentou erros e registrou 18 avisos sobre declaração de coleta de dados e atribuições a innerHTML nos bundles. Esses avisos não equivalem à aprovação/assinatura pela Mozilla. Nenhuma chave real foi usada para inferência nesta validação.
 
 ### Erro de origem não declarada ao salvar a conexão
 
 Se aparecer `Cannot request origin permission ... since it was not declared in the manifest`, o manifesto carregado precisa ser conferido. O build Firefox MV2 declara `https://*/*` em `optional_permissions`; Chrome MV3 usa `optional_host_permissions`. Recarregue a extensão após gerar/atualizar os arquivos e reabra suas configurações. No Firefox, use `.output/firefox-mv2/manifest.json`; uma cópia antiga extraída em outra pasta não é atualizada ao compilar o projeto. A interface confere o manifesto carregado antes de solicitar acesso e informa como atualizá-lo quando a declaração está ausente. Essa falha ocorre antes da chamada à NVIDIA e não valida nem invalida a chave.
 
-## Conversar fora do ticket e consultar a base local
+## Contexto definido na abertura
 
-O botão **+ / Conversa livre**, no cabeçalho e no histórico do chat, cria uma conversa sem vinculação ao ticket da aba ativa. Permite perguntas gerais e não solicita contexto à página. A seta volta à tela inicial de respostas rápidas.
+Existe uma única interface de chat, sem modos separados ou rótulos de conversa livre/ticket. O campo de mensagem e o histórico seguem o mesmo layout em todas as conversas.
 
-Ao abrir a IA de um ticket, seus dados sanitizados são guardados em uma base local separada dos chats (`browser.storage.local`, prefixo `octablaster_ticket_context_v1_`). Isso não cria uma conversa vazia no histórico nem faz uma chamada à IA. A base mantém a última cópia consultada por ticket, com número, chave que inclui origem/workspace, título, URL, digest e datas. Nunca armazena rascunho do editor nesse registro.
+- Abrir pelo ícone de IA ou por Nova conversa inicia um chat sem contexto de atendimento. Não lê o DOM, não inspeciona a aba ativa e não consulta tickets pelo texto digitado.
+- Abrir por Resumir mensagem ou Resumir ticket associa o atendimento à conversa. As perguntas posteriores se referem automaticamente a esse atendimento, inclusive perguntas como “o que falta?” ou “como devo responder?”.
+- Mencionar um número ou #123 no texto não troca o contexto nem busca outro ticket.
+- Abrir uma conversa pelo histórico recupera seu contexto original. Outro ticket aberto na aba atual não é lido como alternativa.
 
-Para continuar um atendimento fora da página, escolha sua conversa no histórico. O chat permanece fixado naquele ticket e consulta a base local; não tenta se reconectar à aba atual. O cabeçalho mostra **Dados salvos do ticket** e a data. A inserção no editor fica indisponível nesse modo. Para usar o conteúdo atual da página, abra novamente pelo botão do próprio ticket.
+A base local separada (`browser.storage.local`, prefixo `octablaster_ticket_context_v1_`) guarda os dados sanitizados capturados pelos botões de resumo. A consulta usa a chave vinculada à conversa, que inclui origem/workspace; não existe busca por número. Fechar ou navegar na aba original invalida a inserção no editor e passa a usar os dados salvos, mantendo o chat disponível. Para atualizar com outro atendimento, use o botão de resumo daquele atendimento.
 
-Também é possível escrever **ticket 272402** ou **#272402**. A extensão busca o número na base local e abre a conversa desse atendimento para enviar a pergunta. A busca usa referências explícitas, não uma suposição do modelo nem números soltos como seriais. Se o ticket não estiver salvo, pede abrir o atendimento e acessar a IA primeiro; não consulta outra página como alternativa. Números repetidos em workspaces diferentes exigem escolher a conversa pelo histórico, e pedidos que citam vários tickets são recusados para evitar mistura.
-
-Fechar a aba do atendimento preserva a conversa e permite continuar com seus dados salvos. Chats e registros de contexto obedecem à retenção configurada, fora do backup das respostas rápidas. São dados deste perfil do navegador, não um banco compartilhado entre usuários/computadores. A cópia salva não acompanha novas mensagens recebidas enquanto o ticket está fechado.
-
-Validação desta revisão de contexto: 212 testes passaram, com cobertura de conversa livre sem acesso à página, retomada fixada em outro ticket, referência explícita por número e continuidade após fechar a aba. TypeScript e builds Chrome/Firefox concluídos. A geração dos testes usa IA simulada; não houve inferência paga.
+A captura não cria conversas vazias no histórico nem armazena o rascunho do editor. Chats e dados de contexto seguem a retenção configurada e ficam fora do backup de respostas rápidas. A base pertence a este perfil do navegador; não é compartilhada entre computadores. A cópia salva não acompanha mensagens recebidas enquanto o ticket está fechado.
 
 Os avisos de processamento junto dos botões de resumo só acompanham a consulta iniciada por aquele botão e terminam ao concluir ou falhar. Perguntas digitadas no chat mantêm processamento e erros somente no painel lateral, sem ativar os controles de resumo da página.

@@ -174,7 +174,14 @@ async function refreshTagsAndTemplates() {
   await loadTemplates();
 }
 
-function openView(view: PopupView) {
+async function openView(view: PopupView) {
+  if(view==='ai-chat') {
+    try {
+      const windowId=(await browser.windows.getCurrent()).id!;
+      const result=await browser.runtime.sendMessage({action:'AI_PANEL_NEW',windowId});
+      if(!result?.success)throw new Error(result?.error || 'Não foi possível iniciar a conversa.');
+    }catch(error){setStatus(error instanceof Error ? error.message : 'Não foi possível iniciar a conversa.','error');return;}
+  }
   headerRef.value?.closeMenu();
   listRef.value?.closeCardMenu();
   statusMessage.value = '';

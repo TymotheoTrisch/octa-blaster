@@ -107,12 +107,12 @@ O modelo recebe autor/papel dos cabeçalhos quando conhecidos. O HTML bruto não
 
 `aiReplyGeneration.ts` gera diretamente no editor público: captura a orientação, limpa o campo, conserva a restauração local para erros e revalida identidade/editor/conteúdo antes de preencher. Digitação cancela o resultado pendente; nenhuma conversa lateral é criada. `AI_PANEL_SHOW` reabre um resumo em curso sem reiniciar a inferência.
 
-A entrada no chat e eventos de mudança de página/aba sincronizam a conversa pelo número do cabeçalho HTML. O roteador serializa navegação por janela, reutiliza a chave canônica, mantém rascunhos separados e invalida consultas antigas ao trocar de atendimento. Antes de enviar, reconfirma a conversa atual. O identificador de sessão/frame pode mudar sem trocar a chave persistente do ticket.
+O contexto da conversa é definido explicitamente na abertura: o ícone/Nova conversa cria um chat sem contexto; somente os botões de resumo associam dados do atendimento. A navegação da página não seleciona outra conversa nem introduz dados de outro ticket. Perguntas no chat usam a chave já associada, sem interpretar números no texto.
 
-O roteador mantém conversas vazias apenas em memória e persiste no primeiro envio, antes de aguardar a inferência. Nova conversa preserva o registro anterior até o próximo envio; nesse momento arquiva a versão anterior com chave derivada da revisão e salva a nova conversa canônica. Títulos personalizados são metadados locais e não alteram a identidade do ticket.
+O roteador mantém conversas vazias em memória e persiste no primeiro envio. Nova conversa usa uma chave independente, preservando o chat anterior. Reabrir pelo resumo recupera a conversa canônica do ticket; títulos personalizados são metadados locais e não alteram sua identidade.
 
 A configuração e os contratos dos módulos de API estão documentados em [IA por APIs](IA-APIS.md).
 
 ### Contexto independente da aba ativa
 
-`aiTicketStore.ts` mantém a base local de dados do ticket separada do histórico de conversa. `aiRetention.ts` aplica a mesma retenção a ambos. `ai/ticketContext.ts` resolve dados da página para sessões vinculadas ou registros locais para sessões retomadas; a retomada pelo histórico não envia mensagens de leitura ao content script. `ticketReference.ts` permite selecionar um atendimento salvo por número explícito, recusando colisões entre workspaces. O cabeçalho usa `AiContextStatus.vue` para indicar a origem dos dados, e o botão + cria uma conversa livre que não acompanha a navegação de tickets.
+`aiTicketStore.ts` mantém a base local de dados do ticket separada do histórico. `aiRetention.ts` aplica a retenção a ambos. `ai/ticketContext.ts` resolve o contexto da fonte original ou dos dados locais usando a chave vinculada à conversa. Os botões de resumo são a única origem de associação com uma página; o ícone e Nova conversa não leem a aba ativa. A interface é única e não expõe modos separados. A extração automática de números e o registro periódico de tickets da página foram removidos.

@@ -4,7 +4,7 @@ import { writingGuidance, writingIdentity } from '@/services/ai/writingMemory';
 import { aiMessage } from '@/services/ai/messageClient';
 import { createTicketChatPersistence, textDigest } from '@/services/ai/ticketChatPersistence';
 import { aiMessageAttribution, collectAiTicketContext, getAiTicketIdentity, readAiMessage, ticketHtmlContext } from './aiTicketContext';
-import { getScopedTicketContainer, isTicketElementVisible, TICKET_SELECTOR } from './licenseDetector';
+import { getScopedTicketContainer, isTicketElementVisible } from './licenseDetector';
 import { expandAiHistory } from './aiHistory';
 import { insertTextIntoElement } from './insertText';
 
@@ -49,28 +49,10 @@ async function snapshot(source: Source): Promise<PanelSnapshot> {
   return { context: pageContext, ticketNumber: context.metadata.numero || undefined, title: source.scope.querySelector('h1,h2,h3')?.textContent?.trim().slice(0, 1000) || 'Conversa do ticket', key, namespace, digest: await textDigest(pageContext), selection, direction: source.editor ? readAiMessage(source.editor).slice(0, 1200) : undefined, draftToken: source.draftToken, style: source.editor ? await writingGuidance(await writingIdentity(source.editor)) : undefined };
 }
 export function startAiPanelBridge(doc: Document, editors: EditorContext) {
-  const pageSources=new Map<HTMLElement,string>();
-  let lastRegistration='';
-  const register=(force=false)=>{
-    const scopes=[...new Set(Array.from(doc.querySelectorAll<HTMLElement>(TICKET_SELECTOR)).map(el=>getScopedTicketContainer(el)).filter((el):el is HTMLElement=>!!el&&el.ownerDocument===doc&&isTicketElementVisible(el)))];
-    for(const scope of pageSources.keys())if(!scopes.includes(scope)){sources.delete(pageSources.get(scope)!);pageSources.delete(scope);}
-    const tickets=scopes.map(scope=>{
-      let id=pageSources.get(scope);const identity=getAiTicketIdentity(scope);
-      if(!id || sources.get(id)?.identity!==identity){if(id)sources.delete(id);id=crypto.randomUUID();pageSources.set(scope,id);}
-      sources.set(id,{scope,identity});return {id,identity};
-    });
-    const signature=JSON.stringify(tickets);if(!force&&signature===lastRegistration)return;lastRegistration=signature;
-    void aiMessage('AI_PAGE_REGISTER',{tickets}).catch(()=>{});
-  };
-  register();const registrationTimer=doc.defaultView?.setInterval(()=>register(true),2500);
-  let registrationPending:ReturnType<typeof setTimeout>|undefined;
-  const observer=new MutationObserver(()=>{if(!registrationPending)registrationPending=setTimeout(()=>{registrationPending=undefined;register();},150);});
-  observer.observe(doc.body || doc.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden','ticket-id','data-ticket-id']});
   const listener = (message: any, sender: any, respond: (value: any) => void) => {
-    if (sender.id !== browser.runtime.id || !['AI_PAGE_CHECK', 'AI_PANEL_SNAPSHOT', 'AI_PANEL_INSERT', 'AI_PANEL_PROGRESS'].includes(message?.action)) return;
+    if (sender.id !== browser.runtime.id || !['AI_PANEL_SNAPSHOT', 'AI_PANEL_INSERT', 'AI_PANEL_PROGRESS'].includes(message?.action)) return;
     const source = sources.get(message.id);
     if (!source || source.identity !== message.identity || source.scope.ownerDocument !== doc || !valid(source)) { respond({ success: false, error: 'O ticket mudou. Abra a conversa pelo ticket atual.' }); return true; }
-    if(message.action==='AI_PAGE_CHECK'){respond({success:true});return true;}
     if (message.action === 'AI_PANEL_PROGRESS') {
       const state = message.progress;
       if (!state || typeof state.busy !== 'boolean' || typeof state.status !== 'string' || state.status.length > 500 || (state.error !== undefined && (typeof state.error !== 'string' || state.error.length > 2000))) { respond({success:false}); return true; }
@@ -79,7 +61,6 @@ export function startAiPanelBridge(doc: Document, editors: EditorContext) {
     if (message.action === 'AI_PANEL_SNAPSHOT') {
       void (async()=>{
         if(message.expectedKey && message.expectedKey!==await createTicketChatPersistence(source.scope).identity())return {success:false,error:'Outro ticket está aberto.'};
-        if(pageSources.get(source.scope)===message.id && !await expandAiHistory(source.scope,()=>valid(source)))throw new Error('Expanda Todas as interações do ticket e tente novamente.');
         const data=await snapshot(source);
         return message.expectedKey && message.expectedKey!==data.key ? {success:false,error:'Outro ticket está aberto.'} : { success: true, data };
       })().then(respond,error=>respond({success:false,error:error.message}));return true;
@@ -99,5 +80,5 @@ export function startAiPanelBridge(doc: Document, editors: EditorContext) {
   };
   browser.runtime.onMessage.addListener(listener);
   const timer = doc.defaultView?.setInterval(() => { for (const [id, source] of sources) if (source.scope.ownerDocument === doc && (!valid(source) || (source.message && !source.message.isConnected) || (source.editor && source.draftToken && source.editor.innerHTML !== source.draft))) { source.progress?.({busy:false,status:'',error:'O ticket ou o rascunho mudou. Clique novamente para gerar com o conteúdo atual.'}); sources.delete(id); void aiMessage('AI_PANEL_CONTEXT', { id, error: 'O ticket ou o rascunho mudou. Abra a IA novamente pelo conteúdo atual.' }).catch(() => {}); } }, 500);
-  return () => {observer.disconnect();clearTimeout(registrationPending); if (timer !== undefined) doc.defaultView?.clearInterval(timer);if(registrationTimer!==undefined)doc.defaultView?.clearInterval(registrationTimer); browser.runtime.onMessage.removeListener(listener); for (const [id, source] of sources) if (source.scope.ownerDocument === doc) sources.delete(id); };
+  return () => {if (timer !== undefined) doc.defaultView?.clearInterval(timer);browser.runtime.onMessage.removeListener(listener); for (const [id, source] of sources) if (source.scope.ownerDocument === doc) sources.delete(id); };
 }

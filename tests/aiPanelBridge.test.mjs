@@ -18,10 +18,12 @@ test('page HTML reads current field values and excludes executable content, hidd
  }finally{dom.restore();}
 });
 
-test('the page registers the ticket frame without editor focus and snapshots include current sanitized HTML',async()=>{
+test('page context is available only after its summary button is opened and snapshots stay scoped',async()=>{
  const f=setup();try{
-  const page=f.registrations.at(-1).tickets[0];assert.ok(page);assert.equal(f.calls.length,0);
-  const message={action:'AI_PANEL_SNAPSHOT',...page};const initial=await f.respond(message);
+  assert.equal(f.calls.length,0);
+  await openAiSidebar(f.scope,'summary_full');await f.prepared();
+  const page=f.calls.find(message=>message.action==='AI_PANEL_OPEN');
+  const message={...page,action:'AI_PANEL_SNAPSHOT'};const initial=await f.respond(message);
   assert.equal(initial.success,true);assert.match(initial.data.context,/HTML do ticket/);assert.match(initial.data.context,/<form/);
   f.scope.querySelector('.content-comment-interaction').textContent='Informação atualizada no HTML.';
   const next=await f.respond({...message,expectedKey:initial.data.key});assert.match(next.data.context,/Informação atualizada/);assert.notEqual(next.data.digest,initial.data.digest);
@@ -45,11 +47,11 @@ test('the Octadesk header number identifies ticket 272402 even when the URL cont
 function setup(){
  const storage=installStorage(),dom=installDom('<form id="ticketA" ticket="ticket"><header class="ticket-header"><h2>Ticket A</h2></header><article class="interaction"><header class="interaction-header">Cliente</header><div class="content-comment-interaction">Pedido do cliente.</div></article><div class="comment-panel"><div ng-if="ticketViewModel.typeInteractionSelected == 2"><div class="note-editable" contenteditable="true"><p><br></p></div></div></div></form>');
  dom.window.HTMLElement.prototype.getBoundingClientRect=()=>({width:800,height:200});
- const calls=[],registrations=[],listeners=[];browser.runtime={id:'extension',getURL:path=>`moz-extension://extension${path}`,getManifest:()=>({manifest_version:3}),sendMessage:async message=>{if(message.action==='AI_PAGE_REGISTER')registrations.push(message);else calls.push(message);return {success:true};},onMessage:{addListener:fn=>listeners.push(fn),removeListener:()=>{}}};
+ const calls=[],listeners=[];browser.runtime={id:'extension',getURL:path=>`moz-extension://extension${path}`,getManifest:()=>({manifest_version:3}),sendMessage:async message=>{calls.push(message);return {success:true};},onMessage:{addListener:fn=>listeners.push(fn),removeListener:()=>{}}};
  const editor=dom.document.querySelector('.note-editable'),scope=dom.document.querySelector('form');
  const bridge=startAiPanelBridge(dom.document,{findEditorForWidget:()=>editor,isUsableEditor:()=>true,activateEditor:()=>{},isCurrentContext:()=>true});
  const respond=message=>new Promise(resolve=>{for(const fn of listeners)if(fn(message,{id:'extension'},resolve))break;});
- return {...dom,editor,scope,calls,registrations,respond,async prepared(){for(let i=0;i<200;i++){if(calls.some(m=>m.action==='AI_PANEL_CONTEXT'&&m.snapshot))return;const error=calls.find(m=>m.action==='AI_PANEL_CONTEXT'&&m.error);if(error)throw new Error(error.error);await new Promise(r=>setTimeout(r,5));}throw new Error('Context was not prepared');},restore(){bridge();dom.restore();storage.restore();}};
+ return {...dom,editor,scope,calls,respond,async prepared(){for(let i=0;i<200;i++){if(calls.some(m=>m.action==='AI_PANEL_CONTEXT'&&m.snapshot))return;const error=calls.find(m=>m.action==='AI_PANEL_CONTEXT'&&m.error);if(error)throw new Error(error.error);await new Promise(r=>setTimeout(r,5));}throw new Error('Context was not prepared');},restore(){bridge();dom.restore();storage.restore();}};
 }
 test('typing only shows the editor AI icon; clicking opens the sidebar with no extra field or modal',async()=>{
  const f=setup(),stop=startReplyAssistance(f.document);try{
