@@ -59,7 +59,7 @@ O modelo deve distinguir atendente e cliente e omitir assinaturas; a extensão t
 
 ## Histórico, credenciais e custos
 
-- Chats, rascunhos e contexto extraído ficam em `browser.storage.local`, separados do localStorage do site e do backup de respostas rápidas.
+- Chats, rascunhos e contexto extraído ficam no IndexedDB privado da extensão (`octablaster-history`), separados do localStorage do site e do backup de respostas rápidas. Preferências pequenas continuam em `browser.storage.local`.
 - Chaves e referências de contexto remoto ficam no IndexedDB da origem da extensão. Não são sincronizadas nem exportadas pelo backup. O navegador/usuário com acesso ao perfil ainda pode inspecioná-las; não há promessa de criptografia pelo sistema operacional.
 - Prompts e aprendizado de escrita continuam no navegador. O aprendizado registra padrões numéricos de respostas confirmadas do atendente, não textos de exemplo de clientes. Permite pausar, apagar padrões e definir início/encerramento.
 - Retenção padrão: 30 dias sem uso ou 90 dias de idade máxima. A tela Histórico e retenção permite configurar e limpar expirados.
@@ -103,8 +103,22 @@ Existe uma única interface de chat, sem modos separados ou rótulos de conversa
 - Mencionar um número ou #123 no texto não troca o contexto nem busca outro ticket.
 - Abrir uma conversa pelo histórico recupera seu contexto original. Outro ticket aberto na aba atual não é lido como alternativa.
 
-A base local separada (`browser.storage.local`, prefixo `octablaster_ticket_context_v1_`) guarda os dados sanitizados capturados pelos botões de resumo. A consulta usa a chave vinculada à conversa, que inclui origem/workspace; não existe busca por número. Fechar ou navegar na aba original invalida a inserção no editor e passa a usar os dados salvos, mantendo o chat disponível. Para atualizar com outro atendimento, use o botão de resumo daquele atendimento.
+A base local de tickets no IndexedDB guarda os dados sanitizados capturados pelos botões de resumo. Chat e ticket referenciam o mesmo texto de contexto, sem duplicá-lo. A consulta usa a chave vinculada à conversa, que inclui origem/workspace; não existe busca por número. Fechar ou navegar na aba original invalida a inserção no editor e passa a usar os dados salvos, mantendo o chat disponível. Para atualizar com outro atendimento, use o botão de resumo daquele atendimento.
 
 A captura não cria conversas vazias no histórico nem armazena o rascunho do editor. Chats e dados de contexto seguem a retenção configurada e ficam fora do backup de respostas rápidas. A base pertence a este perfil do navegador; não é compartilhada entre computadores. A cópia salva não acompanha mensagens recebidas enquanto o ticket está fechado.
 
 Os avisos de processamento junto dos botões de resumo só acompanham a consulta iniciada por aquele botão e terminam ao concluir ou falhar. Perguntas digitadas no chat mantêm processamento e erros somente no painel lateral, sem ativar os controles de resumo da página.
+
+
+## Armazenamento e desempenho do histórico
+
+- O menu lê apenas metadados, em páginas de 30 conversas. A busca considera título e número do ticket; não lê o conteúdo de todas as mensagens.
+- Ao abrir um chat, são carregadas as 60 mensagens mais recentes. **Carregar mensagens anteriores** busca mais 60. Enviar ou editar preserva o trecho antigo ainda não carregado.
+- Mensagens são registros individuais: somente as novas ou alteradas são gravadas. O rascunho fica separado e é salvo após 600 ms sem digitação; enviar, trocar de conversa e sair do painel forçam a gravação. Um encerramento abrupto pode perder a última fração de segundo do rascunho.
+- Contextos são identificados pelo hash do conteúdo e compartilhados por referência entre chat e ticket. Quando a última referência expira, o texto é removido.
+- O limite global é de **50 MB estimados** de dados serializados. O valor aparece em **Histórico e retenção**. Não representa uso de RAM nem tamanho exato do banco em disco, que inclui índices e custos internos do navegador. Ao atingir o limite, a gravação falha com aviso e mantém os registros anteriores; não apaga conversas ainda válidas silenciosamente.
+- A retenção existente continua valendo. A limpeza usa índices e lotes de até 100 registros, ao iniciar e por alarme do navegador a cada hora enquanto ele estiver em execução. Não carrega os corpos das mensagens para identificar expirados.
+
+A migração dos prefixos antigos `octablaster_ticket_chat_v1_` e `octablaster_ticket_context_v1_` é automática e ocorre uma vez. Cada registro válido só sai de `browser.storage.local` depois da confirmação da transação no IndexedDB; falhas preservam os originais restantes e permitem retomar sem duplicação. Registros já expirados são removidos conforme a retenção configurada. Em navegadores sem `storage.local.getKeys`, uma leitura completa é necessária somente nessa migração. Um histórico grande pode tornar a primeira abertura mais lenta.
+
+A implementação está dividida em `services/storage/history/`: esquema e banco, preparação/gravação, referências e orçamento, migração, paginação, repositório e limpeza. Credenciais continuam no banco separado `octablaster-api`; templates e backups mantêm o formato anterior. `tests/aiHistoryDatabase.test.mjs` cobre migração interrompida, rollback, paginação, mensagens sob demanda, gravações incrementais, limite de espaço, retenção e debounce. Os testes usam IndexedDB simulado; não constituem benchmark em um perfil real do navegador.

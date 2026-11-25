@@ -46,11 +46,21 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
     const details: ChatDetails = {...(session.ticketContextKey?{ticketKey:session.ticketContextKey}:{}),kind:session.state.kind || 'ticket',title:session.state.title,namespace:session.snapshot.namespace,context:session.snapshot.context,...(session.state.ticketUrl?{ticketUrl:session.state.ticketUrl}:{}),...(session.state.ticketNumber?{ticketNumber:session.state.ticketNumber}:{}),...(session.summaryQuestion?{summaryQuestion:session.summaryQuestion}:{}),...(session.customTitle?{customTitle:true}:{})};
     const content = structuredClone({ messages: session.state.messages, draft: session.state.draft, contextDigest: session.summaryDigest || '0'.repeat(64), details });
     session.save = session.save.catch(() => {}).then(async () => {
-      const result = await callAi({ action: 'AI_CHAT_SAVE', key: session.snapshot!.key, revision: session.revision, content }, session.sender);
+      const result = await callAi({ action: 'AI_CHAT_SAVE', key: session.snapshot!.key, revision: session.revision, content, options:{startIndex:session.state.messageOffset || 0,ackOnly:true} }, session.sender);
       session.revision = result.chat.revision;
+      session.state.totalMessages=result.totalMessages || (session.state.messageOffset || 0)+session.state.messages.length;
     });
     return session.save;
   };
+  function persistDraft(session: Session, text: string) {
+    session.state.draft = text;
+    if(!session.snapshot || !session.state.messages.length || session.persistent===false)return Promise.resolve();
+    session.save=session.save.catch(()=>{}).then(async()=>{
+      const result=await callAi({action:'AI_CHAT_DRAFT',key:session.snapshot!.key,revision:session.revision,content:{draft:text}},session.sender);
+      session.revision=result.chat.revision;
+    });
+    return session.save;
+  }
   async function snapshot(session: Session): Promise<PanelSnapshot> {
     if (session.state.detached) return savedTicketSnapshot(session);
     let tab;
@@ -83,12 +93,12 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
     const stored=(await browser.storage.local.get(['octablaster_ai_history_namespace'])).octablaster_ai_history_namespace;
     const namespace=typeof stored==='string'?stored:'local';
     key=mode==='new'?await textDigest(`general:${namespace}:${crypto.randomUUID()}`):key;
-    const saved=await callAi({action:'AI_CHAT_LOAD',key},sender);
+    const saved=await callAi({action:'AI_CHAT_LOAD',key,options:{limit:60}},sender);
     if(mode==='resume'&&!saved.chat)throw new Error('A conversa expirou ou não está mais salva.');
     const details=saved.chat?.details;
     if(details&&details.namespace!==namespace)throw new Error('Esta conversa pertence a outra conexão.');
     const context=details?.context || (mode==='new'?'Conversa independente. Nenhum ticket vinculado.':'Conversa retomada pelo histórico salvo. O texto original do ticket não está disponível.');
-    const restored:Session={ticketContextKey:details?.ticketKey || (details?.kind==='ticket'?key:undefined),customTitle:details?.customTitle===true,windowId,state:{conversationKey:key!,id:crypto.randomUUID(),kind:details?.kind || (saved.chat?'ticket':'general'),detached:true,ticketUrl:details?.ticketUrl,ticketNumber:details?.ticketNumber,title:details?.title || (saved.chat?'Conversa salva':'Nova conversa'),messages:saved.chat?.messages || [],draft:saved.chat?.draft || '',busy:false,ready:true,status:saved.chat?'Conversa recuperada.':'Escreva sua mensagem.',error:''},sender,identity:key!,task:'summary_full',snapshot:{key:key!,context,digest:await textDigest(context),namespace,title:details?.title || 'Novo chat',ticketNumber:details?.ticketNumber},revision:saved.chat?.revision || null,save:Promise.resolve(),insertions:new Map(),cancelled:false,summaryDigest:saved.chat?.contextDigest,summaryQuestion:details?.summaryQuestion};
+    const restored:Session={ticketContextKey:details?.ticketKey || (details?.kind==='ticket'?key:undefined),customTitle:details?.customTitle===true,windowId,state:{conversationKey:key!,id:crypto.randomUUID(),kind:details?.kind || (saved.chat?'ticket':'general'),detached:true,ticketUrl:details?.ticketUrl,ticketNumber:details?.ticketNumber,title:details?.title || (saved.chat?'Conversa salva':'Nova conversa'),messages:saved.chat?.messages || [],messageOffset:saved.messageOffset || 0,totalMessages:saved.totalMessages || 0,draft:saved.chat?.draft || '',busy:false,ready:true,status:saved.chat?'Conversa recuperada.':'Escreva sua mensagem.',error:''},sender,identity:key!,task:'summary_full',snapshot:{key:key!,context,digest:await textDigest(context),namespace,title:details?.title || 'Novo chat',ticketNumber:details?.ticketNumber},revision:saved.chat?.revision || null,save:Promise.resolve(),insertions:new Map(),cancelled:false,summaryDigest:saved.chat?.contextDigest,summaryQuestion:details?.summaryQuestion};
     if (restored.state.kind === 'ticket') { restored.snapshot = await savedTicketSnapshot(restored); restored.state.status = 'Usando os dados salvos deste ticket.'; }
     if (restored.state.kind === 'general') { restored.state.contextSource = 'none'; }
     if(old){cancel(old);if(old.state.busy)progress(old,{busy:false,status:'Consulta encerrada ao trocar de ticket.'});}
@@ -99,7 +109,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
     session.state.busy = true; session.state.error = session.warning || ''; session.state.status = 'Preparando o contexto…'; changed(windowId);
     const original = [...session.state.messages];
     const base = editIndex === undefined ? original : original.slice(0, editIndex);
-    const allTurns = base[0]?.role === 'assistant' ? [{ role: 'user' as const, content: session.summaryQuestion || FULL }, ...base] : base;
+    const allTurns = base[0]?.role === 'assistant' && !session.state.messageOffset ? [{ role: 'user' as const, content: session.summaryQuestion || FULL }, ...base] : base;
     const completed=[];for(let i=0;i<allTurns.length;i++){if(allTurns[i]!.role!=='user')continue;completed.push(allTurns[i]!);if(allTurns[i+1]?.role==='assistant'){completed.push(allTurns[++i]!);}else completed.push({role:'assistant' as const,content:'[A consulta anterior não teve uma resposta concluída.]'});}
     const before = task === 'summary_full' || task === 'summary_latest' ? [] : boundedChat(completed);
     if(task==='chat'){
@@ -161,7 +171,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
       }
     },
     handleMessage(message: any, sender: any, respond: (value: any) => void): boolean | undefined {
-      if (!['AI_PANEL_RENAME','AI_PANEL_ENTER','AI_PANEL_NEW', 'AI_PANEL_RESUME', 'AI_PANEL_ACCESS', 'AI_PANEL_ACTIVATE', 'AI_PANEL_SHOW', 'AI_PANEL_OPEN', 'AI_PANEL_CONTEXT', 'AI_PANEL_GET', 'AI_PANEL_REVEAL', 'AI_PANEL_SEND', 'AI_PANEL_DRAFT', 'AI_PANEL_INSERT', 'AI_PANEL_CANCEL'].includes(message.action)) return;
+      if (!['AI_PANEL_MORE','AI_PANEL_RENAME','AI_PANEL_ENTER','AI_PANEL_NEW', 'AI_PANEL_RESUME', 'AI_PANEL_ACCESS', 'AI_PANEL_ACTIVATE', 'AI_PANEL_SHOW', 'AI_PANEL_OPEN', 'AI_PANEL_CONTEXT', 'AI_PANEL_GET', 'AI_PANEL_REVEAL', 'AI_PANEL_SEND', 'AI_PANEL_DRAFT', 'AI_PANEL_INSERT', 'AI_PANEL_CANCEL'].includes(message.action)) return;
       const content = !!sender.tab && allowed(sender.tab.url) && allowed(sender.url || sender.tab.url);
       const extension = !sender.tab || sender.url?.startsWith(browser.runtime.getURL('/'));
       const respondError = (error: unknown) => respond({ success: false, error: error instanceof Error ? error.message : 'Falha no painel de IA.' });
@@ -225,10 +235,10 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           await rememberTicketSnapshot(session, value);
           await session.save;
           let saved: any = {};
-          try { saved = await callAi({ action: 'AI_CHAT_LOAD', key: value.key }, session.sender); } catch { session.persistent = false; session.warning = 'O histórico não pôde ser recuperado; esta conversa não será salva.'; session.state.error = session.warning; }
+          try { saved = await callAi({ action: 'AI_CHAT_LOAD', key: value.key, options:{limit:60} }, session.sender); } catch { session.persistent = false; session.warning = 'O histórico não pôde ser recuperado; esta conversa não será salva.'; session.state.error = session.warning; }
           if (!active(windowId, session)) return {};
           session.customTitle=saved.chat?.details?.customTitle===true;if(session.customTitle)session.state.title=saved.chat.details.title;
-          session.summaryDigest = saved.chat?.contextDigest || '0'.repeat(64); session.revision = saved.chat?.revision || null; session.state.messages = saved.chat?.messages || []; session.state.draft = saved.chat?.draft || ''; session.state.ready = true;
+          session.summaryDigest = saved.chat?.contextDigest || '0'.repeat(64); session.revision = saved.chat?.revision || null; session.state.messages = saved.chat?.messages || []; session.state.messageOffset=saved.messageOffset || 0;session.state.totalMessages=saved.totalMessages || session.state.messages.length; session.state.draft = saved.chat?.draft || ''; session.state.ready = true;
           await persist(session);
           const marker=await textDigest(summaryContextDigest(value.digest,fullPrompt));
           const legacyDefault=prompts.ticket===TICKET_SUMMARY_PROMPT && saved.chat?.contextDigest===await textDigest(`${SUMMARY_FORMAT_VERSION}:${value.digest}`);
@@ -243,7 +253,19 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           if(session.state.busy||typeof message.title!=='string'||!message.title.trim()||message.title.length>120||/[\u0000-\u001f]/.test(message.title))throw new Error('Use um título de 1 a 120 caracteres.');
           session.state.title=message.title.trim();session.customTitle=true;await persist(session);changed(windowId);return {};
         }
-        if (message.action === 'AI_PANEL_DRAFT') { if (typeof message.text !== 'string' || message.text.length > 4000) throw new Error('Pergunta acima do limite.'); session.state.draft = message.text; await persist(session); return {}; }
+        if (message.action === 'AI_PANEL_DRAFT') { if (typeof message.text !== 'string' || message.text.length > 4000) throw new Error('Pergunta acima do limite.'); await persistDraft(session,message.text); return {}; }
+        if(message.action==='AI_PANEL_MORE'){
+          if(session.state.busy || !session.state.ready)throw new Error('Aguarde a consulta atual.');
+          await session.save;
+          const before=session.state.messageOffset || 0;
+          if(!before)return {};
+          const result=await callAi({action:'AI_CHAT_MESSAGES',key:session.snapshot!.key,revision:session.revision,options:{limit:60,before}},session.sender);
+          if(!active(windowId,session)||!result.chat)throw new Error('A conversa mudou. Reabra o chat.');
+          const older=result.chat.messages;
+          session.state.messages=[...older,...session.state.messages];session.state.messageOffset=result.messageOffset;
+          session.insertions=new Map([...session.insertions].map(([index,token])=>[index+older.length,token]));
+          changed(windowId);return {};
+        }
         if (message.action === 'AI_PANEL_SEND') {
           if (session.state.busy || !session.state.ready || typeof message.text !== 'string' || !message.text.trim() || message.text.length > 4000) throw new Error('Aguarde ou escreva uma pergunta.');
           if (message.editIndex !== undefined && (!Number.isInteger(message.editIndex) || session.state.messages[message.editIndex]?.role !== 'user')) throw new Error('Pergunta inválida para edição.');

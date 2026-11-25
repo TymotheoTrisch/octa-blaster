@@ -14,7 +14,7 @@ test('independent inference and the conversation list are extension-only and pre
   assert.equal(generated,undefined);
   assert.equal((await f.call({action:'AI_GENERATE',requestId:'general',input:general},ui)).success,true);
   assert.equal(generated.action,'generate');assert.equal(generated.data.input.task,'general');
-  assert.deepEqual((await f.call({action:'AI_CHAT_LIST'},ui)).data,[]);
+  assert.deepEqual((await f.call({action:'AI_CHAT_LIST'},ui)).data,{items:[],nextCursor:null});
  }finally{f.storage.restore();}
 });
 function setup(client) {

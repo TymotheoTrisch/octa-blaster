@@ -8,6 +8,24 @@ import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
 import { installStorage } from './helpers.mjs';
 const source = { id: 'extension', tab: { id: 1, windowId: 9, active: true, url: 'https://app.octadesk.com/ticket/edit/1' }, frameId: 2, url: 'https://app.octadesk.com/embed/main/home/ticket/edit/1' };
 
+test('a long conversation opens its recent messages, appends without overwriting older turns and loads previous pages on demand',async()=>{
+ const f=setup();try{
+  const messages=Array.from({length:160},(_,index)=>({role:index%2?'assistant':'user',content:`Mensagem ${index}`}));
+  await f.store.handle('AI_CHAT_SAVE','a'.repeat(64),null,{messages,draft:'',contextDigest:'b'.repeat(64),details:{kind:'ticket',title:'Conversa longa',namespace:'local',context:'Dados do ticket salvo.',ticketKey:'a'.repeat(64)}});
+  await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'a'.repeat(64)});let state=await f.get();
+  assert.equal(state.messageOffset,100);assert.equal(state.messages.length,60);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Pergunta nova'});state=await f.done();
+  let stored=(await f.store.handle('AI_CHAT_LOAD','a'.repeat(64))).chat;
+  assert.equal(stored.messages.length,162);assert.equal(stored.messages[0].content,'Mensagem 0');
+  await f.call({action:'AI_PANEL_MORE',windowId:9,id:state.id});state=await f.get();
+  assert.equal(state.messageOffset,40);assert.equal(state.messages[0].content,'Mensagem 40');
+  await f.call({action:'AI_PANEL_DRAFT',windowId:9,id:state.id,text:'Rascunho da conversa longa'});
+  stored=(await f.store.handle('AI_CHAT_LOAD','a'.repeat(64))).chat;
+  assert.equal(stored.messages.length,162);assert.equal(stored.draft,'Rascunho da conversa longa');
+  assert.equal(f.calls.filter(message=>message.action==='AI_CHAT_DRAFT').at(-1).content.messages,undefined);
+ }finally{f.storage.restore();}
+});
+
 test('opening normally never reads the active ticket or resolves numbers mentioned in a message',async()=>{
  const f=setup();try{
   browser.tabs.query=async()=>{assert.fail('Normal chat must not inspect the active tab');};
@@ -221,11 +239,11 @@ test('a subsequent question retains the prior unanswered user turn as history wi
 
 
 function setup(generate = async () => ({ text: 'Resposta fictícia' }), nativeSidebar = false) {
-  const storage = installStorage(), store = createTicketChatStore(), calls = [], events = [];
+  const storage = installStorage(), repository = createTicketChatStore(), store={...repository,list:async namespace=>(await repository.list(namespace)).items}, calls = [], events = [];
   let value = { title: 'Ticket fictício', key: 'a'.repeat(64), digest: 'b'.repeat(64), namespace: 'local', context: 'Mensagem do cliente fictício.' };
   browser.runtime = { getURL: path => `moz-extension://extension${path}`, sendMessage: async event => { events.push(event); } };
   browser.tabs = { query:async()=>[source.tab], get: async () => source.tab, sendMessage: async (_tab, message, options) => { assert.equal(options.frameId, 2); if (message.action === 'AI_PANEL_SNAPSHOT') return { success: true, data: value }; calls.push(message); return { success: true }; } };
-  const router = createAiPanelRouter(async (message) => { calls.push(message); if (['AI_CHAT_LOAD','AI_CHAT_SAVE'].includes(message.action)) return store.handle(message.action, message.key, message.revision, message.content); if (message.action === 'AI_CANCEL') return {}; return generate(message); }, nativeSidebar ? undefined : () => { events.push({ action: 'sidebar-open' }); return Promise.resolve(); });
+  const router = createAiPanelRouter(async (message) => { calls.push(message); if (['AI_CHAT_LOAD','AI_CHAT_SAVE','AI_CHAT_DRAFT','AI_CHAT_MESSAGES'].includes(message.action)) return store.handle(message.action, message.key, message.revision, message.content,message.options); if (message.action === 'AI_CANCEL') return {}; return generate(message); }, nativeSidebar ? undefined : () => { events.push({ action: 'sidebar-open' }); return Promise.resolve(); });
   const call = (message, sender = ui) => new Promise(resolve => router.handleMessage(message, sender, result => resolve(structuredClone(result))));
   const get = async () => (await call({ action: 'AI_PANEL_GET', windowId: 9 })).data;
   const open = async (id = 'one', task = 'summary_full') => { assert.equal((await call({ action: 'AI_PANEL_OPEN', id, identity: 'ticket-A', task }, source)).success, true); return call({ action: 'AI_PANEL_CONTEXT', id, snapshot: value }, source); };

@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, nextTick, computed, watch } from 'vue';
+import { onMounted, onUnmounted, ref, nextTick, watch } from 'vue';
 import { ArrowLeft, Copy, Pencil, CornerDownLeft, Loader2, Send, Check, PanelLeft, Plus, X, ExternalLink } from 'lucide-vue-next';
 import type { AiPanelState } from '@/types/aiPanel';
 import { TICKET_SUMMARY_PROMPT, EMAIL_SUMMARY_PROMPT, summaryTextParts } from '@/services/ai/summaryFormat';
 import { aiMessage } from '@/services/ai/messageClient';
+import { useAiHistory } from '@/composables/useAiHistory';
+import { createDraftWriter } from '@/services/ai/draftWriter';
 const emit = defineEmits<{ back: [] }>();
-const showHistory=ref(false),historyBusy=ref(false),search=ref(''),historyError=ref('');
+const showHistory=ref(false),historyBusy=ref(false),olderBusy=ref(false);
+const history=useAiHistory(error=>{feedback.value=error;});
+const {chats,search,busy:historyLoading,error:historyError,nextCursor,refresh:refreshHistory,more:moreHistory}=history;
 const historyDrawer=ref<HTMLElement|null>(null),historyToggle=ref<HTMLButtonElement|null>(null);
 watch(showHistory,async open=>{await nextTick();if(open)historyDrawer.value?.querySelector<HTMLButtonElement>('button')?.focus();else historyToggle.value?.focus();},{immediate:true});
 function historyKeydown(event:KeyboardEvent){
@@ -17,9 +21,6 @@ function historyKeydown(event:KeyboardEvent){
  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
  else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
 }
-const chats=ref<{key:string;title:string;kind:'general'|'ticket';updatedAt:number}[]>([]);
-const filteredChats=computed(()=>chats.value.filter(chat=>chat.title.toLocaleLowerCase().includes(search.value.toLocaleLowerCase())));
-async function refreshHistory(){historyBusy.value=true;try{chats.value=await aiMessage('AI_CHAT_LIST');}catch(error){feedback.value=error instanceof Error?error.message:'Histórico indisponível.';historyError.value=feedback.value;}finally{historyBusy.value=false;}}
 async function browse(){showHistory.value=!showHistory.value;if(showHistory.value){historyError.value='';await refreshHistory();}}
 async function openChat(key?:string){historyBusy.value=true;historyError.value='';try{if(!await saveDraft()){historyError.value=feedback.value;return;}await aiMessage(key?'AI_PANEL_RESUME':'AI_PANEL_NEW',{windowId,key});showHistory.value=false;await refresh();if(!key){draft.value='';editIndex.value=undefined;renaming.value=false;}await nextTick();composer.value?.focus();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível abrir a conversa.';historyError.value=feedback.value;}finally{historyBusy.value=false;await nextTick();if(!showHistory.value)composer.value?.focus();}}
 const contextBusy=ref(true);
@@ -33,7 +34,7 @@ function edit(index:number) { editIndex.value=index; draft.value=visibleText(sta
 let refreshSequence=0;
 let windowId = 0, started = 0, timer: ReturnType<typeof setInterval> | undefined;
 async function refresh() {
-  try { const sequence=++refreshSequence;const value = await aiMessage('AI_PANEL_GET', { windowId });if(sequence!==refreshSequence)return; const changed = (value?.conversationKey || value?.id) !== (state.value?.conversationKey || state.value?.id) || (!!value?.error && !value.busy && !!state.value?.busy); if (value?.busy && !state.value?.busy) started = Date.now(); state.value = value; if (changed) { renaming.value=false; draft.value = value?.draft || ''; feedback.value=''; editIndex.value=undefined; } await nextTick(); if (window.getSelection()?.isCollapsed !== false) log.value?.scrollTo?.({ top: log.value.scrollHeight }); } catch (error) { feedback.value = error instanceof Error ? error.message : 'Painel indisponível.'; }
+  try { const sequence=++refreshSequence;const value = await aiMessage('AI_PANEL_GET', { windowId });if(sequence!==refreshSequence)return; const changed = (value?.conversationKey || value?.id) !== (state.value?.conversationKey || state.value?.id) || (!!value?.error && !value.busy && !!state.value?.busy); if (value?.busy && !state.value?.busy) started = Date.now(); state.value = value; if (changed) { renaming.value=false; draft.value = value?.draft || ''; feedback.value=''; editIndex.value=undefined; } await nextTick(); if (!olderBusy.value && window.getSelection()?.isCollapsed !== false) log.value?.scrollTo?.({ top: log.value.scrollHeight }); } catch (error) { feedback.value = error instanceof Error ? error.message : 'Painel indisponível.'; }
 }
 let syncing:Promise<void>|undefined;
 function syncTicket(enter=false):Promise<void>{
@@ -44,15 +45,31 @@ function syncTicket(enter=false):Promise<void>{
 const notify=(message:any)=>{if(message.windowId!==windowId)return;if(message.action==='AI_PANEL_CHANGED'){void refresh();if(showHistory.value)void refreshHistory();}};
 async function ask(){
  if(!state.value||!draft.value.trim()||state.value.busy)return;
+ if(!await saveDraft())return;
  const key=state.value.conversationKey || state.value.id,text=draft.value;await syncTicket();
  if((state.value?.conversationKey || state.value?.id)!==key){feedback.value='O ticket mudou. Revise sua pergunta na conversa deste atendimento.';return;}
  try{await aiMessage('AI_PANEL_SEND',{windowId,id:state.value!.id,text,editIndex:editIndex.value});draft.value='';editIndex.value=undefined;feedback.value='';}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível enviar.';}
 }
 async function insert(index: number) { try { await aiMessage('AI_PANEL_INSERT', { windowId, id: state.value?.id, index }); feedback.value = 'Texto inserido no ticket. Revise antes de enviar.'; } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível inserir.'; } }
 async function copy(text: string) { try { await navigator.clipboard.writeText(text); feedback.value = 'Copiado.'; } catch { feedback.value = 'Não foi possível copiar.'; } }
-async function saveDraft() { if (!state.value) return true; try {await aiMessage('AI_PANEL_DRAFT', { windowId, id: state.value.id, text: draft.value });return true;}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível salvar o rascunho.';return false;} }
-onMounted(async () => { windowId = (await browser.windows.getCurrent()).id!; browser.runtime.onMessage.addListener(notify); await syncTicket(true);await nextTick();composer.value?.focus(); timer = setInterval(() => { seconds.value = started ? Math.floor((Date.now() - started) / 1000) : 0; }, 1000); });
-onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListener(notify); });
+const draftWriter=createDraftWriter(payload=>aiMessage('AI_PANEL_DRAFT',{...payload}),error=>{feedback.value=error instanceof Error?error.message:'Não foi possível salvar o rascunho.';});
+function queueDraft(){if(state.value)draftWriter.schedule({windowId,id:state.value.id,text:draft.value});}
+async function saveDraft(){if(!state.value)return true;try{await draftWriter.flush({windowId,id:state.value.id,text:draft.value});return true;}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível salvar o rascunho.';return false;}}
+async function back(){if(await saveDraft())emit('back');}
+async function loadOlder(){
+ if(!state.value || olderBusy.value)return;
+ if(!await saveDraft())return;
+ olderBusy.value=true;const height=log.value?.scrollHeight || 0,offset=state.value.messageOffset || 0;
+ try{
+  await aiMessage('AI_PANEL_MORE',{windowId,id:state.value.id});await refresh();
+  if(editIndex.value!==undefined)editIndex.value+=offset-(state.value?.messageOffset || 0);
+  await nextTick();if(log.value)log.value.scrollTop=log.value.scrollHeight-height;
+ }catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível carregar as mensagens.';}
+ finally{olderBusy.value=false;}
+}
+const leave=()=>{void saveDraft();};
+onMounted(async () => { windowId = (await browser.windows.getCurrent()).id!; browser.runtime.onMessage.addListener(notify);window.addEventListener('pagehide',leave); await syncTicket(true);await nextTick();composer.value?.focus(); timer = setInterval(() => { seconds.value = started ? Math.floor((Date.now() - started) / 1000) : 0; }, 1000); });
+onUnmounted(() => {void saveDraft();history.dispose();window.removeEventListener('pagehide',leave); clearInterval(timer); browser.runtime.onMessage.removeListener(notify); });
 </script>
 <template>
   <section class="ai-panel" aria-label="Conversas com a IA" @keydown="historyKeydown">
@@ -61,26 +78,28 @@ onUnmounted(() => { clearInterval(timer); browser.runtime.onMessage.removeListen
      <div class="ai-panel-heading">
       <div v-if="renaming" class="ai-title-edit"><input ref="titleInput" v-model="titleDraft" aria-label="Título da conversa" maxlength="120" @keydown.enter.prevent="rename" @keydown.esc.stop.prevent="renaming=false"><button type="button" aria-label="Salvar título" @click="rename"><Check :size="14"/></button><button type="button" aria-label="Cancelar edição do título" @click="renaming=false"><X :size="14"/></button></div>
       <div v-else class="ai-title-row"><strong :title="state?.title">{{state?.title || 'Nova conversa'}}</strong><button v-if="state" type="button" aria-label="Renomear conversa" title="Renomear conversa" :disabled="state.busy" @click="startRename"><Pencil :size="12"/></button><a v-if="state?.ticketUrl" class="ai-ticket-link" :href="state.ticketUrl" target="_blank" rel="noopener noreferrer" :title="'Abrir ticket '+(state.ticketNumber||'')"><ExternalLink :size="12"/>{{state.ticketNumber?'#'+state.ticketNumber:'Ticket'}}</a></div>
-     </div><button type="button" title="Nova conversa" aria-label="Nova conversa" :disabled="contextBusy || historyBusy || state?.busy" @click="openChat()"><Plus :size="16"/></button><button type="button" title="Voltar para a tela inicial" aria-label="Voltar para a tela inicial" @click="emit('back')"><ArrowLeft :size="16" /></button>
+     </div><button type="button" title="Nova conversa" aria-label="Nova conversa" :disabled="contextBusy || historyBusy || state?.busy" @click="openChat()"><Plus :size="16"/></button><button type="button" title="Voltar para a tela inicial" aria-label="Voltar para a tela inicial" @click="back"><ArrowLeft :size="16" /></button>
     </header>
     <div ref="log" class="ai-panel-log" role="log">
+      <button v-if="state?.messageOffset" type="button" :disabled="olderBusy || state.busy" @click="loadOlder">{{olderBusy?'Carregando…':'Carregar mensagens anteriores'}}</button>
       <p v-if="!state" class="ai-panel-hint">Inicie uma conversa pelo botão +.</p>
       <article v-for="(turn,index) in state?.messages || []" :key="index" :data-role="turn.role"><strong>{{ turn.role === 'user' ? 'Você' : 'OctaBlaster' }}</strong><div class="ai-panel-text"><template v-if="turn.role === 'assistant'"><template v-for="(part,partIndex) in summaryTextParts(turn.content)" :key="partIndex"><strong v-if="part.heading" class="ai-summary-heading">{{ part.text }}</strong><span v-else>{{ part.text }}</span></template></template><template v-else>{{ visibleText(turn.content) }}</template></div><div v-if="turn.role === 'assistant'" class="ai-panel-actions"><button type="button" title="Copiar mensagem" @click="copy(turn.content)"><Copy :size="13" />Copiar</button><button v-if="!state?.detached" type="button" @click="insert(index)"><CornerDownLeft :size="13" />Inserir no ticket</button></div><button v-else type="button" title="Editar pergunta" :disabled="state?.busy" @click="edit(index)"><Pencil :size="13" />Editar</button></article>
       <p v-if="state?.busy" role="status" class="ai-panel-hint"><Loader2 :size="14" class="spin" />{{ state.status }} {{ seconds }}s</p>
     </div>
     <p v-if="state?.error" role="alert" class="ai-panel-error">{{ state.error }}</p>
     <p class="ai-panel-feedback" role="status">{{ feedback || (!state?.busy ? state?.status : '') }}<span v-if="!state?.busy && state?.queryMs"> · {{ (state.queryMs/1000).toFixed(1) }}s de consulta</span></p>
-    <form @submit.prevent="ask"><textarea ref="composer" v-model="draft" aria-label="Mensagem para a IA" placeholder="Escreva sua mensagem…" maxlength="4000" :disabled="contextBusy || historyBusy || !state?.ready || state.busy" @input="saveDraft" @keydown.enter.exact.prevent="ask"></textarea><button type="submit" aria-label="Enviar pergunta" :disabled="contextBusy || historyBusy || !draft.trim() || !state?.ready || state.busy"><Send :size="16" /></button></form>
+    <form @submit.prevent="ask"><textarea ref="composer" v-model="draft" aria-label="Mensagem para a IA" placeholder="Escreva sua mensagem…" maxlength="4000" :disabled="contextBusy || historyBusy || !state?.ready || state.busy" @input="queueDraft" @keydown.enter.exact.prevent="ask"></textarea><button type="submit" aria-label="Enviar pergunta" :disabled="contextBusy || historyBusy || !draft.trim() || !state?.ready || state.busy"><Send :size="16" /></button></form>
    </div>
    <template v-if="showHistory">
     <div class="ai-history-backdrop" aria-hidden="true" @click="showHistory=false"></div>
     <aside id="ai-chat-history" ref="historyDrawer" class="ai-chat-history" aria-label="Histórico de conversas">
       <div class="ai-history-heading"><strong>Conversas</strong><button type="button" aria-label="Fechar histórico" title="Fechar histórico" @click="showHistory=false"><X :size="16"/></button></div>
       <button type="button" class="ai-new-chat" :disabled="contextBusy||historyBusy||state?.busy" @click="openChat()"><Plus :size="15"/>Nova conversa</button>
-      <input v-model="search" type="search" aria-label="Buscar conversa" placeholder="Buscar conversa…">
+      <input v-model="search" type="search" aria-label="Buscar conversa" placeholder="Buscar pelo título…">
       <p class="ai-history-label">Recentes</p>
       <p v-if="historyError" class="ai-history-note" role="status">{{historyError}}</p>
-      <div class="ai-history-list"><button v-for="chat in filteredChats" :key="chat.key" type="button" class="ai-history-chat" :title="chat.title" :disabled="contextBusy||historyBusy||state?.busy" @click="openChat(chat.key)"><span>{{chat.title}}</span><small>{{new Date(chat.updatedAt).toLocaleDateString('pt-BR')}}</small></button><p v-if="!filteredChats.length" class="ai-panel-hint">{{historyBusy?'Carregando…':'Nenhuma conversa encontrada.'}}</p></div>
+      <div class="ai-history-list"><button v-for="chat in chats" :key="chat.key" type="button" class="ai-history-chat" :title="chat.title" :disabled="contextBusy||historyBusy||state?.busy" @click="openChat(chat.key)"><span>{{chat.title}}</span><small>{{new Date(chat.updatedAt).toLocaleDateString('pt-BR')}}</small></button><p v-if="!chats.length" class="ai-panel-hint">{{historyLoading?'Carregando…':'Nenhuma conversa encontrada.'}}</p></div>
+      <button v-if="nextCursor" type="button" :disabled="historyLoading||historyBusy" @click="moreHistory">{{historyLoading?'Carregando…':'Carregar mais conversas'}}</button>
       <p class="ai-history-note">Salvo neste navegador, conforme a retenção configurada.</p>
     </aside>
    </template>

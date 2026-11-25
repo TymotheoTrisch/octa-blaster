@@ -38,7 +38,7 @@ Projetada especificamente para equipes de atendimento e suporte que utilizam o *
 - **Linguagem**: [TypeScript](https://www.typescriptlang.org/)
 - **Design System**: Paleta corporativa inspirada no **Secullum VMS** (padrão `#ffc600`) com suporte nativo a **Tema Claro, Escuro e Sistema**, **Cor da marca** e **Cor secundária** personalizáveis e **Tags coloridas** de alto contraste
 - **Gerenciador de Pacotes**: **pnpm**
-- **Armazenamento**: `browser.storage.local` (assíncrono, sanitizado e persistente com fallback)
+- **Armazenamento**: `browser.storage.local` para templates e preferências; IndexedDB privado para chats, contextos e credenciais da IA.
 - **Painel Lateral Firefox**: Suporte nativo a `sidebar_action`
 - **Painel Lateral Chromium**: Suporte integrado a `side_panel` (MV3)
 

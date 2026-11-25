@@ -2,6 +2,7 @@ import { createStorageQueue } from '@/services/background/storageQueue';
 import { createTicketRouter } from '@/services/background/ticketRouter';
 import { createAiPanelRouter } from '@/services/background/aiPanelRouter';
 import { createAiRouter } from '@/services/background/aiRouter';
+import { scheduleAiMaintenance } from '@/services/background/ai/maintenance';
 import { syncBrowserBrandIconFromStorage } from '@/services/appearance/browserIcon';
 import { APPEARANCE_KEY } from '@/services/storage/settingsSchema';
 
@@ -11,8 +12,7 @@ export default defineBackground(() => {
   const aiRouter = createAiRouter();
   const panelRouter = createAiPanelRouter((message, sender) => new Promise((resolve, reject) => { aiRouter.handleMessage(message, sender, (result: any) => result?.success ? resolve(result.data) : reject(new Error(result?.error || 'Falha na IA.'))); }));
   void aiRouter.cleanup().catch(() => {});
-  const cleanupTimer = setInterval(() => void aiRouter.cleanup().catch(() => {}), 3600_000);
-  (cleanupTimer as unknown as { unref?: () => void }).unref?.();
+  scheduleAiMaintenance(() => aiRouter.cleanup());
 
   void syncBrowserBrandIconFromStorage();
 

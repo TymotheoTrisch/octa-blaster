@@ -30,21 +30,21 @@ export function createTicketChatPersistence(scope: HTMLElement, send = aiMessage
     if (!identity) throw new Error('Não foi possível identificar este ticket para salvar a conversa.');
     return digest ||= (async () => { const data = typeof browser !== 'undefined' && browser.storage?.local ? await browser.storage.local.get(['octablaster_ai_history_namespace']) : {}; const candidate = data.octablaster_ai_history_namespace; namespace = typeof candidate === 'string' && /^[a-zA-Z0-9_-]{1,90}$/.test(candidate) ? candidate : 'local'; return textDigest(namespace === 'local' ? queueKey : `${queueKey}|${namespace}`); })();
   };
-  let revision: string | null = null;
+  let revision: string | null = null, messageOffset = 0;
   return {
     identity: key,
     namespace: async () => { await key(); return namespace; },
     load(): Promise<SavedTicketChat | null> {
       return enqueue(queueKey, async () => {
         const result = await send('AI_CHAT_LOAD', { key: await key() });
-        revision = result.chat?.revision ?? null;
+        revision = result.chat?.revision ?? null; messageOffset=result.messageOffset || 0;
         return result.chat;
       });
     },
     save(content: TicketChatContent): Promise<void> {
       const snapshot = structuredClone(content);
       return enqueue(queueKey, async () => {
-        const result = await send('AI_CHAT_SAVE', { key: await key(), revision, content: snapshot });
+        const result = await send('AI_CHAT_SAVE', { key: await key(), revision, content: snapshot, options:{startIndex:messageOffset,ackOnly:true} });
         revision = result.chat.revision;
       });
     },

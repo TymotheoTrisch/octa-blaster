@@ -1,3 +1,4 @@
+import { IDBObjectStore } from 'fake-indexeddb';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTicketChatStore, AI_RETENTION_KEY } from '../services/storage/aiChatStorage.ts';
@@ -13,11 +14,11 @@ test('conversation metadata survives recreation and history lists one entry per 
   const saved=await store.handle('AI_CHAT_SAVE',key,null,{...content,details});
   await store.handle('AI_CHAT_SAVE',key,saved.chat.revision,{...content,draft:'Rascunho atualizado'});
   await store.handle('AI_CHAT_SAVE',otherKey,null,{...content,details:{...details,kind:'general',namespace:'namespace_other',ticketUrl:undefined}});
-  const recreated=createTicketChatStore(undefined,()=>time),list=await recreated.list('local');
+  const recreated=createTicketChatStore(undefined,()=>time),list=(await recreated.list('local')).items;
   assert.equal(list.length,1);assert.equal(list[0].title,'#123 · Solicitação fictícia');assert.equal(list[0].context,undefined);
   assert.deepEqual((await recreated.handle('AI_CHAT_LOAD',key)).chat.details,details);
-  assert.equal((await recreated.list('namespace_other')).length,1);
-  time+=31*86400000;assert.equal((await recreated.list('local')).length,0);
+  assert.equal((await recreated.list('namespace_other')).items.length,1);
+  time+=31*86400000;assert.equal((await recreated.list('local')).items.length,0);
   assert.equal((await recreated.handle('AI_CHAT_LOAD',key)).chat,null);
  }finally{f.restore();}
 });
@@ -54,9 +55,15 @@ test('storage rejects privileged roles, oversized chats and invalid keys without
   } finally { storage.restore(); }
 });
 
-test('a quota failure rejects saving without claiming success or falling back to the page', async () => {
-  const store = createTicketChatStore(() => ({ get: async () => ({}), set: async () => { throw new Error('QuotaExceeded'); } }));
-  await assert.rejects(store.handle('AI_CHAT_SAVE', key, null, content), /QuotaExceeded/);
+test('a quota failure rejects an IndexedDB transaction without storing a partial conversation', async () => {
+  const fixture=installStorage(),original=IDBObjectStore.prototype.put;
+  try{
+    const store=createTicketChatStore();await store.list('local');
+    IDBObjectStore.prototype.put=function(...args){if(this.name==='messages')throw new DOMException('QuotaExceeded','QuotaExceededError');return original.apply(this,args);};
+    await assert.rejects(store.handle('AI_CHAT_SAVE',key,null,content),/QuotaExceeded/);
+    IDBObjectStore.prototype.put=original;
+    assert.equal((await store.handle('AI_CHAT_LOAD',key)).chat,null);
+  }finally{IDBObjectStore.prototype.put=original;fixture.restore();}
 });
 
 test('the ticket key survives route and tracking changes but isolates workspaces', async () => {
