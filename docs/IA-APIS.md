@@ -9,7 +9,7 @@ A IA funciona na própria extensão, no Firefox e no Chrome. O usuário instala 
 3. Salve e autorize o acesso ao endereço solicitado pelo navegador. Só esse domínio recebe a chave nas consultas.
 4. Abra um ticket e use Resumir, Resumir ticket ou o chat da lateral.
 
-O provedor define o formato das requisições: Responses para OpenAI, Interactions para Gemini, Messages para Claude e Chat Completions para NVIDIA/compatíveis. A URL deve ser a base, por exemplo `https://integrate.api.nvidia.com/v1`, sem `/chat/completions`. Não são usados parâmetros exclusivos do Nemotron; o usuário escolhe um modelo de chat disponível em sua conta.
+O provedor define o formato das requisições: Responses para OpenAI, Interactions para Gemini, Messages para Claude e Chat Completions para NVIDIA/compatíveis. A URL deve ser a base, por exemplo `https://integrate.api.nvidia.com/v1`, sem `/chat/completions`. O usuário escolhe um modelo de chat disponível em sua conta. Opções específicas só são enviadas quando há suporte documentado para o modelo selecionado; os demais mantêm o contrato genérico.
 
 Salvar não faz uma geração paga nem confirma acesso ao modelo. Chaves vazias preservam a credencial já salva; **Remover chave** apaga a chave daquele provedor. Trocar a URL exige informar a chave novamente, evitando encaminhar a credencial antiga a outro destino. A extensão não acompanha chaves de empresa embutidas. Custos e limites são os da API escolhida.
 
@@ -131,3 +131,12 @@ O chat exibe **Detalhes do tempo**, recolhido por padrão, com fila na extensão
 As durações usam `performance.now()` e são calculadas com cinco números por medição. A fila mede a espera no motor da extensão; preparação inclui contexto, configuração e comunicação local; API inclui envio, espera e leitura da resposta completa, inclusive o corpo; finalização inclui validação e persistência. O total do painel começa ao preparar a geração, depois de abrir/identificar a conversa, e termina na conclusão do background; não é uma medição do clique até a pintura de pixels na tela. A expansão de interações e preparação do editor entram na medição da sugestão direta. A medição não separa rede, fila interna do provedor e inferência do modelo.
 
 Apenas a medição mais recente da conversa/sugestão em memória é mantida, substituída a cada tentativa e apresentada também nas falhas medidas. Ela não é gravada no histórico, exportada, enviada à API ou usada para uma nova inferência. Não inclui mensagens, HTML, credenciais ou URLs. Testes com relógio controlado verificam fila concorrente, leitura do corpo HTTP, erros, cache, substituição e exclusão dos dados persistidos; não medem a latência real do endpoint.
+
+
+## Lightning e respostas interrompidas
+
+No provedor **NVIDIA**, o modelo exato `nvidia/nemotron-3.5-lightning-30b-a3b` recebe `chat_template_kwargs: { enable_thinking: false }`. O raciocínio pode consumir o limite de saída antes da resposta final; desativá-lo é a orientação documentada da NVIDIA para resumos curtos. A política isolada em `providers/nvidiaOptions.ts` se aplica às tarefas de texto da extensão, sem aumentar os limites ou fazer nova geração automática. Não é enviada a outros modelos nem ao provedor compatível genérico, cujo suporte a opções extras é desconhecido.
+
+`providers/completionResult.ts` diferencia limite de tokens (`length`), filtro de conteúdo, solicitação de ferramentas, ausência de confirmação de conclusão e saída contendo apenas raciocínio. Somente `finish_reason: stop` com texto final válido é aceito; respostas parciais e `reasoning_content` não viram rascunho de e-mail. Erros não expõem o conteúdo técnico bruto do provedor. Um aviso genérico de uma consulta anterior não permite recuperar retroativamente seu `finish_reason`; limite consumido pelo raciocínio é uma causa compatível, não uma confirmação daquela chamada.
+
+Referência: [Guia NVIDIA do Lightning, controle de raciocínio e limite de saída](https://docs.nvidia.com/nim/large-language-models/2.0.10/get-started/advanced/get-started-nemotron-3.5-lightning). Os testes simulam o corpo enviado e as respostas; o endpoint com chave real ainda precisa ser validado.

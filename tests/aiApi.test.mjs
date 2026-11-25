@@ -186,7 +186,7 @@ test('retention expires local API sessions and confirms remote deletion without 
   assert.equal(requests[0].method, 'DELETE'); assert.match(requests[0].url, /responses\/resp_old$/);
 });
 
-test('NVIDIA requires data approval and uses no Nemotron-specific generation settings', async () => {
+test('NVIDIA requires data approval and keeps generic settings for an unspecified model', async () => {
   const state = configured('nvidia'); state.config.providers.nvidia.approvedData = false;
   const store = memoryStore(state); let calls = 0;
   const engine = createApiEngine(store, { hasPermission: permit, fetcher: async () => { calls++; return response({}); } });
