@@ -50,13 +50,64 @@ test('history entry points reject content scripts, unknown keys and another conn
  const f=setup();try{
   assert.equal((await f.call({action:'AI_PANEL_NEW',windowId:9},source)).success,false);
   assert.equal((await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'f'.repeat(64)})).success,false);
-  await f.call({action:'AI_PANEL_NEW',windowId:9});const [entry]=await f.store.list('local');
+  await f.call({action:'AI_PANEL_NEW',windowId:9});const created=await f.get();await f.call({action:'AI_PANEL_SEND',windowId:9,id:created.id,text:'Conversa salva'});await f.done();const [entry]=await f.store.list('local');
   await browser.storage.local.set({octablaster_ai_history_namespace:'gateway_other'});
   assert.equal((await f.store.list('gateway_other')).length,0);
   assert.equal((await f.call({action:'AI_PANEL_RESUME',windowId:9,key:entry.key})).success,false);
  }finally{f.storage.restore();}
 });
 const ui = { id: 'extension', url: 'moz-extension://extension/sidepanel.html' };
+
+test('opening, drafting and renaming an unused ticket chat creates no stored conversation; send appears before the model returns',async()=>{
+ let finish;const f=setup(()=>new Promise(resolve=>{finish=resolve;}));try{
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-A',identity:'ticket-A'}]},source);
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});let state=await f.get();
+  await f.call({action:'AI_PANEL_DRAFT',windowId:9,id:state.id,text:'Primeira pergunta'});
+  await f.call({action:'AI_PANEL_RENAME',windowId:9,id:state.id,title:'Meu atendimento'});
+  assert.equal((await f.store.list('local')).length,0);assert.equal(Object.keys(f.storage.data).filter(key=>key.startsWith('octablaster_ticket_chat_v1_')).length,0);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Primeira pergunta'});
+  for(let i=0;!finish&&i<100;i++)await new Promise(resolve=>setTimeout(resolve,5));assert.ok(finish);
+  state=await f.get();assert.equal(state.busy,true);assert.deepEqual(state.messages,[{role:'user',content:'Primeira pergunta'}]);assert.equal(state.draft,'');
+  assert.ok((await f.store.list('local'))[0].title.endsWith('Meu atendimento'));
+  finish({text:'Resposta fictícia'});await f.done();
+  await f.call({action:'AI_PANEL_RESUME',windowId:9,key:'a'.repeat(64)});assert.equal((await f.get()).title,'Meu atendimento');
+ }finally{f.storage.restore();}
+});
+
+test('new conversation clears the visible ticket chat but archives the previous conversation only at the next send',async()=>{
+ const f=setup();try{
+  await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-A',identity:'ticket-A'}]},source);
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});let state=await f.get();
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Conversa anterior'});await f.done();
+  await f.call({action:'AI_PANEL_RENAME',windowId:9,id:state.id,title:'Título anterior'});
+  await f.call({action:'AI_PANEL_NEW',windowId:9});state=await f.get();assert.deepEqual(state.messages,[]);assert.equal(state.draft,'');
+  assert.equal((await f.store.list('local')).length,1);assert.equal((await f.store.handle('AI_CHAT_LOAD','a'.repeat(64))).chat.messages[0].content,'Conversa anterior');
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Nova conversa'});await f.done();
+  const list=await f.store.list('local');assert.equal(list.length,2);const old=list.find(chat=>chat.key!=='a'.repeat(64));assert.ok(old.title.endsWith('Título anterior'));
+  assert.equal((await f.store.handle('AI_CHAT_LOAD',old.key)).chat.messages[0].content,'Conversa anterior');
+  assert.equal((await f.store.handle('AI_CHAT_LOAD','a'.repeat(64))).chat.messages[0].content,'Nova conversa');
+ }finally{f.storage.restore();}
+});
+
+test('a failed generation keeps the submitted user bubble and rename validation never changes ticket identity',async()=>{
+ const f=setup(async()=>{throw new Error('Falha fictícia');});try{
+  await f.call({action:'AI_PANEL_NEW',windowId:9});let state=await f.get();const key=state.conversationKey;
+  assert.equal((await f.call({action:'AI_PANEL_RENAME',windowId:9,id:state.id,title:'  '})).success,false);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Mensagem enviada'});state=await f.done();
+  assert.equal(state.messages[0].content,'Mensagem enviada');assert.match(state.error,/Falha fictícia/);assert.equal(state.draft,'');
+  await f.call({action:'AI_PANEL_RENAME',windowId:9,id:state.id,title:'Nome editado'});assert.equal((await f.get()).conversationKey,key);
+ }finally{f.storage.restore();}
+});
+
+test('a subsequent question retains the prior unanswered user turn as history without inventing an answer',async()=>{
+ let count=0;const f=setup(async()=>{if(!count++)throw new Error('Falha temporária');return {text:'Retorno fictício'};});try{
+  await f.call({action:'AI_PANEL_NEW',windowId:9});const state=await f.get();
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Pergunta ainda sem resposta'});await f.done();
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Pode responder à pergunta anterior?'});await f.done();
+  const history=f.calls.filter(message=>message.action==='AI_GENERATE').at(-1).input.history;
+  assert.equal(history[0].content,'Pergunta ainda sem resposta');assert.match(history[1].content,/não teve uma resposta concluída/);
+ }finally{f.storage.restore();}
+});
 
 test('entering chat follows the HTML ticket number, restores its history and creates a blank conversation for another ticket',async()=>{
  const f=setup();try{
@@ -110,7 +161,7 @@ test('a late model result after automatic ticket switching cannot populate eithe
   await f.call({action:'AI_PAGE_REGISTER',tickets:[{id:'page-B',identity:'ticket-B'}]},source);
   await f.call({action:'AI_PANEL_SYNC',windowId:9});finish({text:'Retorno tardio do ticket A'});await new Promise(resolve=>setTimeout(resolve,20));
   state=await f.get();assert.equal(state.ticketNumber,'272403');assert.deepEqual(state.messages,[]);assert.ok(f.calls.some(m=>m.action==='AI_CANCEL'));
-  assert.deepEqual((await f.store.handle('AI_CHAT_LOAD','a'.repeat(64))).chat.messages,[]);
+  assert.deepEqual((await f.store.handle('AI_CHAT_LOAD','a'.repeat(64))).chat.messages,[{role:'user',content:'Pergunta antiga'}]);
  }finally{f.storage.restore();}
 });
 

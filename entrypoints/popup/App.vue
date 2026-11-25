@@ -607,7 +607,7 @@ function preserveTextSelection(event: MouseEvent) {
       @changed="refreshCatalogs"
     />
     <AiChatPanel v-else-if="currentView === 'ai-chat'" @back="backFromAiChat" />
-    <AiSettingsView v-else-if="currentView === 'ai'" @back="returnToPreviousView" @chats="openView('ai-chat')" />
+    <AiSettingsView v-else-if="currentView === 'ai'" @back="returnToPreviousView" />
     <TechniciansView
       v-else-if="currentView === 'technicians'"
       @back="returnToPreviousView"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, ref, watch } from 'vue';
-import { ArrowLeft, LogIn, LogOut, RefreshCw, Cpu, ChevronRight, WandSparkles, History, SlidersHorizontal, MessagesSquare } from 'lucide-vue-next';
+import { ArrowLeft, LogIn, LogOut, RefreshCw, Cpu, ChevronRight, WandSparkles, History, SlidersHorizontal } from 'lucide-vue-next';
 import { aiLocalMessage } from '@/services/ai/localClient';
 import type { AiPublicConnection } from '@/types/ai';
 import './management.css';
@@ -9,7 +9,7 @@ import AiPromptSettings from './AiPromptSettings.vue';
 import AiHistorySettings from './AiHistorySettings.vue';
 import AiWritingSettings from './AiWritingSettings.vue';
 import AiProviderSettings from './AiProviderSettings.vue';
-const emit = defineEmits<{ back: []; chats: [] }>();
+const emit = defineEmits<{ back: [] }>();
 type Section='home'|'connection'|'writing'|'prompts'|'history';
 const section=ref<Section>('home'),selectedProvider=ref('');
 const sections=[{id:'connection' as const,title:'Conta e conexões',description:'ChatGPT, modelos e chaves de API',icon:Cpu},{id:'writing' as const,title:'Aprendizado e escrita',description:'Seu estilo, início e encerramento',icon:WandSparkles},{id:'prompts' as const,title:'Prompts e instruções',description:'Resumos e sugestões do seu jeito',icon:SlidersHorizontal},{id:'history' as const,title:'Histórico e retenção',description:'Prazo de armazenamento e limpeza',icon:History}];
@@ -55,7 +55,6 @@ watch(section,value=>{clearInterval(timer);if(value==='connection')void refresh(
   <div class="management-subbar"><button type="button" class="management-back-btn" aria-label="Voltar para a tela anterior" @click="back"><ArrowLeft :size="15"/></button><h2>{{section==='home'?'Inteligência artificial':sections.find(item=>item.id===section)?.title}}</h2></div>
   <div class="management-scroll">
    <div v-if="section==='home'" class="ai-settings-menu">
-    <button type="button" class="ai-settings-entry" @click="emit('chats')"><span class="ai-settings-icon"><MessagesSquare :size="18"/></span><span class="ai-settings-label"><strong>Conversas com a IA</strong><span>Novo chat e histórico de conversas e tickets</span></span><ChevronRight :size="15" class="ai-settings-chevron"/></button>
     <button v-for="item in sections" :key="item.id" type="button" class="ai-settings-entry" @click="section=item.id"><span class="ai-settings-icon"><component :is="item.icon" :size="18"/></span><span class="ai-settings-label"><strong>{{item.title}}</strong><span>{{item.description}}</span></span><ChevronRight :size="15" class="ai-settings-chevron"/></button>
    </div>
    <template v-else-if="section==='connection'">

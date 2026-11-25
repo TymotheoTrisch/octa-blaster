@@ -2,6 +2,13 @@
 
 Este relatório não contém dados de contas, tokens ou clientes reais.
 
+## Entrada pelo cabeçalho, conversas sob demanda e títulos
+
+- Ícone de IA ao lado de Novo modelo de resposta; entrada Conversas com a IA removida das configurações. Título editável com link do ticket adjacente, sem a faixa de contexto salvo.
+- Abrir ticket/chat, digitar e renomear conversa vazia não cria registro. Primeiro envio salva e exibe a mensagem do usuário antes do retorno da IA. Nova conversa limpa a tela sem criar registro; o próximo envio preserva a conversa anterior como arquivo e inicia a nova conversa atual.
+- 188 testes da extensão aprovados, incluindo criação adiada, renomeação, arquivamento, mensagem pendente, falha da IA e histórico de consulta sem resposta. TypeScript e builds Chrome/Firefox concluídos; auxiliar 0.3.5 sem mudanças.
+- Chromium com extensão real e IA simulada confirmou posição do ícone, remoção da entrada nas configurações, criação somente ao enviar, mensagem visível enquanto aguarda, reset, preservação do chat anterior, título após reabrir e link adjacente. Firefox real confirmou o fluxo com Native Messaging ausente, inclusive mensagem preservada após erro. Dados fictícios, sem inferência real.
+
 ## Conversa automática pelo número do ticket
 
 - Entrada do chat identifica o número no cabeçalho HTML, recupera a conversa canônica ou cria uma vazia, sem inferência. Mudança de ticket/aba sincroniza a conversa; retorno preserva mensagens e rascunho daquele número. Novo chat em ticket ativo reutiliza a conversa do atendimento.

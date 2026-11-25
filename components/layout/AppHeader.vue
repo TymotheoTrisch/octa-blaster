@@ -116,6 +116,7 @@ defineExpose({ closeMenu });
     </div>
 
     <div class="header-actions">
+      <button v-if="showNewButton" type="button" class="btn-options-trigger" title="Abrir chat de IA" aria-label="Abrir chat de IA" @click="emit('navigate','ai-chat')"><Sparkles :size="16" :stroke-width="2"/></button>
       <button
         v-if="showNewButton"
         type="button"

@@ -92,15 +92,17 @@ Ao acionar uma consulta, o botão mostra processamento. A geração de resposta 
 
 ## Conversas independentes e histórico
 
-Em **Inteligência artificial → Conversas com a IA**, a tela abre na conversa, com o histórico fechado. Quando há um ticket ativo, identifica seu número no cabeçalho HTML e recupera a conversa correspondente ou cria uma vazia. Sem ticket ativo, Novo chat permite uma conversa independente com o mesmo provedor/modelo configurado. No ticket ativo, Novo chat reutiliza a conversa daquele número, sem duplicá-la. O título vem da primeira pergunta, sem uma chamada extra ao modelo. O ícone de painel à esquerda abre o histórico em um menu lateral sobreposto, com Novo chat, busca e lista Recentes. Permite buscar pelo título/número e retomar mensagens e rascunho, sem deslocar a conversa. Feche pelo X, Esc ou clique fora. Não há abas permanentes de IA na tela inicial.
+O ícone **Abrir chat de IA**, no cabeçalho ao lado de Novo modelo de resposta, abre a área de mensagens com o histórico fechado. A seção Inteligência artificial fica dedicada às configurações. Com um ticket ativo, o chat identifica seu número no HTML e recupera a conversa salva ou prepara uma tela vazia em memória. Abrir, digitar ou renomear essa tela vazia não cria registro no histórico. A primeira mensagem enviada é que salva a conversa.
 
-Cada ticket conserva sua chave e sua única conversa, compartilhada entre Resumir mensagem e Resumir ticket. O histórico permite conversar usando a última cópia de texto salva, mesmo sem o ticket aberto. Um aviso identifica esse contexto salvo. Ao retomar com o mesmo ticket ativo, o chat reconecta à página e habilita a inserção no editor validado. Cada pergunta relê o DOM. Sem o ticket correspondente aberto, mantém a cópia salva e informa isso. Chats antigos sem metadados aparecem como Ticket salvo até serem reabertos pelo ticket.
+**Nova conversa** limpa a área de mensagens e o rascunho. A conversa anterior permanece salva; somente no primeiro envio da nova conversa ela é arquivada separadamente e a conversa atual do ticket é substituída. Sem ticket ativo, uma conversa independente usa sua própria chave. O menu lateral mantém busca e lista Recentes; feche por X, Esc ou clique fora.
+
+Cada ticket conserva a chave da conversa atual, compartilhada entre Resumir mensagem e Resumir ticket; conversas anteriores arquivadas continuam no histórico. O histórico permite conversar usando a última cópia de texto salva, mesmo sem o ticket aberto. O link do ticket fica ao lado do título. Ao retomar com o mesmo ticket ativo, o chat reconecta à página e habilita a inserção no editor validado. Cada pergunta relê o DOM. Sem o ticket correspondente aberto, mantém a cópia salva. Chats antigos sem metadados aparecem como Ticket salvo até serem reabertos pelo ticket.
 
 Chats, rascunhos e contexto em texto seguem a retenção configurada e não entram no backup das respostas rápidas. O histórico completo é preservado localmente dentro dos limites de armazenamento; consultas usam um recorte limitado do contexto e do histórico para caber no contrato do modelo. Contextos remotos continuam sujeitos às regras e custos do provedor. A conexão do servidor de equipe usa um histórico separado por credencial.
 
 ## Consultar a página do ticket no chat
 
-A conexão ao ticket da aba ativa do Octadesk é automática, inclusive quando o atendimento está dentro do iframe, sem depender do foco no editor ou de um botão de conexão. Mantém a única conversa daquele ticket e não gera uma resposta por si só. O chat passa a reler a página a cada pergunta; título, status, campos com valores atuais, mensagens e trecho de HTML sanitizado entram como dados para o modelo.
+A conexão ao ticket da aba ativa do Octadesk é automática, inclusive quando o atendimento está dentro do iframe, sem depender do foco no editor ou de um botão de conexão. Mantém a conversa atual daquele ticket e não gera uma resposta por si só. O chat passa a reler a página a cada pergunta; título, status, campos com valores atuais, mensagens e trecho de HTML sanitizado entram como dados para o modelo.
 
 A leitura se restringe ao contêiner do ticket. Remove scripts, atributos de execução, URLs de recursos, senhas/campos ocultos, controles da extensão, outros tickets e o rascunho do editor. Tenta expandir as interações disponíveis; não lê anexos nem dados ainda não carregados. O contexto enviado, incluindo o trecho HTML, permanece abaixo de 50.000 caracteres e segue a retenção dos chats. A navegação para outro ticket não troca silenciosamente o contexto de uma conversa existente.
 
@@ -108,4 +110,10 @@ A leitura se restringe ao contêiner do ticket. Remove scripts, atributos de exe
 
 O número visível no cabeçalho do ticket tem prioridade sobre o número da URL. A chave continua combinando número, workspace/origem e namespace da conexão. Trocar de ticket carrega uma conversa separada; voltar recupera mensagens e rascunho daquele número. Criar ou recuperar não faz inferência. A troca invalida consultas antigas, e um envio iniciado com o ticket anterior é rejeitado para revisão na conversa atual.
 
-O cabeçalho identifica o atendimento, por exemplo **Ticket #272402**. A seta volta para Inteligência artificial, onde ficam as configurações; o chat não mostra mais engrenagem ou Usar ticket aberto. O menu de histórico só abre pelo ícone de painel. Se o frame do ticket ainda não estiver disponível, a interface pede aguardar ou recarregar o Octadesk, evitando criar uma conversa avulsa por engano.
+O cabeçalho mostra o título editável e um link para o atendimento, por exemplo **#272402**. A seta volta para Inteligência artificial, onde ficam as configurações; o chat não mostra mais engrenagem ou Usar ticket aberto. O menu de histórico só abre pelo ícone de painel. Se o frame do ticket ainda não estiver disponível, a interface pede aguardar ou recarregar o Octadesk, evitando criar uma conversa avulsa por engano.
+
+## Título e mensagens enviadas
+
+Use o lápis ao lado do título para renomear a conversa, com até 120 caracteres. O título personalizado é mantido ao reabrir e não muda o número ou a chave do ticket. Renomear uma conversa vazia só altera o estado em memória até o primeiro envio.
+
+Ao enviar uma pergunta, a mensagem aparece imediatamente no chat e o campo é limpo enquanto a IA processa. A mensagem já fica salva antes da resposta. Se a consulta falhar, permanece visível e pode ser editada para tentar novamente; uma pergunta posterior recebe o registro de que a consulta anterior ficou sem resposta concluída.
