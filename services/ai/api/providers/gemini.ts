@@ -5,7 +5,7 @@ export const generateGemini: ProviderAdapter = async (config, payload, options) 
     model: config.model, system_instruction: payload.instructions, store: payload.remoteStore,
     ...(payload.previousId ? { previous_interaction_id: payload.previousId } : {}),
     input: payload.previousId ? payload.prompt : JSON.stringify({ historico: payload.history, pergunta_contexto: payload.prompt }),
-    generation_config: { max_output_tokens: payload.maxOutputTokens },
+    ...(payload.maxOutputTokens === undefined ? {} : { generation_config: { max_output_tokens: payload.maxOutputTokens } }),
   }, options);
   if (result.status !== 'completed' || result.error) throw new Error('A interação não foi concluída.');
   const content = result.steps ? result.steps.filter((step: any) => step.type === 'model_output')

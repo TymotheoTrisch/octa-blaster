@@ -68,7 +68,7 @@ O modelo deve distinguir atendente e cliente e omitir assinaturas; a extensão t
 
 O texto extraído, incluindo HTML sanitizado limitado ao ticket, não passa de 50.000 caracteres. Scripts, recursos externos, campos ocultos/senhas, controles da extensão, outros tickets e rascunho do editor são excluídos. Não são lidos anexos ou mensagens não carregadas.
 
-As consultas usam até seis pares recentes de histórico e podem selecionar trechos de contexto longo. Os limites de saída são 768 tokens para e-mail, 1536 para ticket e 2048 para perguntas/respostas. Saída incompleta é recusada. Não há retry de geração ou troca para outro provedor pagos automaticamente. Erros 401/403, 404, 429, rede e timeout aparecem na interface sem expor a resposta técnica ou a chave.
+As consultas usam até seis pares recentes de histórico e podem selecionar trechos de contexto longo. No modo Padrão da extensão, os limites de saída são 768 tokens para e-mail, 1536 para ticket e 2048 para perguntas/respostas. A conexão pode escolher um valor personalizado ou delegar esse teto ao provedor, quando permitido. Saída incompleta é recusada. Não há retry de geração ou troca para outro provedor pagos automaticamente. Erros 401/403, 404, 429, rede e timeout aparecem na interface sem expor a resposta técnica ou a chave.
 
 ## Atualização da versão anterior
 
@@ -135,8 +135,23 @@ Apenas a medição mais recente da conversa/sugestão em memória é mantida, su
 
 ## Lightning e respostas interrompidas
 
-NVIDIA e APIs compatíveis usam o padrão de raciocínio definido pelo endpoint do modelo. A extensão não envia `enable_thinking`, `chat_template_kwargs`, `reasoning_budget` ou `reasoning_effort` nesses adaptadores. A exceção do Lightning foi removida, junto com o módulo específico. Os limites de saída da extensão continuam sendo enviados; preservar o padrão de raciocínio não significa remover os limites de geração. Se o padrão do modelo consumir esse orçamento em raciocínio, ainda pode haver uma resposta incompleta, agora com aviso específico. Não há aumento automático do orçamento nem nova geração automática.
+NVIDIA e APIs compatíveis usam o padrão de raciocínio definido pelo endpoint do modelo. A extensão não envia `enable_thinking`, `chat_template_kwargs`, `reasoning_budget` ou `reasoning_effort` nesses adaptadores. A exceção do Lightning foi removida, junto com o módulo específico. O limite de saída é configurado separadamente do raciocínio: no modo Padrão da extensão ou Definir limite, o teto escolhido é enviado; Sem limite definido pela extensão omite o parâmetro. Se o padrão do modelo consumir esse orçamento em raciocínio, ainda pode haver uma resposta incompleta, agora com aviso específico. Não há aumento automático do orçamento nem nova geração automática.
 
 `providers/completionResult.ts` diferencia limite de tokens (`length`), filtro de conteúdo, solicitação de ferramentas, ausência de confirmação de conclusão e saída contendo apenas raciocínio. Somente `finish_reason: stop` com texto final válido é aceito; respostas parciais e `reasoning_content` não viram rascunho de e-mail. Erros não expõem o conteúdo técnico bruto do provedor. Um aviso genérico de uma consulta anterior não permite recuperar retroativamente seu `finish_reason`; limite consumido pelo raciocínio é uma causa compatível, não uma confirmação daquela chamada.
 
 Referência: [Guia NVIDIA do Lightning, controle de raciocínio e limite de saída](https://docs.nvidia.com/nim/large-language-models/2.0.10/get-started/advanced/get-started-nemotron-3.5-lightning). Os testes simulam o corpo enviado e as respostas; o endpoint com chave real ainda precisa ser validado.
+
+
+## Configurar tokens de saída
+
+Em **Inteligência artificial → Conexões de API → Limite de tokens de saída**, cada conexão possui três opções:
+
+- **Padrão da extensão**: mantém 768 para resumir mensagem, 1.536 para resumir ticket e 2.048 para perguntas/sugestões. Instalações existentes continuam nesse modo, sem aumentar consumo silenciosamente.
+- **Definir limite**: um teto inteiro por resposta, usado em todas as tarefas daquela conexão. O campo inicia em 8.192 ao selecionar esse modo, mas somente é aplicado após salvar. A validação local aceita de 1 a 1.048.576; essa faixa é um limite de configuração, não uma declaração de capacidade do modelo. A API pode exigir um mínimo maior ou máximo menor.
+- **Sem limite definido pela extensão**: delega ao padrão do endpoint, omitindo o campo de tokens. Não significa uma resposta infinita nem força o máximo do modelo. No Claude Messages essa opção fica indisponível porque `max_tokens` é obrigatório; o backend também rejeita configurações sem teto para Claude, sem fazer uma consulta.
+
+A configuração usa `maxOutputTokens` por provedor: ausente mantém o comportamento anterior, número define o teto e `null` delega ao endpoint. O motor resolve essa política em `services/ai/api/outputLimits.ts`; OpenAI envia `max_output_tokens`, Gemini `generation_config.max_output_tokens` e NVIDIA/compatíveis/Claude `max_tokens`. No modo delegado, esses campos são omitidos nos contratos opcionais. A seleção não muda o comportamento de raciocínio e não faz testes pagos ao salvar. Mudanças de configuração invalidam o cache e as referências remotas como as demais alterações da conexão.
+
+Orçamento maior pode aumentar tempo e consumo. Continuam valendo o timeout de 90 segundos da chamada HTTP, o limite de 1 MB recebido e a validação de 100.000 caracteres do texto final. Não há repetição automática para continuar uma geração interrompida. A configuração não altera limites de contexto, entrada, armazenamento ou retenção.
+
+`tests/aiOutputLimits.test.mjs` valida persistência entre clientes, isolamento por conexão, compatibilidade com instalações antigas, valores inválidos, tradução nos cinco adaptadores, omissão completa dos campos e rejeição da omissão obrigatória no Claude, usando HTTP simulado.

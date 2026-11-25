@@ -9,6 +9,7 @@ import { generateProvider } from './providers/index';
 import { ProviderError, type HttpOptions } from './transport';
 import { boundedChat } from '../summaryRequest';
 import { createQueryTimer, timingClock } from '../queryTiming';
+import { resolveOutputLimit } from './outputLimits';
 
 export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now = Date.now, clock = timingClock) {
   let queue: Promise<unknown> = Promise.resolve();
@@ -44,7 +45,7 @@ export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now 
             instructions: input.task === 'general' ? GENERAL_INSTRUCTIONS : TICKET_INSTRUCTIONS,
             prompt: JSON.stringify({ ...(previousId ? {} : { contexto: context }), pergunta: input.instruction }),
             history: previousId ? [] : history, previousId, remoteStore,
-            maxOutputTokens: input.task === 'summary_latest' ? 768 : input.task === 'summary_full' ? 1536 : 2048,
+            maxOutputTokens: resolveOutputLimit(provider, config.maxOutputTokens, input.task),
           }, { ...options, signal });
         } catch (error) {
           timer.phase('finalizationMs');

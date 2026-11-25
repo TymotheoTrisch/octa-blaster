@@ -1,6 +1,7 @@
 import { providerFetch } from '../transport';
 import { textResult, type ProviderAdapter } from './contracts';
 export const generateClaude: ProviderAdapter = async (config, payload, options) => {
+  if (payload.maxOutputTokens === undefined) throw new Error('A API Claude exige um limite de saída. Defina um valor nas configurações.');
   const result = await providerFetch('claude', config, 'messages', {
     model: config.model, max_tokens: payload.maxOutputTokens,
     system: [{ type: 'text', text: payload.instructions, cache_control: { type: 'ephemeral' } }],

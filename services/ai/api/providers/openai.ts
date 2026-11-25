@@ -5,7 +5,7 @@ export const generateOpenAi: ProviderAdapter = async (config, payload, options) 
     model: config.model, instructions: payload.instructions, store: payload.remoteStore,
     ...(payload.previousId ? { previous_response_id: payload.previousId } : {}),
     input: [...(payload.previousId ? [] : payload.history), { role: 'user', content: payload.prompt }],
-    max_output_tokens: payload.maxOutputTokens,
+    ...(payload.maxOutputTokens === undefined ? {} : { max_output_tokens: payload.maxOutputTokens }),
   }, options);
   if (result.status !== 'completed' || result.error) throw new Error('A resposta foi interrompida ou não foi concluída.');
   return textResult(result.output?.flatMap((item: any) => item.content || [])

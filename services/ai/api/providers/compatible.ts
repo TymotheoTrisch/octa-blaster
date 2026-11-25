@@ -6,7 +6,7 @@ export async function generateCompatible(provider: AiProvider, config: AiProvide
   const result = await providerFetch(provider, config, 'chat/completions', {
     model: config.model,
     messages: [{ role: 'system', content: payload.instructions }, ...payload.history, { role: 'user', content: payload.prompt }],
-    max_tokens: payload.maxOutputTokens, stream: false,
+    ...(payload.maxOutputTokens === undefined ? {} : { max_tokens: payload.maxOutputTokens }), stream: false,
   }, options);
   return completedChatText(result);
 }
