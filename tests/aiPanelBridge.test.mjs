@@ -104,3 +104,29 @@ test('summary source includes explicit ticket status and selected-email metadata
   header.querySelector('.label').remove();assert.equal(collectAiTicketContext(f.scope).metadata.statusDoSistema,'[FALTA INFORMAR]');
  }finally{f.restore();}
 });
+
+test('late processing reports cannot overwrite completed summary feedback',async()=>{
+ const f=setup(),trigger=createAiTrigger(f.document,'Resumir',()=>{},{opensSidebar:true});f.document.body.append(trigger.element);
+ try{
+  await openAiSidebar(f.scope,'summary_full',undefined,undefined,false,trigger.report);await f.prepared();
+  const open=f.calls.find(message=>message.action==='AI_PANEL_OPEN');
+  const report=(sequence,busy,status)=>f.respond({action:'AI_PANEL_PROGRESS',id:open.id,identity:open.identity,sequence,progress:{busy,status}});
+  await report(1,true,'Aguardando a IA…');await report(3,false,'Pronto para revisar.');await report(2,true,'Aguardando a IA…');
+  assert.equal(trigger.element.getAttribute('aria-busy'),'false');
+  assert.match(f.document.querySelector('.octa-ai-feedback').textContent,/Pronto para revisar/);
+  assert.doesNotMatch(f.document.querySelector('.octa-ai-feedback').textContent,/Processando/);
+  assert.equal((await report(-1,true,'Inválido')).success,false);
+ }finally{trigger.dispose();f.restore();}
+});
+
+test('reusing a summary button retires feedback from the previous request',async()=>{
+ const f=setup(),states=[],report=state=>states.push(state);
+ try{
+  await openAiSidebar(f.scope,'summary_full',undefined,undefined,false,report);await f.prepared();
+  await openAiSidebar(f.scope,'summary_full',undefined,undefined,false,report);
+  const [old,current]=f.calls.filter(message=>message.action==='AI_PANEL_OPEN');
+  await f.respond({action:'AI_PANEL_PROGRESS',id:current.id,identity:current.identity,sequence:1,progress:{busy:true,status:'Nova consulta'}});
+  await f.respond({action:'AI_PANEL_PROGRESS',id:old.id,identity:old.identity,sequence:9,progress:{busy:false,status:'Consulta antiga'}});
+  assert.deepEqual(states,[{busy:true,status:'Nova consulta'}]);
+ }finally{f.restore();}
+});

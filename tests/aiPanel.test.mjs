@@ -428,3 +428,21 @@ test('introducing editable prompts keeps a valid earlier default-format summary 
   await f.open();const state=await f.done();assert.match(state.status,/recuperada/);assert.equal(state.draft,'Pergunta preservada');assert.equal(f.calls.filter(m=>m.action==='AI_GENERATE').length,0);
  }finally{f.storage.restore();}
 });
+
+for (const fails of [false,true]) test(`summary trigger finishes after detaching its ticket (${fails ? 'provider error' : 'success'})`,async()=>{
+ let finish,started;
+ const pending=new Promise(resolve=>{started=resolve;});
+ const f=setup(()=>new Promise((resolve,reject)=>{finish=fails?()=>reject(new Error('Falha do provedor')):()=>resolve({text:'Resumo concluído.'});started();}));
+ try{
+  if(fails)browser.tabs.get=async()=>({...source.tab,active:false});
+  await f.open();await pending;
+  browser.tabs.get=async()=>({...source.tab,active:false});
+  // Reading the snapshot detaches the mutable session sender after generation.
+  finish();const state=await f.done();
+  assert.equal(state.detached,true);
+  const reports=f.calls.filter(message=>message.action==='AI_PANEL_PROGRESS');
+  assert.equal(reports.at(-1).progress.busy,false);
+  assert.match(fails?reports.at(-1).progress.error:reports.at(-1).progress.status,fails?/Falha do provedor/:/Pronto para revisar/);
+  assert.ok(reports.every((report,index)=>index===0||report.sequence>reports[index-1].sequence));
+ }finally{f.storage.restore();}
+});

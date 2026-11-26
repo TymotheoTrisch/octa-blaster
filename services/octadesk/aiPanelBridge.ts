@@ -8,12 +8,14 @@ import { getScopedTicketContainer, isTicketElementVisible } from './licenseDetec
 import { expandAiHistory } from './aiHistory';
 import { insertTextIntoElement } from './insertText';
 
-interface Source { scope: HTMLElement; identity: string; message?: HTMLElement; editor?: HTMLElement; draft?: string; draftToken?: string; progress?: (state: AiTriggerProgress) => void }
+interface Source { progressSequence?: number; scope: HTMLElement; identity: string; message?: HTMLElement; editor?: HTMLElement; draft?: string; draftToken?: string; progress?: (state: AiTriggerProgress) => void }
 const sources = new Map<string, Source>();
 export function showAiSidebar(scope: HTMLElement, alreadyOpened=false) { return aiMessage('AI_PANEL_SHOW', {identity:getAiTicketIdentity(scope),alreadyOpened}); }
 export function openAiSidebar(scope: HTMLElement, task: PanelTask, message?: HTMLElement, editor?: HTMLElement, alreadyOpened = false, progress?: (state: AiTriggerProgress) => void) {
   const id = crypto.randomUUID(), identity = getAiTicketIdentity(scope);
   const source: Source = { progress, scope, identity, message, editor, draft: editor?.innerHTML, draftToken: editor ? crypto.randomUUID() : undefined };
+  // A new request owns this button; late reports from its previous request must not change it.
+  if (progress) for (const previous of sources.values()) if (previous.progress === progress) previous.progress = undefined;
   sources.set(id, source); while (sources.size > 20) sources.delete(sources.keys().next().value!);
   // Deve ser a primeira operação assíncrona para preservar o gesto do botão.
   const opened = aiMessage('AI_PANEL_OPEN', { id, identity, task, alreadyOpened });
@@ -56,6 +58,11 @@ export function startAiPanelBridge(doc: Document, editors: EditorContext) {
     if (message.action === 'AI_PANEL_PROGRESS') {
       const state = message.progress;
       if (!state || typeof state.busy !== 'boolean' || typeof state.status !== 'string' || state.status.length > 500 || (state.error !== undefined && (typeof state.error !== 'string' || state.error.length > 2000))) { respond({success:false}); return true; }
+      if (message.sequence !== undefined) {
+        if (!Number.isSafeInteger(message.sequence) || message.sequence < 1) { respond({success:false}); return true; }
+        if (message.sequence <= (source.progressSequence || 0)) { respond({success:true}); return true; }
+        source.progressSequence = message.sequence;
+      }
       source.progress?.(state); respond({success:true}); return true;
     }
     if (message.action === 'AI_PANEL_SNAPSHOT') {

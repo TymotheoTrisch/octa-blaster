@@ -12,7 +12,7 @@ import type { ChatDetails } from '@/services/storage/aiChatStorage';
 
 const FULL = TICKET_SUMMARY_PROMPT;
 type AiCall = (message: any, sender: any) => Promise<any>;
-interface Session { triggerFeedback?: boolean; ticketContextKey?: string;  customTitle?: boolean;  windowId?: number; state: AiPanelState; sender: any; identity: string; task: PanelTask; snapshot?: PanelSnapshot; revision: string | null; request?: string; save: Promise<unknown>; insertions: Map<number, string>; cancelled: boolean; warning?: string; persistent?: boolean; summaryDigest?: string; summaryQuestion?: string }
+interface Session { feedbackTarget?: {tabId:number; windowId:number; frameId:number}; feedbackSequence?: number; triggerFeedback?: boolean; ticketContextKey?: string;  customTitle?: boolean;  windowId?: number; state: AiPanelState; sender: any; identity: string; task: PanelTask; snapshot?: PanelSnapshot; revision: string | null; request?: string; save: Promise<unknown>; insertions: Map<number, string>; cancelled: boolean; warning?: string; persistent?: boolean; summaryDigest?: string; summaryQuestion?: string }
 const allowed = (url: string) => { try { const value = new URL(url); return value.protocol === 'https:' && (value.hostname === 'app.octadesk.com' || value.hostname.endsWith('.octadesk.com')); } catch { return false; } };
 const deferredSidebarWindows = new Set<number>();
 export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: number, _alreadyOpened = false) => {
@@ -34,9 +34,9 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
   const pendingReveal = new Map<number, number>();
   const cache = new Map<string, { text: string; at: number }>();
   const progress = (session: Session, override?: {busy:boolean; status:string; error?:string}) => {
-    if (!session.triggerFeedback || !session.sender.tab) return;
-    const state = session.state;
-    void browser.tabs.sendMessage(session.sender.tab.id, {action:'AI_PANEL_PROGRESS',id:state.id,identity:session.identity,progress: override || {busy:state.busy || (!state.ready && !state.error && !session.cancelled),status:(state.status+(deferredSidebarWindows.has(session.sender.tab.windowId) ? ' Abra o ícone da extensão e escolha Abrir resumo na lateral.' : '')).slice(0,500),error:state.busy ? '' : state.error.slice(0,2000)}}, {frameId:session.sender.frameId ?? 0}).catch(() => {});
+    if (!session.triggerFeedback || !session.feedbackTarget) return;
+    const target = session.feedbackTarget, state = session.state;
+    void browser.tabs.sendMessage(target.tabId, {action:'AI_PANEL_PROGRESS',id:state.id,identity:session.identity,sequence:session.feedbackSequence = (session.feedbackSequence || 0) + 1,progress: override || {busy:state.busy || (!state.ready && !state.error && !session.cancelled),status:(state.status+(deferredSidebarWindows.has(target.windowId) ? ' Abra o ícone da extensão e escolha Abrir resumo na lateral.' : '')).slice(0,500),error:state.busy ? '' : state.error.slice(0,2000)}}, {frameId:target.frameId}).catch(() => {});
   };
   const changed = (windowId: number, reveal = false) => {
     void browser.runtime.sendMessage({ action: 'AI_PANEL_CHANGED', windowId, reveal }).catch(() => {});
@@ -196,7 +196,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           // Chama a API na pilha do clique; não aguarda storage, DOM ou rede antes de abrir.
           const opened = openSidebar(sender.tab.windowId, message.alreadyOpened === true);
           const old = sessions.get(sender.tab.windowId); const previousSave = old ? persist(old).catch(() => {}) : Promise.resolve(); if (old) { cancel(old); progress(old, {busy:false,status:'Consulta anterior encerrada.'}); }
-          const session: Session = { triggerFeedback:true, windowId:sender.tab.windowId, state: { id: message.id, title: 'Conversa do ticket', kind:'ticket',ticketUrl:sender.tab.url, messages: [], draft: '', busy: false, ready: false, status: 'Carregando o ticket…', error: '' }, sender, identity: message.identity, task: message.task, revision: null, save: previousSave, insertions: new Map(), cancelled: false };
+          const session: Session = { triggerFeedback:true, feedbackTarget:{tabId:sender.tab.id,windowId:sender.tab.windowId,frameId:sender.frameId ?? 0}, windowId:sender.tab.windowId, state: { id: message.id, title: 'Conversa do ticket', kind:'ticket',ticketUrl:sender.tab.url, messages: [], draft: '', busy: false, ready: false, status: 'Carregando o ticket…', error: '' }, sender, identity: message.identity, task: message.task, revision: null, save: previousSave, insertions: new Map(), cancelled: false };
           sessions.set(sender.tab.windowId, session); pendingReveal.set(sender.tab.windowId, Date.now()); changed(sender.tab.windowId, true);
           Promise.resolve(opened).then(() => { changed(sender.tab.windowId); respond({ success: true }); }, respondError);
         } catch (error) { respondError(error); }

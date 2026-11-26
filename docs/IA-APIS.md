@@ -107,7 +107,7 @@ A base local de tickets no IndexedDB guarda os dados sanitizados capturados pelo
 
 A captura não cria conversas vazias no histórico nem armazena o rascunho do editor. Chats e dados de contexto seguem a retenção configurada e ficam fora do backup de respostas rápidas. A base pertence a este perfil do navegador; não é compartilhada entre computadores. A cópia salva não acompanha mensagens recebidas enquanto o ticket está fechado.
 
-Os avisos de processamento junto dos botões de resumo só acompanham a consulta iniciada por aquele botão e terminam ao concluir ou falhar. Perguntas digitadas no chat mantêm processamento e erros somente no painel lateral, sem ativar os controles de resumo da página.
+Os avisos de processamento junto dos botões de resumo só acompanham a consulta iniciada por aquele botão e terminam ao concluir ou falhar. O destino do aviso conserva a aba e o frame de origem mesmo quando a conversa passa a usar contexto salvo. Atualizações numeradas impedem que mensagens atrasadas restaurem o processamento após a conclusão; uma nova consulta pelo mesmo botão substitui o acompanhamento anterior. Perguntas digitadas no chat mantêm processamento e erros somente no painel lateral, sem ativar os controles de resumo da página.
 
 
 ## Armazenamento e desempenho do histórico
