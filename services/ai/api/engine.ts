@@ -2,7 +2,7 @@ import type { AiSummaryInput } from '@/types/ai';
 import type { ApiStore, RemoteRef } from './state';
 import { supportsRemoteState } from './catalog';
 import { compactTicketContext } from './context';
-import { GENERAL_INSTRUCTIONS, TICKET_INSTRUCTIONS } from './instructions';
+import { GENERAL_INSTRUCTIONS, INSTRUCTIONS_VERSION, TICKET_INSTRUCTIONS } from './instructions';
 import { enqueueDeletes, expireSessions } from './retention';
 import { digest, validateInput } from './validation';
 import { generateProvider } from './providers/index';
@@ -33,7 +33,7 @@ export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now 
         const key = input.task === 'summary_latest' ? undefined : input.conversationKey;
         const previous = key ? snapshot.sessions[key] : undefined;
         const credentialId = await digest(config.apiKey);
-        const fingerprint = await digest([provider, config.model, config.baseUrl, credentialId, input.context, input.task === 'general', generation || {}]);
+        const fingerprint = await digest([INSTRUCTIONS_VERSION, provider, config.model, config.baseUrl, credentialId, input.context, input.task === 'general', generation || {}]);
         const remoteStore = !!key && supportsRemoteState(provider) && config.remoteStore;
         const reusable = ['chat', 'general'].includes(input.task) && remoteStore && previous?.fingerprint === fingerprint
           && previous.historyDigest === await digest(history) && previous.turns < 12 && previous.refs.length > 0;
