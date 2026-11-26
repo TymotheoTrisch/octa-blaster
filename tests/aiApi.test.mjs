@@ -192,3 +192,15 @@ test('NVIDIA requires data approval and keeps generic settings for an unspecifie
   const engine = createApiEngine(store, { hasPermission: permit, fetcher: async () => { calls++; return response({}); } });
   await assert.rejects(engine.generate(input, new AbortController().signal), /Confirme/); assert.equal(calls, 0);
 });
+
+test('NVIDIA receives the current editor update verbatim and drafting priorities in the system message',async()=>{
+ const {replyPrompt,defaultAiPrompts}=await import('../services/ai/promptSettings.ts');let sent;
+ const engine=createApiEngine(memoryStore(configured('nvidia')),{hasPermission:permit,fetcher:async(_url,options)=>{
+  sent=JSON.parse(options.body);return response({choices:[{finish_reason:'stop',message:{content:'Retorno simulado'}}]});
+ }});
+ const draft='Equipamentos adicionados:\n\nIp do servidor: 20.206.161.75\nPorta servidor: 11291\nPorta Push: 9956';
+ await engine.generate({task:'chat',context:'Histórico: cliente pediu seis leitores faciais em catracas.',instruction:replyPrompt(defaultAiPrompts().reply,draft,''),history:[]},new AbortController().signal);
+ assert.equal(sent.messages[0].role,'system');assert.match(sent.messages[0].content,/Preserve literalmente IPs, portas/);
+ assert.equal(sent.messages.length,2);
+ const request=JSON.parse(sent.messages[1].content);assert.ok(request.pergunta.includes(draft));assert.match(request.contexto,/Histórico:/);
+});

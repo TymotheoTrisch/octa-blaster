@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installDom,installStorage} from './helpers.mjs';
 import {defaultAiPrompts,AI_PROMPTS_KEY} from '../services/ai/promptSettings.ts';
+import {readAiMessage} from '../services/octadesk/aiTicketContext.ts';
 import {generateTicketReply} from '../services/octadesk/aiReplyGeneration.ts';
 const tick=()=>new Promise(r=>setTimeout(r,10));
 function setup(){
@@ -37,5 +38,32 @@ test('the configured reply prompt is combined with the editor direction without 
   await browser.storage.local.set({[AI_PROMPTS_KEY]:{prompts:{...defaultAiPrompts(),reply:'CUSTOM REPLY: seja direto e mantenha as informações do cliente.'},revision:'saved'}});
   const promise=f.run();await f.started();const input=f.calls.find(m=>m.action==='AI_GENERATE').input;
   assert.match(input.instruction,/CUSTOM REPLY/);assert.match(input.instruction,/Solicite confirmação/);f.finish('Confirme os dados para prosseguir.');await promise;assert.equal(f.editor.textContent,'Confirme os dados para prosseguir.');
+ }finally{f.restore();}
+});
+
+const equipmentDraft='Equipamentos adicionados:\n\nIp do servidor: 20.206.161.75\nPorta servidor: 11291\nPorta Push: 9956';
+
+test('equipment completion keeps the current draft separate from an older ticket request',async()=>{
+ const f=setup();try{
+  f.scope.querySelector('.content-comment-interaction').textContent='Cliente pediu seis leitores faciais para catraca e testes antes da substituição do sistema.';
+  f.editor.textContent=equipmentDraft;const promise=f.run();await f.started();
+  const input=f.calls.find(message=>message.action==='AI_GENERATE').input;
+  assert.ok(input.instruction.includes(equipmentDraft));assert.match(input.instruction,/Priorize a atualização/);
+  assert.match(input.context,/seis leitores/);assert.deepEqual(input.history,[]);
+  const answer='Equipamentos adicionados.\n\nIP do servidor: 20.206.161.75\nPorta do servidor: 11291\nPorta Push: 9956';
+  f.finish(answer);await promise;assert.equal(readAiMessage(f.editor),answer);
+ }finally{f.restore();}
+});
+
+for(const answer of [
+ 'Bom dia. Recebemos sua confirmação sobre leitores faciais em catraca. Confirmamos inclusão de 6 equipamentos no sistema. Fico à disposição.',
+ 'Equipamentos adicionados. IP do servidor: 20.206.161.75; Porta servidor: 11290; Porta Push: 9956',
+ 'IP: 20.206.161.750; Porta: 112910; Push: 99560',
+])test('an answer that loses or changes declared connection fields restores the original draft',async()=>{
+ const f=setup();try{
+  f.editor.textContent=equipmentDraft;const original=f.editor.innerHTML,promise=f.run();await f.started();f.finish(answer);
+  await assert.rejects(promise,/omitiu ou alterou um IP ou uma porta/);
+  assert.equal(f.editor.innerHTML,original);assert.equal(f.editor.hasAttribute('aria-busy'),false);
+  assert.equal(f.calls.filter(message=>message.action==='AI_GENERATE').length,1);
  }finally{f.restore();}
 });

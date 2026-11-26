@@ -36,3 +36,15 @@ test('retention changes preserve the fresh API connection configuration',async()
   const next=calls.find(m=>m.action==='configure').value.config;assert.deepEqual(next.providers,config.providers);assert.deepEqual(next.retention,{idleDays:7,maxDays:30});
  }finally{f.restore();}
 });
+
+test('reply drafting treats the current attendant update as facts and preserves completed actions',async()=>{
+ const {TICKET_INSTRUCTIONS,GENERAL_INSTRUCTIONS}=await import('../services/ai/api/instructions.ts');
+ assert.match(TICKET_INSTRUCTIONS,/texto atual do atendente é a fonte principal/);
+ assert.match(TICKET_INSTRUCTIONS,/ainda ausentes do histórico/);
+ assert.match(TICKET_INSTRUCTIONS,/Preserve literalmente IPs, portas/);
+ assert.match(TICKET_INSTRUCTIONS,/comunique a conclusão/);
+ assert.doesNotMatch(GENERAL_INSTRUCTIONS,/comunique a conclusão/);
+ const prompt=replyPrompt(defaultAiPrompts().reply,'Equipamentos adicionados.','Use frases curtas.');
+ assert.match(prompt,/Texto atual do atendente/);assert.match(prompt,/Equipamentos adicionados/);
+ assert.doesNotMatch(defaultAiPrompts().reply,/apenas os fatos confirmados no ticket/);
+});

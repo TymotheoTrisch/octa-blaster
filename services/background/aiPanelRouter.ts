@@ -3,7 +3,7 @@ import type { AiGenerationOptions } from '@/types/ai';
 import { createQueryTimer, combineQueryTiming, readQueryTiming, type AiQueryTiming } from '@/services/ai/queryTiming';
 import { detachTicketSession, rememberTicketSnapshot, savedTicketSnapshot } from './ai/ticketContext';
 import type { AiPanelState, PanelSnapshot, PanelTask } from '@/types/aiPanel';
-import {readAiPrompts,summaryPrompt} from '@/services/ai/promptSettings';
+import {readAiPrompts,summaryPrompt,replyPrompt} from '@/services/ai/promptSettings';
 import { TICKET_SUMMARY_PROMPT, SUMMARY_FORMAT_VERSION, summaryContextDigest } from '@/services/ai/summaryFormat';
 import { boundedChat } from '@/services/ai/summaryRequest';
 import { textDigest } from '@/services/ai/ticketChatPersistence';
@@ -248,7 +248,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
           const marker=await textDigest(summaryContextDigest(value.digest,fullPrompt));
           const legacyDefault=prompts.ticket===TICKET_SUMMARY_PROMPT && saved.chat?.contextDigest===await textDigest(`${SUMMARY_FORMAT_VERSION}:${value.digest}`);
           if (session.task === 'summary_full' && session.state.messages.length && (saved.chat?.contextDigest===marker || legacyDefault)) { session.summaryDigest=marker; session.state.status = 'Conversa recuperada; nenhuma nova consulta à IA.'; changed(windowId); session.triggerFeedback = false; return {}; }
-          const question = session.task === 'summary_full' ? fullPrompt : session.task === 'summary_latest' ? emailPrompt : `Prepare uma resposta ao cliente a partir desta orientação:\n${value.direction || ''}${value.style ? `\n\n${value.style}` : ''}`;
+          const question = session.task === 'summary_full' ? fullPrompt : session.task === 'summary_latest' ? emailPrompt : replyPrompt(prompts.reply,value.direction || '',value.style || '');
           void run(windowId, session, question, session.task === 'summary_full' ? 'summary_full' : session.task === 'summary_latest' ? 'summary_latest' : 'chat', session.task !== 'reply', session.task === 'summary_latest' ? value.selection : undefined);
           return {};
         }

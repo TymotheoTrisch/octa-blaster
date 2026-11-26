@@ -3,7 +3,7 @@ export const AI_PROMPTS_KEY='octablaster_ai_prompts';
 export type PromptKind='ticket'|'email'|'reply';
 export type AiPrompts=Record<PromptKind,string>;
 export const PROMPT_LIMITS:Record<PromptKind,number>={ticket:3000,email:3000,reply:1600};
-export const defaultAiPrompts=():AiPrompts=>({ticket:TICKET_SUMMARY_PROMPT,email:EMAIL_SUMMARY_PROMPT,reply:'Redija somente o corpo da resposta ao cliente. Siga a orientação digitada abaixo e utilize apenas os fatos confirmados no ticket. Seja claro e cordial. Não invente informações nem escreva assinatura de pessoa, equipe ou empresa.'});
+export const defaultAiPrompts=():AiPrompts=>({ticket:TICKET_SUMMARY_PROMPT,email:EMAIL_SUMMARY_PROMPT,reply:'Redija somente o corpo da resposta ao cliente. Priorize o texto atual do atendente e use o histórico apenas para dar continuidade ao atendimento. Seja claro e cordial. Não invente informações nem escreva assinatura de pessoa, equipe ou empresa.'});
 export function validateAiPrompts(value:unknown):AiPrompts{
  if(!value||typeof value!=='object')throw new Error('Instruções inválidas.');
  const result=defaultAiPrompts();
@@ -23,7 +23,7 @@ export function saveAiPrompts(value:unknown,revision:unknown){
 }
 export const summaryPrompt=(kind:'ticket'|'email',text:string)=>text===defaultAiPrompts()[kind]?text:`${kind==='ticket'?'Resumir o ticket.':'Resumir esta mensagem de e-mail.'}\n\nInstruções:\n${text}`;
 export function replyPrompt(text:string,direction:string,style:string){
- const base=`Redija somente o corpo de uma resposta ao cliente para revisão.\n\nInstruções:\n${text}\n\nOrientação digitada pelo atendente:\n${direction.slice(0,2000)}`;
+ const base=`Redija somente o corpo da resposta ao cliente. Priorize a atualização abaixo; preserve seus dados técnicos e o estado das ações. Histórico é referência, não substitui o rascunho.\n\nInstruções de redação:\n${text}\n\nTexto atual do atendente (orientação e novos fatos):\n${direction.slice(0,2000)}`;
  const prefix='\n\nEstilo e preferências:\n';const available=Math.max(0,4000-base.length-prefix.length);
  return base+(style&&available?prefix+style.slice(0,available):'');
 }

@@ -3,6 +3,7 @@ import type { AiTriggerProgress } from '@/types/aiPanel';
 import { createSummaryRequest } from '@/services/ai/summaryRequest';
 import { createTicketChatPersistence } from '@/services/ai/ticketChatPersistence';
 import { writingGuidance, writingIdentity, readWritingPreferences, applyWritingPreferences } from '@/services/ai/writingMemory';
+import { assertReplyFactsPreserved } from '@/services/ai/replyFacts';
 import { withoutGeneratedSignature } from '@/services/ai/replySignature';
 import { collectAiTicketContext, getAiTicketIdentity, readAiMessage } from './aiTicketContext';
 import { getScopedTicketContainer, isTicketElementVisible } from './licenseDetector';
@@ -50,6 +51,7 @@ export async function generateTicketReply(editor: HTMLElement, report: (state: A
     if(!empty(editor)){cancel();return;}
     const text=applyWritingPreferences(withoutGeneratedSignature(answer || '').text,preferences);
     if(!text.trim())throw new Error('A IA não retornou uma resposta utilizável.');
+    assertReplyFactsPreserved(instruction,text);
     editor.removeEventListener('input',input);
     if(!replace(editor,text))throw new Error('Não foi possível inserir a resposta no campo.');
     report({busy:false,status:'Resposta gerada no editor. Revise antes de enviar.',timing:combineQueryTiming(measurement.snapshot(),request.queryTiming())});

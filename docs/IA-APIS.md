@@ -107,6 +107,8 @@ A base local de tickets no IndexedDB guarda os dados sanitizados capturados pelo
 
 A captura não cria conversas vazias no histórico nem armazena o rascunho do editor. Chats e dados de contexto seguem a retenção configurada e ficam fora do backup de respostas rápidas. A base pertence a este perfil do navegador; não é compartilhada entre computadores. A cópia salva não acompanha mensagens recebidas enquanto o ticket está fechado.
 
+A sugestão no editor prioriza o texto atual do atendente, inclusive fatos novos e ações concluídas, e usa o histórico apenas como referência para a continuidade. Instruções e aprendizado de estilo não devem alterar esses fatos. Campos explícitos de IP e porta, escritos em linhas como `IP do servidor: ...` e `Porta Push: ...`, são conferidos localmente antes da substituição. Se a resposta omitir ou alterar um desses valores, o rascunho original é restaurado com erro, sem repetir a consulta automaticamente. Essa conferência não valida toda a semântica da resposta nem substitui a revisão pelo atendente.
+
 Os avisos de processamento junto dos botões de resumo só acompanham a consulta iniciada por aquele botão e terminam ao concluir ou falhar. O destino do aviso conserva a aba e o frame de origem mesmo quando a conversa passa a usar contexto salvo. Atualizações numeradas impedem que mensagens atrasadas restaurem o processamento após a conclusão; uma nova consulta pelo mesmo botão substitui o acompanhamento anterior. Perguntas digitadas no chat mantêm processamento e erros somente no painel lateral, sem ativar os controles de resumo da página.
 
 
