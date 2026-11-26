@@ -1,7 +1,6 @@
 import type { AiConfig, AiRetention } from '@/types/ai';
 import type { ApiState } from './state';
 import { PROVIDERS, apiOrigin, supportsRemoteState, validateBaseUrl } from './catalog';
-import { validateOutputLimit } from './outputLimits';
 
 export function validateRetention(value: AiRetention): AiRetention {
   if (!value || !Number.isInteger(value.idleDays) || !Number.isInteger(value.maxDays)
@@ -14,7 +13,7 @@ export function publicConfiguration(state: ApiState): AiConfig {
   return {
     provider: state.config.provider, retention: state.config.retention, historyNamespace: 'local', revision: state.revision,
     providers: Object.fromEntries(PROVIDERS.map(({ id }) => {
-      const { apiKey, ...value } = state.config.providers[id];
+      const { apiKey, maxOutputTokens: _legacyLimit, ...value } = state.config.providers[id] as typeof state.config.providers[typeof id] & { maxOutputTokens?: unknown };
       return [id, { ...value, hasKey: !!apiKey }];
     })) as AiConfig['providers'],
     pendingDeletes: state.pendingDeletes.length, storedTickets: Object.keys(state.sessions).length,
@@ -33,9 +32,7 @@ export async function updateConfiguration(state: ApiState, input: AiConfig,
     const apiKey = value.removeKey ? '' : value.apiKey || (providers[id].baseUrl !== baseUrl ? '' : providers[id].apiKey || '');
     if (id === input.provider && apiKey && (!value.model || !baseUrl)) throw new Error('Informe a URL base e o modelo.');
     if (id === input.provider && apiKey && baseUrl && !await hasPermission(apiOrigin(baseUrl))) throw new Error('Autorize o acesso ao endereço da API antes de salvar.');
-    const maxOutputTokens = validateOutputLimit(id, value.maxOutputTokens);
-    providers[id] = { model: value.model, baseUrl, apiKey, remoteStore: supportsRemoteState(id) && value.remoteStore === true, approvedData: value.approvedData === true,
-      ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }) };
+    providers[id] = { model: value.model, baseUrl, apiKey, remoteStore: supportsRemoteState(id) && value.remoteStore === true, approvedData: value.approvedData === true };
   }
   return { ...state, revision: crypto.randomUUID(), config: {
     provider: input.provider, providers, retention: validateRetention(input.retention),

@@ -10,6 +10,8 @@ import { ProviderError, type HttpOptions } from './transport';
 import { boundedChat } from '../summaryRequest';
 import { createQueryTimer, timingClock } from '../queryTiming';
 import { resolveOutputLimit } from './outputLimits';
+import { parseRequestOptions } from '../requestOptions';
+import { reasoningFields } from './reasoning';
 
 export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now = Date.now, clock = timingClock) {
   let queue: Promise<unknown> = Promise.resolve();
@@ -22,12 +24,16 @@ export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now 
         if (signal.aborted) throw new Error('Solicitação cancelada.');
         const snapshot = await store.update(state => expireSessions(state, now()));
         const { provider, providers } = snapshot.config, config = providers[provider];
+        if (input.configRevision !== undefined && input.configRevision !== snapshot.revision) throw new Error('A conexão mudou. Reabra o chat para atualizar as opções antes de enviar.');
+        const generation = parseRequestOptions(input.generation) || { maxOutputTokens: provider === 'claude' ? 8192 : null };
+        const maxOutputTokens = resolveOutputLimit(provider, generation?.maxOutputTokens, input.task);
+        reasoningFields(provider, config.model, generation?.reasoning, maxOutputTokens);
         if (!config.apiKey || !config.model || !config.baseUrl) throw new Error('Configure o endereço, modelo e chave em Inteligência artificial → Conexões de API.');
         if (provider === 'nvidia' && !config.approvedData) throw new Error('Confirme nas configurações que seu endpoint NVIDIA permite os dados de atendimento.');
         const key = input.task === 'summary_latest' ? undefined : input.conversationKey;
         const previous = key ? snapshot.sessions[key] : undefined;
         const credentialId = await digest(config.apiKey);
-        const fingerprint = await digest([provider, config.model, config.baseUrl, credentialId, input.context, input.task === 'general']);
+        const fingerprint = await digest([provider, config.model, config.baseUrl, credentialId, input.context, input.task === 'general', generation || {}]);
         const remoteStore = !!key && supportsRemoteState(provider) && config.remoteStore;
         const reusable = ['chat', 'general'].includes(input.task) && remoteStore && previous?.fingerprint === fingerprint
           && previous.historyDigest === await digest(history) && previous.turns < 12 && previous.refs.length > 0;
@@ -45,7 +51,7 @@ export function createApiEngine(store: ApiStore, options: HttpOptions = {}, now 
             instructions: input.task === 'general' ? GENERAL_INSTRUCTIONS : TICKET_INSTRUCTIONS,
             prompt: JSON.stringify({ ...(previousId ? {} : { contexto: context }), pergunta: input.instruction }),
             history: previousId ? [] : history, previousId, remoteStore,
-            maxOutputTokens: resolveOutputLimit(provider, config.maxOutputTokens, input.task),
+            maxOutputTokens, reasoning: generation?.reasoning,
           }, { ...options, signal });
         } catch (error) {
           timer.phase('finalizationMs');

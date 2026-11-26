@@ -7,7 +7,11 @@ import { aiMessage } from '@/services/ai/messageClient';
 import { useAiHistory } from '@/composables/useAiHistory';
 import { createDraftWriter } from '@/services/ai/draftWriter';
 import AiQueryTiming from './AiQueryTiming.vue';
+import AiChatComposer from './AiChatComposer.vue';
+import { useAiRequestOptions } from '@/composables/useAiRequestOptions';
 const emit = defineEmits<{ back: [] }>();
+const requestOptions=useAiRequestOptions();
+const {options:generationOptions,provider:requestProvider,model:requestModel,loading:requestLoading,validation:requestValidation}=requestOptions;
 const showHistory=ref(false),historyBusy=ref(false),olderBusy=ref(false);
 const history=useAiHistory(error=>{feedback.value=error;});
 const {chats,search,busy:historyLoading,error:historyError,nextCursor,refresh:refreshHistory,more:moreHistory}=history;
@@ -29,7 +33,7 @@ const renaming=ref(false),titleDraft=ref(''),titleInput=ref<HTMLInputElement|nul
 async function startRename(){if(!state.value)return;titleDraft.value=state.value.title;renaming.value=true;await nextTick();titleInput.value?.focus();titleInput.value?.select();}
 async function rename(){if(!state.value)return;try{await aiMessage('AI_PANEL_RENAME',{windowId,id:state.value.id,title:titleDraft.value});renaming.value=false;await refresh();}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível renomear.';}}
 const state = ref<AiPanelState | null>(null), draft = ref(''), feedback = ref(''), seconds = ref(0);
-const log = ref<HTMLElement | null>(null), composer = ref<HTMLTextAreaElement | null>(null), editIndex = ref<number | undefined>();
+const log = ref<HTMLElement | null>(null), composer = ref<InstanceType<typeof AiChatComposer> | null>(null), editIndex = ref<number | undefined>();
 function visibleText(text:string) { if(text===EMAIL_SUMMARY_PROMPT||text.startsWith('Resumir esta mensagem de e-mail.\n\nInstruções:\n'))return 'Resuma esta mensagem de e-mail.';if(text===TICKET_SUMMARY_PROMPT||text.startsWith('Resumir o ticket.\n\nInstruções:\n'))return 'Resuma o ticket com objetivo, status e pendências.'; return text.startsWith('Prepare uma resposta ao cliente a partir desta orientação:') ? text.split('\n\nPadrões de escrita observados')[0] : text; }
 function edit(index:number) { editIndex.value=index; draft.value=visibleText(state.value!.messages[index]!.content) || ''; composer.value?.focus(); }
 let refreshSequence=0;
@@ -46,10 +50,11 @@ function syncTicket(enter=false):Promise<void>{
 const notify=(message:any)=>{if(message.windowId!==windowId)return;if(message.action==='AI_PANEL_CHANGED'){void refresh();if(showHistory.value)void refreshHistory();}};
 async function ask(){
  if(!state.value||!draft.value.trim()||state.value.busy)return;
+ let options;try{options=requestOptions.snapshot();}catch(error){feedback.value=error instanceof Error?error.message:'Opções inválidas.';return;}
  if(!await saveDraft())return;
  const key=state.value.conversationKey || state.value.id,text=draft.value;await syncTicket();
  if((state.value?.conversationKey || state.value?.id)!==key){feedback.value='O ticket mudou. Revise sua pergunta na conversa deste atendimento.';return;}
- try{await aiMessage('AI_PANEL_SEND',{windowId,id:state.value!.id,text,editIndex:editIndex.value});draft.value='';editIndex.value=undefined;feedback.value='';}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível enviar.';}
+ try{await aiMessage('AI_PANEL_SEND',{windowId,id:state.value!.id,text,editIndex:editIndex.value,...options});draft.value='';editIndex.value=undefined;feedback.value='';}catch(error){feedback.value=error instanceof Error?error.message:'Não foi possível enviar.';}
 }
 async function insert(index: number) { try { await aiMessage('AI_PANEL_INSERT', { windowId, id: state.value?.id, index }); feedback.value = 'Texto inserido no ticket. Revise antes de enviar.'; } catch (error) { feedback.value = error instanceof Error ? error.message : 'Não foi possível inserir.'; } }
 async function copy(text: string) { try { await navigator.clipboard.writeText(text); feedback.value = 'Copiado.'; } catch { feedback.value = 'Não foi possível copiar.'; } }
@@ -69,7 +74,7 @@ async function loadOlder(){
  finally{olderBusy.value=false;}
 }
 const leave=()=>{void saveDraft();};
-onMounted(async () => { windowId = (await browser.windows.getCurrent()).id!; browser.runtime.onMessage.addListener(notify);window.addEventListener('pagehide',leave); await syncTicket(true);await nextTick();composer.value?.focus(); timer = setInterval(() => { seconds.value = started ? Math.floor((Date.now() - started) / 1000) : 0; }, 1000); });
+onMounted(async () => { windowId = (await browser.windows.getCurrent()).id!; browser.runtime.onMessage.addListener(notify);window.addEventListener('pagehide',leave); await Promise.all([syncTicket(true),requestOptions.refresh()]);await nextTick();composer.value?.focus(); timer = setInterval(() => { seconds.value = started ? Math.floor((Date.now() - started) / 1000) : 0; }, 1000); });
 onUnmounted(() => {void saveDraft();history.dispose();window.removeEventListener('pagehide',leave); clearInterval(timer); browser.runtime.onMessage.removeListener(notify); });
 </script>
 <template>
@@ -90,7 +95,7 @@ onUnmounted(() => {void saveDraft();history.dispose();window.removeEventListener
     <p v-if="state?.error" role="alert" class="ai-panel-error">{{ state.error }}</p>
     <p class="ai-panel-feedback" role="status">{{ feedback || (!state?.busy ? state?.status : '') }}</p>
     <AiQueryTiming v-if="!state?.busy && state?.timing" :timing="state.timing" :cached="state.cached" />
-    <form @submit.prevent="ask"><textarea ref="composer" v-model="draft" aria-label="Mensagem para a IA" placeholder="Escreva sua mensagem…" maxlength="4000" :disabled="contextBusy || historyBusy || !state?.ready || state.busy" @input="queueDraft" @keydown.enter.exact.prevent="ask"></textarea><button type="submit" aria-label="Enviar pergunta" :disabled="contextBusy || historyBusy || !draft.trim() || !state?.ready || state.busy"><Send :size="16" /></button></form>
+    <AiChatComposer ref="composer" v-model="draft" v-model:options="generationOptions" :provider="requestProvider" :model="requestModel" :loading="requestLoading" :validation="requestValidation" :disabled="contextBusy || historyBusy || !state?.ready || state.busy" @input="queueDraft" @submit="ask" />
    </div>
    <template v-if="showHistory">
     <div class="ai-history-backdrop" aria-hidden="true" @click="showHistory=false"></div>
@@ -108,7 +113,7 @@ onUnmounted(() => {void saveDraft();history.dispose();window.removeEventListener
   </section>
 </template>
 <style scoped>
-.ai-panel{position:relative;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0;color:var(--text-primary);background:var(--bg-primary)}header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg-secondary)}.ai-panel-heading{flex:1;min-width:0;margin-left:6px}header strong{font-size:13px}header p{font-size:11px;margin:5px 0 0;color:var(--text-secondary);overflow-wrap:anywhere}button{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--text-secondary);cursor:pointer;font:11px system-ui;padding:6px;border-radius:5px}button:hover{background:var(--bg-hover)}button:disabled{opacity:.45;cursor:default}.ai-panel-log{overflow:auto;flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:12px}article{flex-shrink:0;padding:12px;border:1px solid var(--border);border-radius:9px;background:var(--bg-surface)}article[data-role=user]{background:var(--accent-soft);border-color:var(--accent-border);margin-left:15px}article>strong{font-size:10px;color:var(--text-muted)}.ai-panel-text{-webkit-user-select:text;user-select:text;cursor:text;font:12px/1.65 system-ui;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px}.ai-summary-heading{font-weight:650;color:var(--text-primary)}.ai-panel-actions{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.ai-panel-hint{font:12px/1.6 system-ui;color:var(--text-secondary)}.ai-panel-feedback{font:11px/1.5 system-ui;color:var(--text-muted);padding:0 12px;white-space:pre-wrap}.ai-panel-error{font:12px/1.5 system-ui;padding:8px 12px;color:var(--text-primary);background:var(--bg-secondary)}form{display:flex;gap:6px;padding:12px;border-top:1px solid var(--border)}textarea{box-sizing:border-box;flex:1;min-width:0;min-height:68px;max-height:160px;resize:vertical;padding:9px;border:1px solid var(--border);border-radius:8px;color:var(--text-primary);background:var(--bg-input);font:12px/1.5 system-ui}textarea:focus{outline:2px solid var(--accent-ring);border-color:var(--accent-border)}form button{align-self:flex-end;background:var(--accent);color:var(--accent-text);padding:10px}.spin{animation:rotate 1s linear infinite}@keyframes rotate{to{transform:rotate(360deg)}}
+.ai-panel{position:relative;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0;color:var(--text-primary);background:var(--bg-primary)}header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg-secondary)}.ai-panel-heading{flex:1;min-width:0;margin-left:6px}header strong{font-size:13px}header p{font-size:11px;margin:5px 0 0;color:var(--text-secondary);overflow-wrap:anywhere}button{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--text-secondary);cursor:pointer;font:11px system-ui;padding:6px;border-radius:5px}button:hover{background:var(--bg-hover)}button:disabled{opacity:.45;cursor:default}.ai-panel-log{overflow:auto;flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:12px}article{flex-shrink:0;padding:12px;border:1px solid var(--border);border-radius:9px;background:var(--bg-surface)}article[data-role=user]{background:var(--accent-soft);border-color:var(--accent-border);margin-left:15px}article>strong{font-size:10px;color:var(--text-muted)}.ai-panel-text{-webkit-user-select:text;user-select:text;cursor:text;font:12px/1.65 system-ui;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px}.ai-summary-heading{font-weight:650;color:var(--text-primary)}.ai-panel-actions{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.ai-panel-hint{font:12px/1.6 system-ui;color:var(--text-secondary)}.ai-panel-feedback{font:11px/1.5 system-ui;color:var(--text-muted);padding:0 12px;white-space:pre-wrap}.ai-panel-error{font:12px/1.5 system-ui;padding:8px 12px;color:var(--text-primary);background:var(--bg-secondary)}.spin{animation:rotate 1s linear infinite}@keyframes rotate{to{transform:rotate(360deg)}}
 .ai-conversation{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
 .ai-history-backdrop{position:absolute;inset:0;z-index:2;background:var(--backdrop-bg);touch-action:none}
 .ai-chat-history{position:absolute;inset:0 auto 0 0;z-index:3;box-sizing:border-box;display:flex;flex-direction:column;width:min(280px,calc(100% - 44px));padding:12px;gap:10px;border-right:1px solid var(--border);background:var(--bg-secondary);box-shadow:var(--shadow-popover);animation:history-in .16s ease-out}

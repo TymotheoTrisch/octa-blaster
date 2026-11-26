@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { PROVIDERS, supportsRemoteState } from '@/services/ai/api/catalog';
 import { useAiApiSettings } from '@/composables/useAiApiSettings';
-import AiOutputLimit from './AiOutputLimit.vue';
 const { config, key, busy, feedback, selected, save } = useAiApiSettings();
 </script>
 <template>
@@ -17,7 +16,6 @@ const { config, key, busy, feedback, selected, save } = useAiApiSettings();
       <div class="ai-field"><label for="ai-base-url">URL base da API</label><input id="ai-base-url" v-model="selected.baseUrl" type="url" placeholder="https://api.exemplo.com/v1" maxlength="500" :disabled="busy"></div>
       <p class="ai-help">Informe a base, sem o caminho final da geração. Ao salvar, autorize o acesso a esse endereço.</p>
       <div class="ai-field"><label for="ai-provider-model">Modelo</label><input id="ai-provider-model" v-model="selected.model" type="text" maxlength="160" :disabled="busy"></div>
-      <AiOutputLimit :connection="selected" :provider="config.provider" :disabled="busy" />
       <div class="ai-field"><label for="ai-provider-key">Chave de API</label><input id="ai-provider-key" v-model="key" type="password" autocomplete="off" :placeholder="selected.hasKey ? 'Salva — deixe vazio para manter' : 'Informe sua chave'" maxlength="4096" :disabled="busy"></div>
       <p class="ai-help">Salva apenas neste perfil do navegador, fora dos backups. Trocar a URL exige informar a chave novamente.</p>
       <button v-if="selected.hasKey" type="button" class="ai-inline-button" :disabled="busy" @click="save(true)">Remover chave</button>

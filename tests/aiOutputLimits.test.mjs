@@ -30,43 +30,38 @@ test('legacy task limits remain intact while custom and provider-default limits 
  assert.throws(()=>resolveOutputLimit('claude',null,'chat'),/Claude exige/);
 });
 
-test('connection settings validate and isolate output limits without exposing or replacing saved keys',async()=>{
+test('connection settings discard obsolete token limits without exposing or replacing saved keys',async()=>{
  const state=seed(),config=publicConfiguration(state);
  config.providers.nvidia.maxOutputTokens=null;config.providers.openai.maxOutputTokens=8192;
  const saved=await updateConfiguration(state,config,permit),publicValue=publicConfiguration(saved);
- assert.equal(saved.config.providers.nvidia.maxOutputTokens,null);
+ assert.equal(saved.config.providers.nvidia.maxOutputTokens,undefined);
  assert.equal(saved.config.providers.nvidia.apiKey,'SECRET_TEST_KEY');
- assert.equal(publicValue.providers.openai.maxOutputTokens,8192);
+ assert.equal(publicValue.providers.openai.maxOutputTokens,undefined);
  assert.equal(publicValue.providers.gemini.maxOutputTokens,undefined);
  assert.ok(!JSON.stringify(publicValue).includes('SECRET_TEST_KEY'));
- for(const value of [0,'8192',-1,1.5]){
-  const changed=publicConfiguration(saved);changed.providers.nvidia.maxOutputTokens=value;
-  await assert.rejects(updateConfiguration(saved,changed,permit),/limite inteiro/);
- }
- const changed=publicConfiguration(saved);changed.providers.claude.maxOutputTokens=null;
- await assert.rejects(updateConfiguration(saved,changed,permit),/Claude exige/);
+ const legacy=seed('nvidia',8192);assert.equal(publicConfiguration(legacy).providers.nvidia.maxOutputTokens,undefined);
 });
 
-test('custom token limits and provider-default mode survive closing and recreating the API client',async()=>{
+test('request token preferences are not persisted as connection configuration',async()=>{
  const storage=installStorage();try{
   const client=createApiClient(createApiStore(),{hasPermission:permit});let config=await client.call('config');
   config.provider='nvidia';Object.assign(config.providers.nvidia,{model:'test-model',apiKey:'SECRET_TEST_KEY',approvedData:true,maxOutputTokens:8192});
   await client.call('configure',{config});
   const next=createApiClient(createApiStore(),{hasPermission:permit});config=await next.call('config');
-  assert.equal(config.providers.nvidia.maxOutputTokens,8192);config.providers.nvidia.maxOutputTokens=null;
+  assert.equal(config.providers.nvidia.maxOutputTokens,undefined);config.providers.nvidia.maxOutputTokens=null;
   await next.call('configure',{config});
-  assert.equal((await createApiClient(createApiStore(),{hasPermission:permit}).call('config')).providers.nvidia.maxOutputTokens,null);
+  assert.equal((await createApiClient(createApiStore(),{hasPermission:permit}).call('config')).providers.nvidia.maxOutputTokens,undefined);
  }finally{storage.restore();}
 });
 
-test('every provider uses the configured limit across summaries, questions and suggestions with one call each',async()=>{
+test('every provider uses the request limit across summaries, questions and suggestions with one call each',async()=>{
  for(const provider of ['openai','gemini','claude','nvidia','compatible']){
   let calls=0;const engine=createApiEngine(memory(seed(provider,8192)),{hasPermission:permit,fetcher:async(_url,request)=>{
    calls++;const body=JSON.parse(request.body);assert.equal(tokenValue(provider,body),8192);
    assert.equal(body.enable_thinking,undefined);assert.equal(body.chat_template_kwargs,undefined);
    return new Response(JSON.stringify(responseFor(provider)));
   }});
-  for(const task of ['summary_latest','summary_full','chat','general'])assert.equal((await engine.generate(input(task),new AbortController().signal)).text,'Ok');
+  for(const task of ['summary_latest','summary_full','chat','general'])assert.equal((await engine.generate({...input(task),generation:{maxOutputTokens:8192}},new AbortController().signal)).text,'Ok');
   assert.equal(calls,4);
  }
 });
@@ -81,5 +76,5 @@ test('provider-default mode omits the token cap entirely instead of sending null
   await engine.generate(input('chat'),new AbortController().signal);assert.equal(calls,1);
  }
  let calls=0;const engine=createApiEngine(memory(seed('claude',null)),{hasPermission:permit,fetcher:async()=>{calls++;throw new Error('Must not call');}});
- await assert.rejects(engine.generate(input('chat'),new AbortController().signal),/Claude exige/);assert.equal(calls,0);
+ await assert.rejects(engine.generate({...input('chat'),generation:{maxOutputTokens:null}},new AbortController().signal),/Claude exige/);assert.equal(calls,0);
 });

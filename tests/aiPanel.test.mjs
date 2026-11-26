@@ -8,6 +8,19 @@ import { createTicketChatStore } from '../services/storage/aiChatStorage.ts';
 import { installStorage } from './helpers.mjs';
 const source = { id: 'extension', tab: { id: 1, windowId: 9, active: true, url: 'https://app.octadesk.com/ticket/edit/1' }, frameId: 2, url: 'https://app.octadesk.com/embed/main/home/ticket/edit/1' };
 
+test('chat request options are captured per send and never become conversation or connection preferences',async()=>{
+ const f=setup();try{
+  await f.call({action:'AI_PANEL_ENTER',windowId:9});let state=await f.get();
+  const options={maxOutputTokens:8192,reasoning:'off'};
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Primeira pergunta',generation:options,configRevision:'revision-test'});options.reasoning='high';state=await f.done();
+  const first=f.calls.find(message=>message.action==='AI_GENERATE');assert.deepEqual(first.input.generation,{maxOutputTokens:8192,reasoning:'off'});assert.equal(first.input.configRevision,'revision-test');
+  const saved=(await f.store.handle('AI_CHAT_LOAD',state.conversationKey)).chat;assert.equal(JSON.stringify(saved).includes('maxOutputTokens'),false);
+  await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Segunda pergunta'});await f.done();
+  assert.equal(f.calls.filter(message=>message.action==='AI_GENERATE').at(-1).input.generation,undefined);
+  assert.equal((await f.call({action:'AI_PANEL_SEND',windowId:9,id:state.id,text:'Inválida',generation:{apiKey:'bad'}})).success,false);
+ }finally{f.storage.restore();}
+});
+
 test('query timings belong only to the latest attempt, clear while waiting and are excluded from saved chats',async()=>{
  let calls=0,reject;
  const timing={queueMs:1,preparationMs:1,apiMs:1,finalizationMs:1,totalMs:4};

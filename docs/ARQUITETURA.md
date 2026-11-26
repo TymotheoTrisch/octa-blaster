@@ -116,3 +116,8 @@ A configuração e os contratos dos módulos de API estão documentados em [IA p
 ### Contexto independente da aba ativa
 
 `aiTicketStore.ts` mantém os metadados do ticket separados do histórico no mesmo IndexedDB, compartilhando textos de contexto pelo hash e contagem de referências. A migração remove cada original de storage.local somente após o commit; o orçamento global é de 50 MB estimados. A limpeza usa índices/lotes de 100 e alarme horário do navegador. `aiRetention.ts` aplica a retenção a ambos. `ai/ticketContext.ts` resolve o contexto da fonte original ou dos dados locais usando a chave vinculada à conversa. Os botões de resumo são a única origem de associação com uma página; o ícone e Nova conversa não leem a aba ativa. A interface é única e não expõe modos separados. A extração automática de números e o registro periódico de tickets da página foram removidos.
+
+
+### Controles de geração por solicitação
+
+`AiChatComposer.vue` reúne texto, menus de tokens/raciocínio e envio em tema claro. `useAiRequestOptions.ts` guarda escolhas efêmeras e captura opções/revisão para o próximo envio. A configuração da conexão não contém mais tokens. `requestOptions.ts` valida a mensagem pública e `api/reasoning.ts` traduz somente escolhas compatíveis, sem desligamento automático por nome. O motor verifica a revisão ativa, separa teto de saída e orçamento de raciocínio e inclui a política no fingerprint remoto. Parâmetros não são gravados nos chats e não alteram o contexto vinculado ao ticket.

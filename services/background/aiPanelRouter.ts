@@ -1,3 +1,5 @@
+import { parseRequestOptions } from '@/services/ai/requestOptions';
+import type { AiGenerationOptions } from '@/types/ai';
 import { createQueryTimer, combineQueryTiming, readQueryTiming, type AiQueryTiming } from '@/services/ai/queryTiming';
 import { detachTicketSession, rememberTicketSnapshot, savedTicketSnapshot } from './ai/ticketContext';
 import type { AiPanelState, PanelSnapshot, PanelTask } from '@/types/aiPanel';
@@ -105,7 +107,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
     if(old){cancel(old);if(old.state.busy)progress(old,{busy:false,status:'Consulta encerrada ao trocar de ticket.'});}
     sessions.set(windowId,restored);await persist(restored);changed(windowId);return restored;
   }
-  async function run(windowId: number, session: Session, question: string, task: 'summary_full' | 'summary_latest' | 'chat', useCache: boolean, source?: string, editIndex?: number) {
+  async function run(windowId: number, session: Session, question: string, task: 'summary_full' | 'summary_latest' | 'chat', useCache: boolean, source?: string, editIndex?: number, generation?: AiGenerationOptions, configRevision?: string) {
     if (!active(windowId, session)) return;
     const timer = createQueryTimer(); let innerTiming: AiQueryTiming | undefined;
     session.state.timing = undefined; session.state.queryMs = undefined;
@@ -139,7 +141,7 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
       if (!text) {
         session.state.status = 'Aguardando a IA…'; session.request = crypto.randomUUID(); changed(windowId);
         timer.phase('apiMs');
-        const result = await callAi({ action: 'AI_GENERATE', requestId: session.request, input: { task:session.state.kind==='general'?'general':task, context, instruction: question, history: before, conversationKey: task === 'summary_latest' ? undefined : fresh.key, memoryNamespace: fresh.namespace } }, session.sender);
+        const result = await callAi({ action: 'AI_GENERATE', requestId: session.request, input: { task:session.state.kind==='general'?'general':task, context, instruction: question, history: before, conversationKey: task === 'summary_latest' ? undefined : fresh.key, memoryNamespace: fresh.namespace, generation, configRevision } }, session.sender);
         innerTiming = readQueryTiming(result); timer.phase('finalizationMs'); text = result.text;
         if (!active(windowId, session)) return;
         if (useCache) { cache.set(cacheKey, { text, at: Date.now() }); while (cache.size > 20) cache.delete(cache.keys().next().value!); }
@@ -272,7 +274,9 @@ export function createAiPanelRouter(callAi: AiCall, openSidebar = (windowId: num
         if (message.action === 'AI_PANEL_SEND') {
           if (session.state.busy || !session.state.ready || typeof message.text !== 'string' || !message.text.trim() || message.text.length > 4000) throw new Error('Aguarde ou escreva uma pergunta.');
           if (message.editIndex !== undefined && (!Number.isInteger(message.editIndex) || session.state.messages[message.editIndex]?.role !== 'user')) throw new Error('Pergunta inválida para edição.');
-          session.state.draft = message.text; void run(windowId, session, message.text.trim(), 'chat', false, undefined, message.editIndex); return {};
+          const generation = parseRequestOptions(message.generation);
+          if(message.configRevision !== undefined && (typeof message.configRevision !== 'string' || message.configRevision.length > 100))throw new Error('Revisão da conexão inválida.');
+          session.state.draft = message.text; void run(windowId, session, message.text.trim(), 'chat', false, undefined, message.editIndex, generation, message.configRevision); return {};
         }
         if (message.action === 'AI_PANEL_INSERT') {
           if(session.state.detached)throw new Error('Abra o resumo pelo ticket para inserir no editor correto.');
